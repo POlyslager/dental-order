@@ -90,15 +90,23 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
 
   const categories = ['all', ...Array.from(new Set(products.map(p => p.category))).sort()]
 
-  const filtered = products.filter(p => {
-    const matchesSearch =
-      p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.category.toLowerCase().includes(search.toLowerCase()) ||
-      (p.article_number?.toLowerCase().includes(search.toLowerCase()) ?? false)
-    const matchesCategory = selectedCategory === 'all' || p.category === selectedCategory
-    const matchesFilter = filter === 'all' ? true : filter === 'low' ? isLowStock(p) : isExpired(p)
-    return matchesSearch && matchesCategory && matchesFilter
-  })
+  const filtered = products
+    .filter(p => {
+      const matchesSearch =
+        p.name.toLowerCase().includes(search.toLowerCase()) ||
+        p.category.toLowerCase().includes(search.toLowerCase()) ||
+        (p.article_number?.toLowerCase().includes(search.toLowerCase()) ?? false)
+      const matchesCategory = selectedCategory === 'all' || p.category === selectedCategory
+      const matchesFilter = filter === 'all' ? true : filter === 'low' ? isLowStock(p) : isExpired(p)
+      return matchesSearch && matchesCategory && matchesFilter
+    })
+    .sort((a, b) => {
+      const priority = (p: Product) => isExpired(p) ? 0 : isLowStock(p) ? 1 : 2
+      const pa = priority(a), pb = priority(b)
+      if (pa !== pb) return pa - pb
+      // Within same priority: least stock first
+      return a.current_stock - b.current_stock
+    })
 
   const lowCount = products.filter(isLowStock).length
   const expiredCount = products.filter(isExpired).length
