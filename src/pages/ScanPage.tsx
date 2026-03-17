@@ -67,7 +67,13 @@ export default function ScanPage({ onAddWithBarcode }: Props) {
     setScanning(false)
   }
 
-  async function handleBarcode(barcode: string) {
+  function cleanBarcode(raw: string): string {
+    // Strip GS1 symbology identifiers (]d2, ]C1, etc.) and leading non-printable/special chars
+    return raw.replace(/^\]d[0-9]/, '').replace(/^\$/, '').replace(/^[\x00-\x1F]+/, '').trim()
+  }
+
+  async function handleBarcode(raw: string) {
+    const barcode = cleanBarcode(raw)
     setRawCode(barcode)
     const { data } = await supabase
       .from('products')
