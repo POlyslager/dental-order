@@ -5,10 +5,8 @@ import type { Role } from '../lib/types'
 import StockPage from './StockPage'
 import OrdersPage from './OrdersPage'
 import ScanPage from './ScanPage'
-import ManageProductsPage from './ManageProductsPage'
 
 type Tab = 'stock' | 'scan' | 'orders'
-type MenuPage = 'manage' | null
 
 interface Props { user: User }
 
@@ -16,16 +14,10 @@ export default function Dashboard({ user }: Props) {
   const [role, setRole] = useState<Role | null>(null)
   const [tab, setTab] = useState<Tab>('stock')
   const [menuOpen, setMenuOpen] = useState(false)
-  const [menuPage, setMenuPage] = useState<MenuPage>(null)
 
   useEffect(() => {
     getUserRole().then(setRole)
   }, [])
-
-  function openMenuPage(page: MenuPage) {
-    setMenuPage(page)
-    setMenuOpen(false)
-  }
 
   const tabs: { id: Tab; label: string; icon: string }[] = [
     { id: 'stock',  label: 'Lager',      icon: '📦' },
@@ -33,24 +25,14 @@ export default function Dashboard({ user }: Props) {
     { id: 'orders', label: 'Bestellungen', icon: '🛒' },
   ]
 
-  const pageTitle = menuPage === 'manage' ? 'Artikel verwalten' : tabs.find(t => t.id === tab)?.label ?? ''
-
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       {/* Header */}
       <header className="bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-2">
-          {menuPage ? (
-            <button onClick={() => setMenuPage(null)} className="text-slate-500 hover:text-slate-800 mr-1">
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd"/>
-              </svg>
-            </button>
-          ) : (
-            <span className="text-xl">🦷</span>
-          )}
-          <span className="font-semibold text-slate-800">{menuPage ? pageTitle : 'Dental Order'}</span>
-          {!menuPage && role === 'admin' && (
+          <span className="text-xl">🦷</span>
+          <span className="font-semibold text-slate-800">Dental Order</span>
+          {role === 'admin' && (
             <span className="text-xs bg-sky-100 text-sky-700 px-2 py-0.5 rounded-full font-medium">Admin</span>
           )}
         </div>
@@ -69,15 +51,11 @@ export default function Dashboard({ user }: Props) {
 
       {/* Page content */}
       <main className="flex-1 overflow-auto pb-20">
-        {menuPage === 'manage' ? (
-          <ManageProductsPage />
-        ) : (
-          <>
-            {tab === 'stock'  && <StockPage role={role} />}
-            {tab === 'scan'   && <ScanPage />}
-            {tab === 'orders' && <OrdersPage role={role} user={user} />}
-          </>
-        )}
+        <>
+          {tab === 'stock'  && <StockPage role={role} />}
+          {tab === 'scan'   && <ScanPage />}
+          {tab === 'orders' && <OrdersPage role={role} user={user} />}
+        </>
       </main>
 
       {/* Bottom nav — always visible */}
@@ -85,9 +63,9 @@ export default function Dashboard({ user }: Props) {
         {tabs.map(t => (
           <button
             key={t.id}
-            onClick={() => { setMenuPage(null); setTab(t.id) }}
+            onClick={() => setTab(t.id)}
             className={`flex-1 flex flex-col items-center py-3 gap-1 text-xs transition-colors ${
-              !menuPage && tab === t.id ? 'text-sky-600' : 'text-slate-500'
+              tab === t.id ? 'text-sky-600' : 'text-slate-500'
             }`}
           >
             <span className="text-xl">{t.icon}</span>
@@ -110,8 +88,6 @@ export default function Dashboard({ user }: Props) {
             </div>
 
             <nav className="flex-1 py-2">
-              <MenuItem icon="📋" label="Artikel verwalten" onClick={() => openMenuPage('manage')} />
-              <div className="mx-4 my-2 border-t border-slate-100" />
               <MenuItem icon="⚙️" label="Einstellungen" onClick={() => setMenuOpen(false)} disabled />
             </nav>
 

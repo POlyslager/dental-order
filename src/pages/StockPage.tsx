@@ -24,6 +24,18 @@ function isLowStock(p: Product) {
   return p.current_stock <= p.min_stock
 }
 
+const EMPTY_FORM = {
+  article_number: '', name: '', description: '', category: '',
+  min_stock: 1, unit: 'pcs', preferred_supplier: '', supplier_url: '',
+  producer_url: '', last_price: '', storage_location: '', notes: '', reorder_quantity: '',
+}
+
+const STORAGE_LOCATIONS = [
+  'Behandlungsraum 1', 'Behandlungsraum 2', 'Behandlungsraum 3',
+  'Behandlungsraum 4', 'Behandlungsraum 5',
+  'Steri', 'Rezeption', 'Büro', 'Radiologie', 'Keller',
+]
+
 export default function StockPage({ role: _role }: Props) {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
@@ -32,13 +44,39 @@ export default function StockPage({ role: _role }: Props) {
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+  const [showForm, setShowForm] = useState(false)
+  const [form, setForm] = useState(EMPTY_FORM)
+  const [saving, setSaving] = useState(false)
 
-  useEffect(() => {
-    supabase.from('products').select('*').order('name').then(({ data }) => {
-      setProducts(data ?? [])
-      setLoading(false)
+  useEffect(() => { fetchProducts() }, [])
+
+  async function fetchProducts() {
+    const { data } = await supabase.from('products').select('*').order('name')
+    setProducts(data ?? [])
+    setLoading(false)
+  }
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault()
+    setSaving(true)
+    await supabase.from('products').insert({
+      ...form,
+      current_stock: 0,
+      last_price: form.last_price ? parseFloat(form.last_price) : null,
+      reorder_quantity: form.reorder_quantity ? parseFloat(form.reorder_quantity) : null,
+      article_number: form.article_number || null,
+      supplier_url: form.supplier_url || null,
+      producer_url: form.producer_url || null,
+      preferred_supplier: form.preferred_supplier || null,
+      storage_location: form.storage_location || null,
+      description: form.description || null,
+      notes: form.notes || null,
     })
-  }, [])
+    setForm(EMPTY_FORM)
+    setShowForm(false)
+    setSaving(false)
+    fetchProducts()
+  }
 
   const categories = ['all', ...Array.from(new Set(products.map(p => p.category))).sort()]
 
@@ -95,6 +133,11 @@ export default function StockPage({ role: _role }: Props) {
               className="w-full border border-slate-300 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white"
             />
           </div>
+          <button
+            onClick={() => setShowForm(true)}
+            className="bg-sky-500 hover:bg-sky-600 text-white px-3 rounded-xl text-xl font-medium transition-colors"
+            title="Artikel hinzufügen"
+          >+</button>
           <div className="flex border border-slate-300 rounded-xl overflow-hidden bg-white">
             <button onClick={() => setViewMode('grid')}
               className={`px-3 flex items-center transition-colors ${viewMode === 'grid' ? 'bg-sky-500 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
@@ -157,6 +200,52 @@ export default function StockPage({ role: _role }: Props) {
         )}
       </div>
 
+      {showForm && (
+        <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50">
+          <div className="bg-white rounded-t-3xl sm:rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-xl">
+            <div className="sticky top-0 bg-white border-b border-slate-100 px-5 py-4 flex items-center justify-between">
+              <h3 className="font-semibold text-slate-800">Neuer Artikel</h3>
+              <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600 text-xl">✕</button>
+            </div>
+            <form onSubmit={handleCreate} className="p-5 space-y-4">
+              <div className="bg-sky-50 border border-sky-200 rounded-xl px-4 py-3">
+                <p className="text-xs text-sky-700">Der Bestand wird automatisch über das Scannen aktualisiert.</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Artikelnummer" value={form.article_number} onChange={v => setForm(f => ({ ...f, article_number: v }))} />
+                <Field label="Name *" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} required />
+              </div>
+              <Field label="Beschreibung" value={form.description} onChange={v => setForm(f => ({ ...f, description: v }))} />
+              <Field label="Kategorie *" value={form.category} onChange={v => setForm(f => ({ ...f, category: v }))} required />
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Meldebestand *" type="number" value={String(form.min_stock)} onChange={v => setForm(f => ({ ...f, min_stock: parseFloat(v) || 0 }))} required />
+                <Field label="Einheit" value={form.unit} onChange={v => setForm(f => ({ ...f, unit: v }))} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Lagerort</label>
+                <select value={form.storage_location} onChange={e => setForm(f => ({ ...f, storage_location: e.target.value }))}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500">
+                  <option value="">— Kein Lagerort —</option>
+                  {STORAGE_LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}
+                </select>
+              </div>
+              <Field label="Lieferant" value={form.preferred_supplier} onChange={v => setForm(f => ({ ...f, preferred_supplier: v }))} />
+              <Field label="Bestell-Website" type="url" value={form.supplier_url} onChange={v => setForm(f => ({ ...f, supplier_url: v }))} />
+              <Field label="Hersteller-Website" type="url" value={form.producer_url} onChange={v => setForm(f => ({ ...f, producer_url: v }))} />
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Stückpreis (€)" type="number" value={form.last_price} onChange={v => setForm(f => ({ ...f, last_price: v }))} />
+                <Field label="Nachbestellmenge" type="number" value={form.reorder_quantity} onChange={v => setForm(f => ({ ...f, reorder_quantity: v }))} />
+              </div>
+              <Field label="Notizen" value={form.notes} onChange={v => setForm(f => ({ ...f, notes: v }))} />
+              <button type="submit" disabled={saving}
+                className="w-full bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white font-medium rounded-xl py-3 text-sm">
+                {saving ? 'Speichern…' : 'Artikel hinzufügen'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
       {selectedProduct && (
         <ProductDetailModal
           product={selectedProduct}
@@ -171,6 +260,19 @@ export default function StockPage({ role: _role }: Props) {
           }}
         />
       )}
+    </div>
+  )
+}
+
+function Field({ label, value, onChange, type = 'text', required = false }: {
+  label: string; value: string; onChange: (v: string) => void; type?: string; required?: boolean
+}) {
+  return (
+    <div>
+      <label className="block text-xs font-medium text-slate-600 mb-1">{label}</label>
+      <input type={type} value={value} onChange={e => onChange(e.target.value)} required={required}
+        step={type === 'number' ? 'any' : undefined}
+        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
     </div>
   )
 }
@@ -203,13 +305,6 @@ function ProductRow({ product: p, onClick }: { product: Product; onClick: () => 
         <p className={`text-lg font-bold leading-none ${low || expired ? 'text-red-500' : 'text-slate-800'}`}>{p.current_stock}</p>
         <p className="text-xs text-slate-400 mt-0.5">min {p.min_stock}</p>
       </div>
-      {(low || expired) && p.supplier_url && (
-        <a href={p.supplier_url} target="_blank" rel="noopener noreferrer"
-          onClick={e => e.stopPropagation()}
-          className="shrink-0 text-xs bg-sky-50 hover:bg-sky-100 text-sky-600 font-medium px-2.5 py-1.5 rounded-lg transition-colors">
-          →
-        </a>
-      )}
     </div>
   )
 }
@@ -253,13 +348,6 @@ function ProductCard({ product: p, onClick }: { product: Product; onClick: () =>
         )}
         {p.preferred_supplier && <p className="text-xs text-slate-400 truncate">🏪 {p.preferred_supplier}</p>}
       </div>
-      {(low || expired) && p.supplier_url && (
-        <a href={p.supplier_url} target="_blank" rel="noopener noreferrer"
-          onClick={e => e.stopPropagation()}
-          className="mt-1 w-full text-center text-xs bg-sky-50 hover:bg-sky-100 text-sky-600 font-medium py-1.5 rounded-lg transition-colors">
-          Nachbestellen →
-        </a>
-      )}
     </div>
   )
 }
