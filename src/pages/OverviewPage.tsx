@@ -62,20 +62,26 @@ export default function OverviewPage() {
     .sort((a, b) => b[1].quantity - a[1].quantity)
     .slice(0, 10)
 
-  // Monthly activity (last 6 months)
-  const monthlyData = Array.from({ length: 6 }, (_, i) => {
-    const d = new Date(TODAY.getFullYear(), TODAY.getMonth() - (5 - i), 1)
-    const end = new Date(TODAY.getFullYear(), TODAY.getMonth() - (5 - i) + 1, 1)
-    const count = movements.filter(m => {
+  // 14-day daily timeline (in vs out)
+  const dailyData = Array.from({ length: 14 }, (_, i) => {
+    const day = new Date(TODAY)
+    day.setDate(TODAY.getDate() - (13 - i))
+    day.setHours(0, 0, 0, 0)
+    const next = new Date(day); next.setDate(day.getDate() + 1)
+    const dayMovements = movements.filter(m => {
       const t = new Date(m.created_at)
-      return t >= d && t < end
-    }).length
+      return t >= day && t < next
+    })
+    const inQty = dayMovements.filter(m => m.type === 'scan_in' || m.type === 'manual_in').reduce((s, m) => s + m.quantity, 0)
+    const outQty = dayMovements.filter(m => m.type === 'scan_out' || m.type === 'manual_out').reduce((s, m) => s + m.quantity, 0)
     return {
-      label: d.toLocaleDateString('de-DE', { month: 'short' }),
-      count,
+      label: day.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }),
+      shortLabel: day.toLocaleDateString('de-DE', { day: 'numeric' }),
+      in: inQty,
+      out: outQty,
     }
   })
-  const maxMonthly = Math.max(...monthlyData.map(d => d.count), 1)
+  const maxDaily = Math.max(...dailyData.map(d => d.in + d.out), 1)
 
   // Order status breakdown
   const orderStatuses = orders.reduce<Record<string, number>>((acc, o) => {
@@ -143,21 +149,29 @@ export default function OverviewPage() {
         </div>
       </Section>
 
-      {/* Monthly activity */}
-      <Section title="Monatliche Aktivität">
+      {/* 14-day timeline */}
+      <Section title="Lagerbewegungen — 14 Tage">
         <div className="bg-white rounded-2xl border border-slate-100 p-4">
-          <div className="flex items-end gap-2 h-24">
-            {monthlyData.map((d, i) => (
-              <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                <div className="w-full bg-sky-100 rounded-t-md relative" style={{ height: `${Math.max(4, (d.count / maxMonthly) * 80)}px` }}>
-                  <div className="absolute inset-0 bg-sky-400 rounded-t-md" />
+          <div className="flex items-center gap-3 mb-3">
+            <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-sm bg-emerald-400" /><span className="text-xs text-slate-500">Eingang</span></div>
+            <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-sm bg-sky-400" /><span className="text-xs text-slate-500">Ausgang</span></div>
+          </div>
+          <div className="flex items-end gap-0.5 h-20">
+            {dailyData.map((d, i) => (
+              <div key={i} className="flex-1 flex flex-col items-center gap-px">
+                <div className="w-full flex flex-col justify-end" style={{ height: `${Math.max(2, ((d.in + d.out) / maxDaily) * 64)}px` }}>
+                  {d.in > 0 && <div className="w-full bg-emerald-400 rounded-t-sm" style={{ flex: d.in }} />}
+                  {d.out > 0 && <div className="w-full bg-sky-400" style={{ flex: d.out }} />}
+                  {d.in === 0 && d.out === 0 && <div className="w-full bg-slate-100 rounded-sm" style={{ height: 2 }} />}
                 </div>
-                <span className="text-xs text-slate-400">{d.label}</span>
+                {(i === 0 || i === 6 || i === 13) && (
+                  <span className="text-slate-400 mt-1" style={{ fontSize: 9 }}>{d.shortLabel}</span>
+                )}
               </div>
             ))}
           </div>
           {movements.length === 0 && (
-            <p className="text-xs text-slate-400 text-center mt-2">Noch keine Bewegungen erfasst</p>
+            <p className="text-xs text-slate-400 text-center mt-3">Noch keine Bewegungen erfasst</p>
           )}
         </div>
       </Section>
