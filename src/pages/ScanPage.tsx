@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { BrowserMultiFormatReader } from '@zxing/library'
+import { BrowserMultiFormatReader, DecodeHintType, BarcodeFormat } from '@zxing/library'
 import { supabase, getCurrentUser } from '../lib/supabase'
 import type { Product } from '../lib/types'
 
@@ -14,6 +14,7 @@ export default function ScanPage() {
   const [quantity, setQuantity] = useState(1)
   const [status, setStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [rawCode, setRawCode] = useState<string | null>(null)
 
   useEffect(() => {
     return () => stopScanner()
@@ -23,7 +24,22 @@ export default function ScanPage() {
     setError(null)
     setScannedProduct(null)
     setStatus(null)
-    const reader = new BrowserMultiFormatReader()
+    setRawCode(null)
+
+    const hints = new Map()
+    hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+      BarcodeFormat.QR_CODE,
+      BarcodeFormat.DATA_MATRIX,
+      BarcodeFormat.EAN_13,
+      BarcodeFormat.EAN_8,
+      BarcodeFormat.CODE_128,
+      BarcodeFormat.CODE_39,
+      BarcodeFormat.UPC_A,
+      BarcodeFormat.UPC_E,
+    ])
+    hints.set(DecodeHintType.TRY_HARDER, true)
+
+    const reader = new BrowserMultiFormatReader(hints)
     readerRef.current = reader
     setScanning(true)
 
@@ -50,6 +66,7 @@ export default function ScanPage() {
   }
 
   async function handleBarcode(barcode: string) {
+    setRawCode(barcode)
     const { data } = await supabase
       .from('products')
       .select('*')
@@ -57,7 +74,7 @@ export default function ScanPage() {
       .single()
 
     if (!data) {
-      setError(`No product found for barcode: ${barcode}`)
+      setError(`Kein Produkt gefunden. Gescannter Code: ${barcode}`)
       return
     }
     setScannedProduct(data)
