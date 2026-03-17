@@ -80,23 +80,21 @@ export default function Dashboard({ user }: Props) {
         )}
       </main>
 
-      {/* Bottom nav — hidden when on a menu page */}
-      {!menuPage && (
-        <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex">
-          {tabs.map(t => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={`flex-1 flex flex-col items-center py-3 gap-1 text-xs transition-colors ${
-                tab === t.id ? 'text-sky-600' : 'text-slate-500'
-              }`}
-            >
-              <span className="text-xl">{t.icon}</span>
-              {t.label}
-            </button>
-          ))}
-        </nav>
-      )}
+      {/* Bottom nav — always visible */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex">
+        {tabs.map(t => (
+          <button
+            key={t.id}
+            onClick={() => { setMenuPage(null); setTab(t.id) }}
+            className={`flex-1 flex flex-col items-center py-3 gap-1 text-xs transition-colors ${
+              !menuPage && tab === t.id ? 'text-sky-600' : 'text-slate-500'
+            }`}
+          >
+            <span className="text-xl">{t.icon}</span>
+            {t.label}
+          </button>
+        ))}
+      </nav>
 
       {/* Hamburger drawer */}
       {menuOpen && (

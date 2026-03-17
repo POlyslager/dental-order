@@ -24,6 +24,14 @@ const STORAGE_LOCATIONS = [
   'Steri', 'Rezeption', 'Büro', 'Radiologie', 'Keller',
 ]
 
+const TODAY = new Date()
+TODAY.setHours(0, 0, 0, 0)
+
+type Filter = 'all' | 'low' | 'expired'
+
+function isExpired(p: Product) { return p.expiry_date ? new Date(p.expiry_date) < TODAY : false }
+function isLowStock(p: Product) { return p.current_stock <= p.min_stock }
+
 export default function ManageProductsPage() {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
@@ -32,6 +40,8 @@ export default function ManageProductsPage() {
   const [saving, setSaving] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<Product | null>(null)
   const [search, setSearch] = useState('')
+  const [filter, setFilter] = useState<Filter>('all')
+  const [selectedCategory, setSelectedCategory] = useState('all')
 
   useEffect(() => { fetchProducts() }, [])
 
@@ -69,11 +79,22 @@ export default function ManageProductsPage() {
     setProducts(prev => prev.filter(p => p.id !== product.id))
   }
 
-  const filtered = products.filter(p =>
-    p.name.toLowerCase().includes(search.toLowerCase()) ||
-    (p.article_number?.toLowerCase().includes(search.toLowerCase()) ?? false) ||
-    p.category.toLowerCase().includes(search.toLowerCase())
-  )
+  const categories = ['all', ...Array.from(new Set(products.map(p => p.category))).sort()]
+  const lowCount = products.filter(isLowStock).length
+  const expiredCount = products.filter(isExpired).length
+
+  const filtered = products.filter(p => {
+    const matchesSearch =
+      p.name.toLowerCase().includes(search.toLowerCase()) ||
+      (p.article_number?.toLowerCase().includes(search.toLowerCase()) ?? false) ||
+      p.category.toLowerCase().includes(search.toLowerCase())
+    const matchesCategory = selectedCategory === 'all' || p.category === selectedCategory
+    const matchesFilter =
+      filter === 'all' ? true :
+      filter === 'low' ? isLowStock(p) :
+      filter === 'expired' ? isExpired(p) : true
+    return matchesSearch && matchesCategory && matchesFilter
+  })
 
   return (
     <div className="max-w-2xl mx-auto p-4 space-y-4">
@@ -99,6 +120,34 @@ export default function ManageProductsPage() {
           placeholder="Artikel suchen…"
           className="w-full border border-slate-300 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white"
         />
+      </div>
+
+      {/* Filter tabs */}
+      <div className="flex gap-2">
+        {([
+          { id: 'all',     label: 'Alle' },
+          { id: 'low',     label: `Niedrig${lowCount > 0 ? ` (${lowCount})` : ''}` },
+          { id: 'expired', label: `Abgelaufen${expiredCount > 0 ? ` (${expiredCount})` : ''}` },
+        ] as { id: Filter; label: string }[]).map(f => (
+          <button key={f.id} onClick={() => setFilter(f.id)}
+            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+              filter === f.id ? 'bg-sky-500 text-white' : 'bg-white border border-slate-300 text-slate-600'
+            }`}>
+            {f.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Category scroll */}
+      <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+        {categories.map(cat => (
+          <button key={cat} onClick={() => setSelectedCategory(cat)}
+            className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+              selectedCategory === cat ? 'bg-slate-800 text-white' : 'bg-white border border-slate-200 text-slate-600'
+            }`}>
+            {cat === 'all' ? 'Alle Kategorien' : cat}
+          </button>
+        ))}
       </div>
 
       {loading ? (
