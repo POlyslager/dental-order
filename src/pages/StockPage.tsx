@@ -350,7 +350,8 @@ function ProductCard({ product: p, onClick }: { product: Product; onClick: () =>
   const max = Math.max(p.current_stock, p.min_stock * 2.5, 1)
   const fillPct = Math.min(100, (p.current_stock / max) * 100)
   const thresholdPct = Math.min(99, (p.min_stock / max) * 100)
-  const barColor = expired || low ? 'bg-red-400' : expiringSoon ? 'bg-amber-400' : 'bg-emerald-400'
+  const closeToThreshold = !low && p.current_stock <= p.min_stock * 1.5
+  const barColor = expired ? 'bg-slate-900' : low ? 'bg-red-400' : closeToThreshold ? 'bg-amber-400' : 'bg-emerald-400'
 
   return (
     <div onClick={onClick} className={`bg-white rounded-2xl border shadow-sm flex flex-col cursor-pointer active:scale-[0.98] transition-transform overflow-hidden ${
