@@ -5,9 +5,10 @@ import type { Role } from '../lib/types'
 import StockPage from './StockPage'
 import OrdersPage from './OrdersPage'
 import ScanPage from './ScanPage'
-import { Package, ScanLine, ShoppingCart, Menu, X, Settings } from 'lucide-react'
+import OverviewPage from './OverviewPage'
+import { Package, ScanLine, ShoppingCart, Menu, X, Settings, LayoutDashboard } from 'lucide-react'
 
-type Tab = 'stock' | 'scan' | 'orders'
+type Tab = 'overview' | 'stock' | 'scan' | 'orders'
 
 interface Props { user: User }
 
@@ -22,15 +23,27 @@ export default function Dashboard({ user }: Props) {
     setTab('stock')
   }
 
+  function navigate(t: Tab) {
+    setTab(t)
+    setMenuOpen(false)
+  }
+
   useEffect(() => {
     getUserRole().then(setRole)
   }, [])
 
-  const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
+  const bottomTabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
     { id: 'stock',  label: 'Lager',        icon: <Package size={20} /> },
     { id: 'scan',   label: 'Scannen',      icon: <ScanLine size={20} /> },
     { id: 'orders', label: 'Bestellungen', icon: <ShoppingCart size={20} /> },
   ]
+
+  const PAGE_TITLES: Record<Tab, string> = {
+    overview: 'Übersicht',
+    stock: 'Lager',
+    scan: 'Scannen',
+    orders: 'Bestellungen',
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -38,7 +51,7 @@ export default function Dashboard({ user }: Props) {
       <header className="bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-2">
           <span className="text-xl">🦷</span>
-          <span className="font-semibold text-slate-800">Dental Order</span>
+          <span className="font-semibold text-slate-800">{PAGE_TITLES[tab]}</span>
           {role === 'admin' && (
             <span className="text-xs bg-sky-100 text-sky-700 px-2 py-0.5 rounded-full font-medium">Admin</span>
           )}
@@ -46,7 +59,6 @@ export default function Dashboard({ user }: Props) {
         <button
           onClick={() => setMenuOpen(true)}
           className="text-slate-500 hover:text-slate-800 p-1 transition-colors"
-          title="Menü"
         >
           <Menu size={22} />
         </button>
@@ -54,16 +66,15 @@ export default function Dashboard({ user }: Props) {
 
       {/* Page content */}
       <main className="flex-1 overflow-auto pb-20">
-        <>
-          {tab === 'stock'  && <StockPage role={role} initialBarcode={pendingBarcode} onBarcodeConsumed={() => setPendingBarcode(null)} />}
-          {tab === 'scan'   && <ScanPage onAddWithBarcode={handleAddWithBarcode} />}
-          {tab === 'orders' && <OrdersPage role={role} user={user} />}
-        </>
+        {tab === 'overview' && <OverviewPage />}
+        {tab === 'stock'    && <StockPage role={role} initialBarcode={pendingBarcode} onBarcodeConsumed={() => setPendingBarcode(null)} />}
+        {tab === 'scan'     && <ScanPage onAddWithBarcode={handleAddWithBarcode} />}
+        {tab === 'orders'   && <OrdersPage role={role} user={user} />}
       </main>
 
-      {/* Bottom nav */}
+      {/* Bottom nav — 3 main tabs only */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex">
-        {tabs.map(t => (
+        {bottomTabs.map(t => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
@@ -77,7 +88,7 @@ export default function Dashboard({ user }: Props) {
         ))}
       </nav>
 
-      {/* Hamburger drawer */}
+      {/* Side menu */}
       {menuOpen && (
         <>
           <div className="fixed inset-0 bg-black/30 z-40" onClick={() => setMenuOpen(false)} />
@@ -90,7 +101,18 @@ export default function Dashboard({ user }: Props) {
             </div>
 
             <nav className="flex-1 py-2">
-              <MenuItem icon={<Settings size={18} />} label="Einstellungen" onClick={() => setMenuOpen(false)} disabled />
+              <MenuItem
+                icon={<LayoutDashboard size={18} />}
+                label="Übersicht"
+                active={tab === 'overview'}
+                onClick={() => navigate('overview')}
+              />
+              <MenuItem
+                icon={<Settings size={18} />}
+                label="Einstellungen"
+                onClick={() => setMenuOpen(false)}
+                disabled
+              />
             </nav>
 
             <div className="border-t border-slate-100 p-4">
@@ -117,15 +139,17 @@ export default function Dashboard({ user }: Props) {
   )
 }
 
-function MenuItem({ icon, label, onClick, disabled = false }: {
-  icon: React.ReactNode; label: string; onClick: () => void; disabled?: boolean
+function MenuItem({ icon, label, onClick, disabled = false, active = false }: {
+  icon: React.ReactNode; label: string; onClick: () => void; disabled?: boolean; active?: boolean
 }) {
   return (
     <button
       onClick={onClick}
       disabled={disabled}
       className={`w-full flex items-center gap-3 px-5 py-3 text-sm transition-colors text-left ${
-        disabled ? 'text-slate-300' : 'text-slate-700 hover:bg-slate-50'
+        disabled ? 'text-slate-300' :
+        active ? 'text-sky-600 bg-sky-50' :
+        'text-slate-700 hover:bg-slate-50'
       }`}
     >
       {icon}
