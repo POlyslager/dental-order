@@ -344,7 +344,11 @@ function ProductCard({ product: p, onClick }: { product: Product; onClick: () =>
   const low = isLowStock(p)
   const expired = isExpired(p)
   const expiringSoon = isExpiringSoon(p)
-  const stockPercent = p.min_stock > 0 ? Math.min(100, Math.round((p.current_stock / (p.min_stock * 2)) * 100)) : 100
+
+  // Bar: scale to max = biggest of (current stock × 1.2) or (min × 2), so threshold marker is meaningful
+  const max = Math.max(p.current_stock * 1.2, p.min_stock * 2, 1)
+  const fillPct = Math.min(100, (p.current_stock / max) * 100)
+  const thresholdPct = Math.min(100, (p.min_stock / max) * 100)
   const barColor = expired || low ? 'bg-red-400' : expiringSoon ? 'bg-amber-400' : 'bg-emerald-400'
 
   return (
@@ -359,12 +363,19 @@ function ProductCard({ product: p, onClick }: { product: Product; onClick: () =>
       </div>
       <p className="font-semibold text-slate-800 text-sm leading-snug line-clamp-2">{p.name}</p>
       <div>
-        <div className="flex items-baseline justify-between mb-1">
+        <div className="flex items-baseline justify-between mb-2">
           <span className={`text-2xl font-bold ${low || expired ? 'text-red-500' : 'text-slate-800'}`}>{p.current_stock}</span>
           <span className="text-xs text-slate-400">min {p.min_stock}</span>
         </div>
-        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-          <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${stockPercent}%` }} />
+        {/* Bar with threshold marker */}
+        <div className="relative h-2">
+          <div className="absolute inset-0 bg-slate-100 rounded-full" />
+          <div className={`absolute left-0 top-0 h-full rounded-full transition-all ${barColor}`} style={{ width: `${fillPct}%` }} />
+          {/* Threshold line */}
+          <div
+            className="absolute top-[-3px] bottom-[-3px] w-[2px] bg-slate-400 rounded-full"
+            style={{ left: `${thresholdPct}%` }}
+          />
         </div>
       </div>
       <div className="space-y-1 mt-1">
