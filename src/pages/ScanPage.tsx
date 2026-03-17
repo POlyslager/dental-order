@@ -95,7 +95,7 @@ export default function ScanPage() {
 
   return (
     <div className="p-4 max-w-md mx-auto space-y-4">
-      <h2 className="text-lg font-semibold text-slate-800">Barcode Scanner</h2>
+      <h2 className="text-lg font-semibold text-slate-800">Barcode / QR-Code Scanner</h2>
 
       {/* Mode toggle */}
       <div className="flex rounded-lg overflow-hidden border border-slate-300">
@@ -126,7 +126,7 @@ export default function ScanPage() {
         )}
         {scanning && (
           <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-            <div className="border-2 border-sky-400 w-48 h-32 rounded-lg opacity-70" />
+            <div className="border-2 border-sky-400 w-48 h-48 rounded-lg opacity-70" />
           </div>
         )}
       </div>
