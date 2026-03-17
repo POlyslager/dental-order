@@ -5,6 +5,7 @@ import type { Role } from '../lib/types'
 import StockPage from './StockPage'
 import OrdersPage from './OrdersPage'
 import ScanPage from './ScanPage'
+import { Package, ScanLine, ShoppingCart, Menu, X, Settings } from 'lucide-react'
 
 type Tab = 'stock' | 'scan' | 'orders'
 
@@ -25,10 +26,10 @@ export default function Dashboard({ user }: Props) {
     getUserRole().then(setRole)
   }, [])
 
-  const tabs: { id: Tab; label: string; icon: string }[] = [
-    { id: 'stock',  label: 'Lager',      icon: '📦' },
-    { id: 'scan',   label: 'Scannen',    icon: '📷' },
-    { id: 'orders', label: 'Bestellungen', icon: '🛒' },
+  const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
+    { id: 'stock',  label: 'Lager',        icon: <Package size={20} /> },
+    { id: 'scan',   label: 'Scannen',      icon: <ScanLine size={20} /> },
+    { id: 'orders', label: 'Bestellungen', icon: <ShoppingCart size={20} /> },
   ]
 
   return (
@@ -47,11 +48,7 @@ export default function Dashboard({ user }: Props) {
           className="text-slate-500 hover:text-slate-800 p-1 transition-colors"
           title="Menü"
         >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <line x1="3" y1="6" x2="21" y2="6"/>
-            <line x1="3" y1="12" x2="21" y2="12"/>
-            <line x1="3" y1="18" x2="21" y2="18"/>
-          </svg>
+          <Menu size={22} />
         </button>
       </header>
 
@@ -64,7 +61,7 @@ export default function Dashboard({ user }: Props) {
         </>
       </main>
 
-      {/* Bottom nav — always visible */}
+      {/* Bottom nav */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex">
         {tabs.map(t => (
           <button
@@ -74,7 +71,7 @@ export default function Dashboard({ user }: Props) {
               tab === t.id ? 'text-sky-600' : 'text-slate-500'
             }`}
           >
-            <span className="text-xl">{t.icon}</span>
+            {t.icon}
             {t.label}
           </button>
         ))}
@@ -83,18 +80,17 @@ export default function Dashboard({ user }: Props) {
       {/* Hamburger drawer */}
       {menuOpen && (
         <>
-          {/* Backdrop */}
           <div className="fixed inset-0 bg-black/30 z-40" onClick={() => setMenuOpen(false)} />
-
-          {/* Drawer */}
           <div className="fixed top-0 right-0 h-full w-72 bg-white shadow-2xl z-50 flex flex-col">
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
               <span className="font-semibold text-slate-800">Menü</span>
-              <button onClick={() => setMenuOpen(false)} className="text-slate-400 hover:text-slate-600 text-xl">✕</button>
+              <button onClick={() => setMenuOpen(false)} className="text-slate-400 hover:text-slate-600">
+                <X size={20} />
+              </button>
             </div>
 
             <nav className="flex-1 py-2">
-              <MenuItem icon="⚙️" label="Einstellungen" onClick={() => setMenuOpen(false)} disabled />
+              <MenuItem icon={<Settings size={18} />} label="Einstellungen" onClick={() => setMenuOpen(false)} disabled />
             </nav>
 
             <div className="border-t border-slate-100 p-4">
@@ -122,7 +118,7 @@ export default function Dashboard({ user }: Props) {
 }
 
 function MenuItem({ icon, label, onClick, disabled = false }: {
-  icon: string; label: string; onClick: () => void; disabled?: boolean
+  icon: React.ReactNode; label: string; onClick: () => void; disabled?: boolean
 }) {
   return (
     <button
@@ -132,7 +128,7 @@ function MenuItem({ icon, label, onClick, disabled = false }: {
         disabled ? 'text-slate-300' : 'text-slate-700 hover:bg-slate-50'
       }`}
     >
-      <span className="text-lg">{icon}</span>
+      {icon}
       {label}
       {disabled && <span className="ml-auto text-xs text-slate-300">Bald</span>}
     </button>

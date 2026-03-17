@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Product } from '../lib/types'
 import Drawer from './Drawer'
+import { Pencil, Trash2, X } from 'lucide-react'
 
 interface Props {
   product: Product
@@ -162,19 +163,19 @@ export default function ProductDetailModal({ product, onClose, onUpdated, onDele
             {!editing && (
               <>
                 <button onClick={() => setEditing(true)}
-                  className="text-sm text-sky-600 font-medium px-3 py-1.5 rounded-lg hover:bg-sky-50 transition-colors">
-                  Bearbeiten
+                  className="text-slate-500 hover:text-sky-600 transition-colors p-1.5">
+                  <Pencil size={16} />
                 </button>
                 <button onClick={() => setConfirmDelete(true)}
                   className="text-slate-300 hover:text-red-400 transition-colors p-1.5">
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                    <path d="M6 2a1 1 0 0 0-1 1v.5H2.5a.5.5 0 0 0 0 1H3v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-8h.5a.5.5 0 0 0 0-1H11V3a1 1 0 0 0-1-1H6zm0 1h4v.5H6V3zm-2 2h8v8H4V5zm2 1.5a.5.5 0 0 0-.5.5v4a.5.5 0 0 0 1 0V7a.5.5 0 0 0-.5-.5zm4 0a.5.5 0 0 0-.5.5v4a.5.5 0 0 0 1 0V7a.5.5 0 0 0-.5-.5z"/>
-                  </svg>
+                  <Trash2 size={16} />
                 </button>
               </>
             )}
             <button onClick={editing ? () => { setForm(product); setEditing(false) } : onClose}
-              className="text-slate-400 hover:text-slate-600 text-xl px-1">✕</button>
+              className="text-slate-400 hover:text-slate-600 p-1">
+              <X size={20} />
+            </button>
           </div>
         </div>
 

@@ -3,6 +3,8 @@ import { supabase } from '../lib/supabase'
 import type { Product, Role } from '../lib/types'
 import ProductDetailModal from '../components/ProductDetailModal'
 import Drawer from '../components/Drawer'
+import CategorySelect from '../components/CategorySelect'
+import { Search, LayoutGrid, List, Plus, X } from 'lucide-react'
 
 interface Props { role: Role | null; initialBarcode?: string | null; onBarcodeConsumed?: () => void }
 
@@ -114,74 +116,62 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
 
   return (
     <div className="max-w-2xl mx-auto">
-      {/* Summary bar */}
+      {/* Summary bar — tappable filters */}
       <div className="grid grid-cols-3 divide-x divide-slate-200 border-b border-slate-200 bg-white">
-        <div className="py-3 px-4 text-center">
-          <p className="text-2xl font-bold text-slate-800">{products.length}</p>
-          <p className="text-xs text-slate-500 mt-0.5">Gesamt</p>
-        </div>
-        <div className="py-3 px-4 text-center">
-          <p className={`text-2xl font-bold ${lowCount > 0 ? 'text-amber-500' : 'text-slate-800'}`}>{lowCount}</p>
-          <p className="text-xs text-slate-500 mt-0.5">Niedrig</p>
-        </div>
-        <div className="py-3 px-4 text-center">
-          <p className={`text-2xl font-bold ${expiredCount > 0 ? 'text-red-500' : 'text-slate-800'}`}>{expiredCount}</p>
-          <p className="text-xs text-slate-500 mt-0.5">Abgelaufen</p>
-        </div>
+        <button onClick={() => setFilter('all')}
+          className={`py-2 px-4 text-center transition-colors ${filter === 'all' ? 'bg-sky-50' : ''}`}>
+          <p className={`text-xl font-bold ${filter === 'all' ? 'text-sky-600' : 'text-slate-800'}`}>{products.length}</p>
+          <p className={`text-xs mt-0.5 ${filter === 'all' ? 'text-sky-500 font-medium' : 'text-slate-500'}`}>Gesamt</p>
+        </button>
+        <button onClick={() => setFilter(filter === 'low' ? 'all' : 'low')}
+          className={`py-2 px-4 text-center transition-colors ${filter === 'low' ? 'bg-amber-50' : ''}`}>
+          <p className={`text-xl font-bold ${filter === 'low' ? 'text-amber-500' : lowCount > 0 ? 'text-amber-500' : 'text-slate-800'}`}>{lowCount}</p>
+          <p className={`text-xs mt-0.5 ${filter === 'low' ? 'text-amber-500 font-medium' : 'text-slate-500'}`}>Niedrig</p>
+        </button>
+        <button onClick={() => setFilter(filter === 'expired' ? 'all' : 'expired')}
+          className={`py-2 px-4 text-center transition-colors ${filter === 'expired' ? 'bg-red-50' : ''}`}>
+          <p className={`text-xl font-bold ${filter === 'expired' ? 'text-red-500' : expiredCount > 0 ? 'text-red-500' : 'text-slate-800'}`}>{expiredCount}</p>
+          <p className={`text-xs mt-0.5 ${filter === 'expired' ? 'text-red-500 font-medium' : 'text-slate-500'}`}>Abgelaufen</p>
+        </button>
       </div>
 
       <div className="p-4 space-y-3">
         {/* Search + view toggle */}
         <div className="flex gap-2">
           <div className="relative flex-1">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">🔍</span>
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="search"
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Artikel suchen…"
-              className="w-full border border-slate-300 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white"
+              className="w-full border border-slate-300 rounded-xl pl-9 pr-9 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white"
             />
+            {search && (
+              <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                <X size={15} />
+              </button>
+            )}
           </div>
           <div className="flex border border-slate-300 rounded-xl overflow-hidden bg-white">
             <button onClick={() => setViewMode('grid')}
               className={`px-3 flex items-center transition-colors ${viewMode === 'grid' ? 'bg-sky-500 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
               title="Rasteransicht">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                <rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/>
-                <rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/>
-              </svg>
+              <LayoutGrid size={16} />
             </button>
             <button onClick={() => setViewMode('list')}
               className={`px-3 flex items-center border-l border-slate-300 transition-colors ${viewMode === 'list' ? 'bg-sky-500 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
               title="Listenansicht">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                <rect x="1" y="2" width="14" height="2" rx="1"/><rect x="1" y="7" width="14" height="2" rx="1"/>
-                <rect x="1" y="12" width="14" height="2" rx="1"/>
-              </svg>
+              <List size={16} />
             </button>
           </div>
           <button
             onClick={() => setShowForm(true)}
-            className="bg-sky-500 hover:bg-sky-600 text-white px-3 rounded-xl text-xl font-medium transition-colors"
+            className="bg-sky-500 hover:bg-sky-600 text-white px-3 rounded-xl transition-colors flex items-center"
             title="Artikel hinzufügen"
-          >+</button>
-        </div>
-
-        {/* Filter tabs */}
-        <div className="flex gap-2">
-          {([
-            { id: 'all',     label: 'Alle' },
-            { id: 'low',     label: `Niedrig${lowCount > 0 ? ` (${lowCount})` : ''}` },
-            { id: 'expired', label: `Abgelaufen${expiredCount > 0 ? ` (${expiredCount})` : ''}` },
-          ] as { id: Filter; label: string }[]).map(f => (
-            <button key={f.id} onClick={() => setFilter(f.id)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                filter === f.id ? 'bg-sky-500 text-white' : 'bg-white border border-slate-300 text-slate-600'
-              }`}>
-              {f.label}
-            </button>
-          ))}
+          >
+            <Plus size={20} />
+          </button>
         </div>
 
         {/* Category scroll */}
@@ -213,7 +203,9 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
       <Drawer open={showForm} onClose={() => { setShowForm(false); setForm(EMPTY_FORM) }}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0">
           <h3 className="font-semibold text-slate-800">Neuer Artikel</h3>
-          <button onClick={() => { setShowForm(false); setForm(EMPTY_FORM) }} className="text-slate-400 hover:text-slate-600 text-xl">✕</button>
+          <button onClick={() => { setShowForm(false); setForm(EMPTY_FORM) }} className="text-slate-400 hover:text-slate-600">
+            <X size={20} />
+          </button>
         </div>
         <form onSubmit={handleCreate} className="overflow-y-auto flex-1 p-5 space-y-4">
           <div className="bg-sky-50 border border-sky-200 rounded-xl px-4 py-3">
@@ -225,7 +217,14 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
           </div>
           <Field label="Barcode / QR-Code" value={form.barcode} onChange={v => setForm(f => ({ ...f, barcode: v }))} />
           <Field label="Beschreibung" value={form.description} onChange={v => setForm(f => ({ ...f, description: v }))} />
-          <Field label="Kategorie *" value={form.category} onChange={v => setForm(f => ({ ...f, category: v }))} required />
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Kategorie *</label>
+            <CategorySelect
+              value={form.category}
+              onChange={v => setForm(f => ({ ...f, category: v }))}
+              categories={categories.filter(c => c !== 'all')}
+            />
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Meldebestand *" type="number" value={String(form.min_stock)} onChange={v => setForm(f => ({ ...f, min_stock: parseFloat(v) || 0 }))} required />
             <Field label="Einheit" value={form.unit} onChange={v => setForm(f => ({ ...f, unit: v }))} />

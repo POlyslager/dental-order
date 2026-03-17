@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
 import { supabase, getCurrentUser } from '../lib/supabase'
 import type { Product } from '../lib/types'
+import { Plus } from 'lucide-react'
 
 type ScanMode = 'in' | 'out'
 
@@ -196,9 +197,9 @@ export default function ScanPage({ onAddWithBarcode }: Props) {
           {rawCode && (
             <button
               onClick={() => onAddWithBarcode(rawCode)}
-              className="w-full bg-sky-500 hover:bg-sky-600 text-white rounded-xl py-3 text-sm font-medium"
+              className="w-full bg-sky-500 hover:bg-sky-600 text-white rounded-xl py-3 text-sm font-medium flex items-center justify-center gap-2"
             >
-              + Als neuen Artikel hinzufügen
+              <Plus size={16} /> Als neuen Artikel hinzufügen
             </button>
           )}
         </div>
