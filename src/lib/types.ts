@@ -10,6 +10,7 @@ export interface Profile {
 
 export interface Product {
   id: string
+  article_number: string | null
   name: string
   barcode: string | null
   category: string
@@ -21,6 +22,9 @@ export interface Product {
   last_price: number | null
   image_url: string | null
   notes: string | null
+  expiry_date: string | null
+  storage_location: string | null
+  reorder_quantity: number | null
   created_at: string
 }
 
