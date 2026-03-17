@@ -365,10 +365,7 @@ function ProductCard({ product: p, onClick }: { product: Product; onClick: () =>
           {!expired && !low && expiringSoon && <span className="shrink-0 text-xs bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full">Läuft ab</span>}
         </div>
         <p className="font-semibold text-slate-800 text-sm leading-snug line-clamp-2">{p.name}</p>
-        <div className="flex items-baseline justify-between">
-          <span className={`text-2xl font-bold ${low || expired ? 'text-red-500' : 'text-slate-800'}`}>{p.current_stock}</span>
-          <span className="text-xs text-slate-400">min {p.min_stock}</span>
-        </div>
+        <span className={`text-2xl font-bold ${low || expired ? 'text-red-500' : 'text-slate-800'}`}>{p.current_stock}</span>
         <div className="space-y-1">
           {p.storage_location && <p className="text-xs text-slate-400 truncate">{p.storage_location}</p>}
           {p.expiry_date && (
