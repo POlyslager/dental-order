@@ -381,7 +381,7 @@ function ProductCard({ product: p, onClick }: { product: Product; onClick: () =>
       <div className="relative h-2 bg-slate-100 mt-auto">
         <div className={`absolute left-0 top-0 h-full transition-all ${barColor}`} style={{ width: `${fillPct}%` }} />
         {/* Reorder threshold marker */}
-        <div className="absolute top-0 h-full w-[2px] bg-slate-400" style={{ left: `${thresholdPct}%` }} />
+        <div className="absolute top-0 h-full w-[3px] bg-slate-600" style={{ left: `${thresholdPct}%` }} />
       </div>
     </div>
   )
