@@ -117,11 +117,11 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
       <div className="grid grid-cols-3 divide-x divide-slate-200 border-b border-slate-200 bg-white">
         <div className="py-3 px-4 text-center">
           <p className="text-2xl font-bold text-slate-800">{products.length}</p>
-          <p className="text-xs text-slate-500 mt-0.5">Artikel gesamt</p>
+          <p className="text-xs text-slate-500 mt-0.5">Gesamt</p>
         </div>
         <div className="py-3 px-4 text-center">
           <p className={`text-2xl font-bold ${lowCount > 0 ? 'text-amber-500' : 'text-slate-800'}`}>{lowCount}</p>
-          <p className="text-xs text-slate-500 mt-0.5">Niedriger Bestand</p>
+          <p className="text-xs text-slate-500 mt-0.5">Niedrig</p>
         </div>
         <div className="py-3 px-4 text-center">
           <p className={`text-2xl font-bold ${expiredCount > 0 ? 'text-red-500' : 'text-slate-800'}`}>{expiredCount}</p>
@@ -301,12 +301,12 @@ function ProductRow({ product: p, onClick }: { product: Product; onClick: () => 
       }`} />
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-slate-800 truncate">{p.name}</p>
-        <div className="flex gap-3 mt-0.5">
+        <div className="flex gap-2 mt-0.5 flex-wrap">
           <span className="text-xs text-slate-400">{p.category}</span>
-          {p.storage_location && <span className="text-xs text-slate-400">📍 {p.storage_location}</span>}
+          {p.storage_location && <span className="text-xs text-slate-400">· {p.storage_location}</span>}
           {p.expiry_date && (
             <span className={`text-xs ${expired ? 'text-red-500 font-medium' : expiringSoon ? 'text-orange-500' : 'text-slate-400'}`}>
-              ⏳ {new Date(p.expiry_date).toLocaleDateString('de-DE')}
+              · {new Date(p.expiry_date).toLocaleDateString('de-DE')}
             </span>
           )}
         </div>
@@ -350,13 +350,13 @@ function ProductCard({ product: p, onClick }: { product: Product; onClick: () =>
         </div>
       </div>
       <div className="space-y-1 mt-1">
-        {p.storage_location && <p className="text-xs text-slate-400 truncate">📍 {p.storage_location}</p>}
+        {p.storage_location && <p className="text-xs text-slate-400 truncate">{p.storage_location}</p>}
         {p.expiry_date && (
           <p className={`text-xs truncate ${expired ? 'text-red-500 font-medium' : expiringSoon ? 'text-orange-500' : 'text-slate-400'}`}>
-            ⏳ {new Date(p.expiry_date).toLocaleDateString('de-DE')}
+            Exp. {new Date(p.expiry_date).toLocaleDateString('de-DE')}
           </p>
         )}
-        {p.preferred_supplier && <p className="text-xs text-slate-400 truncate">🏪 {p.preferred_supplier}</p>}
+        {p.preferred_supplier && <p className="text-xs text-slate-400 truncate">{p.preferred_supplier}</p>}
       </div>
     </div>
   )
