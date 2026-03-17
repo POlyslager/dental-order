@@ -7,7 +7,6 @@ const EMPTY_FORM = {
   name: '',
   description: '',
   category: '',
-  current_stock: 0,
   min_stock: 1,
   unit: 'pcs',
   preferred_supplier: '',
@@ -15,7 +14,6 @@ const EMPTY_FORM = {
   producer_url: '',
   last_price: '',
   storage_location: '',
-  expiry_date: '',
   notes: '',
   reorder_quantity: '',
 }
@@ -48,9 +46,9 @@ export default function ManageProductsPage() {
     setSaving(true)
     await supabase.from('products').insert({
       ...form,
+      current_stock: 0,
       last_price: form.last_price ? parseFloat(form.last_price) : null,
       reorder_quantity: form.reorder_quantity ? parseFloat(form.reorder_quantity) : null,
-      expiry_date: form.expiry_date || null,
       article_number: form.article_number || null,
       supplier_url: form.supplier_url || null,
       producer_url: form.producer_url || null,
@@ -80,12 +78,15 @@ export default function ManageProductsPage() {
   return (
     <div className="max-w-2xl mx-auto p-4 space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-slate-800">Artikel verwalten</h2>
+        <div>
+          <h2 className="text-lg font-semibold text-slate-800">Artikel verwalten</h2>
+          <p className="text-xs text-slate-400 mt-0.5">Produkte zum Katalog hinzufügen oder entfernen</p>
+        </div>
         <button
           onClick={() => setShowForm(true)}
           className="bg-sky-500 hover:bg-sky-600 text-white text-sm font-medium px-4 py-2 rounded-xl"
         >
-          + Artikel hinzufügen
+          + Neu
         </button>
       </div>
 
@@ -159,17 +160,22 @@ export default function ManageProductsPage() {
               <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600 text-xl">✕</button>
             </div>
             <form onSubmit={handleCreate} className="p-5 space-y-4">
+              <div className="bg-sky-50 border border-sky-200 rounded-xl px-4 py-3">
+                <p className="text-xs text-sky-700">Der Bestand wird automatisch über das Scannen aktualisiert. Hier wird nur der Artikel zum Katalog hinzugefügt.</p>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Artikelnummer" value={form.article_number} onChange={v => setForm(f => ({ ...f, article_number: v }))} />
                 <Field label="Name *" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} required />
               </div>
               <Field label="Beschreibung" value={form.description} onChange={v => setForm(f => ({ ...f, description: v }))} />
               <Field label="Kategorie *" value={form.category} onChange={v => setForm(f => ({ ...f, category: v }))} required />
-              <div className="grid grid-cols-3 gap-3">
-                <Field label="Bestand" type="number" value={String(form.current_stock)} onChange={v => setForm(f => ({ ...f, current_stock: parseFloat(v) || 0 }))} />
-                <Field label="Meldebestand" type="number" value={String(form.min_stock)} onChange={v => setForm(f => ({ ...f, min_stock: parseFloat(v) || 0 }))} />
+
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Meldebestand *" type="number" value={String(form.min_stock)} onChange={v => setForm(f => ({ ...f, min_stock: parseFloat(v) || 0 }))} required />
                 <Field label="Einheit" value={form.unit} onChange={v => setForm(f => ({ ...f, unit: v }))} />
               </div>
+
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Lagerort</label>
                 <select
@@ -181,7 +187,7 @@ export default function ManageProductsPage() {
                   {STORAGE_LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}
                 </select>
               </div>
-              <Field label="Ablaufdatum" type="date" value={form.expiry_date} onChange={v => setForm(f => ({ ...f, expiry_date: v }))} />
+
               <Field label="Lieferant" value={form.preferred_supplier} onChange={v => setForm(f => ({ ...f, preferred_supplier: v }))} />
               <Field label="Bestell-Website" type="url" value={form.supplier_url} onChange={v => setForm(f => ({ ...f, supplier_url: v }))} />
               <Field label="Hersteller-Website" type="url" value={form.producer_url} onChange={v => setForm(f => ({ ...f, producer_url: v }))} />
