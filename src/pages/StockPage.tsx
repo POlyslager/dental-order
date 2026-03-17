@@ -133,11 +133,6 @@ export default function StockPage({ role: _role }: Props) {
               className="w-full border border-slate-300 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white"
             />
           </div>
-          <button
-            onClick={() => setShowForm(true)}
-            className="bg-sky-500 hover:bg-sky-600 text-white px-3 rounded-xl text-xl font-medium transition-colors"
-            title="Artikel hinzufügen"
-          >+</button>
           <div className="flex border border-slate-300 rounded-xl overflow-hidden bg-white">
             <button onClick={() => setViewMode('grid')}
               className={`px-3 flex items-center transition-colors ${viewMode === 'grid' ? 'bg-sky-500 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
@@ -156,6 +151,11 @@ export default function StockPage({ role: _role }: Props) {
               </svg>
             </button>
           </div>
+          <button
+            onClick={() => setShowForm(true)}
+            className="bg-sky-500 hover:bg-sky-600 text-white px-3 rounded-xl text-xl font-medium transition-colors"
+            title="Artikel hinzufügen"
+          >+</button>
         </div>
 
         {/* Filter tabs */}
