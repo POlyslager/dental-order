@@ -12,6 +12,7 @@ export interface Product {
   id: string
   article_number: string | null
   name: string
+  description: string | null
   barcode: string | null
   category: string
   current_stock: number
@@ -19,12 +20,16 @@ export interface Product {
   unit: string
   preferred_supplier: string | null
   supplier_url: string | null
+  producer_url: string | null
   last_price: number | null
   image_url: string | null
   notes: string | null
   expiry_date: string | null
   storage_location: string | null
   reorder_quantity: number | null
+  alternative_price: number | null
+  alternative_url: string | null
+  alternative_supplier: string | null
   created_at: string
 }
 

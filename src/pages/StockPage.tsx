@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Product, Role } from '../lib/types'
+import ProductDetailModal from '../components/ProductDetailModal'
 
 interface Props { role: Role | null }
 
@@ -23,22 +24,6 @@ function isLowStock(p: Product) {
   return p.current_stock <= p.min_stock
 }
 
-const EMPTY_FORM = {
-  article_number: '',
-  name: '',
-  category: '',
-  current_stock: 0,
-  min_stock: 1,
-  unit: 'pcs',
-  preferred_supplier: '',
-  supplier_url: '',
-  last_price: '',
-  storage_location: '',
-  expiry_date: '',
-  notes: '',
-  reorder_quantity: '',
-}
-
 export default function StockPage({ role: _role }: Props) {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
@@ -46,46 +31,14 @@ export default function StockPage({ role: _role }: Props) {
   const [filter, setFilter] = useState<Filter>('all')
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
-  const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState(EMPTY_FORM)
-  const [saving, setSaving] = useState(false)
-  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
 
   useEffect(() => {
-    fetchProducts()
-  }, [])
-
-  async function fetchProducts() {
-    const { data } = await supabase.from('products').select('*').order('name')
-    setProducts(data ?? [])
-    setLoading(false)
-  }
-
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault()
-    setSaving(true)
-    await supabase.from('products').insert({
-      ...form,
-      last_price: form.last_price ? parseFloat(form.last_price) : null,
-      reorder_quantity: form.reorder_quantity ? parseFloat(form.reorder_quantity) : null,
-      expiry_date: form.expiry_date || null,
-      article_number: form.article_number || null,
-      supplier_url: form.supplier_url || null,
-      preferred_supplier: form.preferred_supplier || null,
-      storage_location: form.storage_location || null,
-      notes: form.notes || null,
+    supabase.from('products').select('*').order('name').then(({ data }) => {
+      setProducts(data ?? [])
+      setLoading(false)
     })
-    setForm(EMPTY_FORM)
-    setShowForm(false)
-    setSaving(false)
-    fetchProducts()
-  }
-
-  async function handleDelete(id: string) {
-    await supabase.from('products').delete().eq('id', id)
-    setDeleteConfirm(null)
-    setProducts(prev => prev.filter(p => p.id !== id))
-  }
+  }, [])
 
   const categories = ['all', ...Array.from(new Set(products.map(p => p.category))).sort()]
 
@@ -130,7 +83,7 @@ export default function StockPage({ role: _role }: Props) {
       </div>
 
       <div className="p-4 space-y-3">
-        {/* Search + view toggle + add button */}
+        {/* Search + view toggle */}
         <div className="flex gap-2">
           <div className="relative flex-1">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">🔍</span>
@@ -143,53 +96,36 @@ export default function StockPage({ role: _role }: Props) {
             />
           </div>
           <div className="flex border border-slate-300 rounded-xl overflow-hidden bg-white">
-            <button
-              onClick={() => setViewMode('grid')}
+            <button onClick={() => setViewMode('grid')}
               className={`px-3 flex items-center transition-colors ${viewMode === 'grid' ? 'bg-sky-500 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
-              title="Rasteransicht"
-            >
+              title="Rasteransicht">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                <rect x="1" y="1" width="6" height="6" rx="1"/>
-                <rect x="9" y="1" width="6" height="6" rx="1"/>
-                <rect x="1" y="9" width="6" height="6" rx="1"/>
-                <rect x="9" y="9" width="6" height="6" rx="1"/>
+                <rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/>
+                <rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/>
               </svg>
             </button>
-            <button
-              onClick={() => setViewMode('list')}
+            <button onClick={() => setViewMode('list')}
               className={`px-3 flex items-center border-l border-slate-300 transition-colors ${viewMode === 'list' ? 'bg-sky-500 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
-              title="Listenansicht"
-            >
+              title="Listenansicht">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                <rect x="1" y="2" width="14" height="2" rx="1"/>
-                <rect x="1" y="7" width="14" height="2" rx="1"/>
+                <rect x="1" y="2" width="14" height="2" rx="1"/><rect x="1" y="7" width="14" height="2" rx="1"/>
                 <rect x="1" y="12" width="14" height="2" rx="1"/>
               </svg>
             </button>
           </div>
-          <button
-            onClick={() => setShowForm(true)}
-            className="bg-sky-500 hover:bg-sky-600 text-white px-3 rounded-xl text-xl font-medium transition-colors"
-            title="Artikel hinzufügen"
-          >
-            +
-          </button>
         </div>
 
         {/* Filter tabs */}
         <div className="flex gap-2">
           {([
-            { id: 'all', label: 'Alle' },
-            { id: 'low', label: `Niedrig${lowCount > 0 ? ` (${lowCount})` : ''}` },
+            { id: 'all',     label: 'Alle' },
+            { id: 'low',     label: `Niedrig${lowCount > 0 ? ` (${lowCount})` : ''}` },
             { id: 'expired', label: `Abgelaufen${expiredCount > 0 ? ` (${expiredCount})` : ''}` },
           ] as { id: Filter; label: string }[]).map(f => (
-            <button
-              key={f.id}
-              onClick={() => setFilter(f.id)}
+            <button key={f.id} onClick={() => setFilter(f.id)}
               className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
                 filter === f.id ? 'bg-sky-500 text-white' : 'bg-white border border-slate-300 text-slate-600'
-              }`}
-            >
+              }`}>
               {f.label}
             </button>
           ))}
@@ -198,13 +134,10 @@ export default function StockPage({ role: _role }: Props) {
         {/* Category scroll */}
         <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
           {categories.map(cat => (
-            <button
-              key={cat}
-              onClick={() => setSelectedCategory(cat)}
+            <button key={cat} onClick={() => setSelectedCategory(cat)}
               className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
                 selectedCategory === cat ? 'bg-slate-800 text-white' : 'bg-white border border-slate-200 text-slate-600'
-              }`}
-            >
+              }`}>
               {cat === 'all' ? 'Alle Kategorien' : cat}
             </button>
           ))}
@@ -215,113 +148,40 @@ export default function StockPage({ role: _role }: Props) {
           <p className="text-center text-slate-400 py-12">Keine Artikel gefunden</p>
         ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-2 gap-3">
-            {filtered.map(p => (
-              <ProductCard key={p.id} product={p} onDelete={() => setDeleteConfirm(p.id)} />
-            ))}
+            {filtered.map(p => <ProductCard key={p.id} product={p} onClick={() => setSelectedProduct(p)} />)}
           </div>
         ) : (
           <div className="space-y-2">
-            {filtered.map(p => (
-              <ProductRow key={p.id} product={p} onDelete={() => setDeleteConfirm(p.id)} />
-            ))}
+            {filtered.map(p => <ProductRow key={p.id} product={p} onClick={() => setSelectedProduct(p)} />)}
           </div>
         )}
       </div>
 
-      {/* Delete confirmation modal */}
-      {deleteConfirm && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl">
-            <h3 className="font-semibold text-slate-800 mb-2">Artikel löschen?</h3>
-            <p className="text-sm text-slate-500 mb-5">
-              {products.find(p => p.id === deleteConfirm)?.name} wird dauerhaft gelöscht.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setDeleteConfirm(null)}
-                className="flex-1 border border-slate-300 rounded-xl py-2.5 text-sm text-slate-600"
-              >
-                Abbrechen
-              </button>
-              <button
-                onClick={() => handleDelete(deleteConfirm)}
-                className="flex-1 bg-red-500 hover:bg-red-600 text-white rounded-xl py-2.5 text-sm font-medium"
-              >
-                Löschen
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Add product modal */}
-      {showForm && (
-        <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50">
-          <div className="bg-white rounded-t-3xl sm:rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-xl">
-            <div className="sticky top-0 bg-white border-b border-slate-100 px-5 py-4 flex items-center justify-between rounded-t-3xl sm:rounded-t-2xl">
-              <h3 className="font-semibold text-slate-800">Neuer Artikel</h3>
-              <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600 text-xl">✕</button>
-            </div>
-            <form onSubmit={handleCreate} className="p-5 space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Artikelnummer" value={form.article_number} onChange={v => setForm(f => ({ ...f, article_number: v }))} />
-                <Field label="Name *" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} required />
-              </div>
-              <Field label="Kategorie *" value={form.category} onChange={v => setForm(f => ({ ...f, category: v }))} required />
-              <div className="grid grid-cols-3 gap-3">
-                <Field label="Bestand" type="number" value={String(form.current_stock)} onChange={v => setForm(f => ({ ...f, current_stock: parseFloat(v) || 0 }))} />
-                <Field label="Mindestbestand" type="number" value={String(form.min_stock)} onChange={v => setForm(f => ({ ...f, min_stock: parseFloat(v) || 0 }))} />
-                <Field label="Einheit" value={form.unit} onChange={v => setForm(f => ({ ...f, unit: v }))} />
-              </div>
-              <Field label="Lagerort" value={form.storage_location} onChange={v => setForm(f => ({ ...f, storage_location: v }))} />
-              <Field label="Ablaufdatum" type="date" value={form.expiry_date} onChange={v => setForm(f => ({ ...f, expiry_date: v }))} />
-              <Field label="Lieferant" value={form.preferred_supplier} onChange={v => setForm(f => ({ ...f, preferred_supplier: v }))} />
-              <Field label="Lieferant Website" type="url" value={form.supplier_url} onChange={v => setForm(f => ({ ...f, supplier_url: v }))} />
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Stückpreis (€)" type="number" value={form.last_price} onChange={v => setForm(f => ({ ...f, last_price: v }))} />
-                <Field label="Nachbestell-Menge" type="number" value={form.reorder_quantity} onChange={v => setForm(f => ({ ...f, reorder_quantity: v }))} />
-              </div>
-              <Field label="Notizen" value={form.notes} onChange={v => setForm(f => ({ ...f, notes: v }))} />
-              <button
-                type="submit"
-                disabled={saving}
-                className="w-full bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white font-medium rounded-xl py-3 text-sm transition-colors"
-              >
-                {saving ? 'Speichern…' : 'Artikel hinzufügen'}
-              </button>
-            </form>
-          </div>
-        </div>
+      {selectedProduct && (
+        <ProductDetailModal
+          product={selectedProduct}
+          onClose={() => setSelectedProduct(null)}
+          onUpdated={updated => {
+            setProducts(prev => prev.map(p => p.id === updated.id ? updated : p))
+            setSelectedProduct(updated)
+          }}
+          onDeleted={id => {
+            setProducts(prev => prev.filter(p => p.id !== id))
+            setSelectedProduct(null)
+          }}
+        />
       )}
     </div>
   )
 }
 
-function Field({ label, value, onChange, type = 'text', required = false }: {
-  label: string; value: string; onChange: (v: string) => void; type?: string; required?: boolean
-}) {
-  return (
-    <div>
-      <label className="block text-xs font-medium text-slate-600 mb-1">{label}</label>
-      <input
-        type={type}
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        required={required}
-        step={type === 'number' ? 'any' : undefined}
-        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
-      />
-    </div>
-  )
-}
-
-function ProductRow({ product: p, onDelete }: { product: Product; onDelete: () => void }) {
+function ProductRow({ product: p, onClick }: { product: Product; onClick: () => void }) {
   const low = isLowStock(p)
   const expired = isExpired(p)
   const expiringSoon = isExpiringSoon(p)
 
   return (
-    <div className={`bg-white rounded-xl px-4 py-3 border shadow-sm flex items-center gap-3 ${
+    <div onClick={onClick} className={`bg-white rounded-xl px-4 py-3 border shadow-sm flex items-center gap-3 cursor-pointer active:scale-[0.99] transition-transform ${
       expired ? 'border-red-200' : low ? 'border-amber-200' : 'border-slate-200'
     }`}>
       <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${
@@ -345,20 +205,16 @@ function ProductRow({ product: p, onDelete }: { product: Product; onDelete: () =
       </div>
       {(low || expired) && p.supplier_url && (
         <a href={p.supplier_url} target="_blank" rel="noopener noreferrer"
+          onClick={e => e.stopPropagation()}
           className="shrink-0 text-xs bg-sky-50 hover:bg-sky-100 text-sky-600 font-medium px-2.5 py-1.5 rounded-lg transition-colors">
           →
         </a>
       )}
-      <button onClick={onDelete} className="shrink-0 text-slate-300 hover:text-red-400 transition-colors" title="Löschen">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M6 2a1 1 0 0 0-1 1v.5H2.5a.5.5 0 0 0 0 1H3v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-8h.5a.5.5 0 0 0 0-1H11V3a1 1 0 0 0-1-1H6zm0 1h4v.5H6V3zm-2 2h8v8H4V5zm2 1.5a.5.5 0 0 0-.5.5v4a.5.5 0 0 0 1 0V7a.5.5 0 0 0-.5-.5zm4 0a.5.5 0 0 0-.5.5v4a.5.5 0 0 0 1 0V7a.5.5 0 0 0-.5-.5z"/>
-        </svg>
-      </button>
     </div>
   )
 }
 
-function ProductCard({ product: p, onDelete }: { product: Product; onDelete: () => void }) {
+function ProductCard({ product: p, onClick }: { product: Product; onClick: () => void }) {
   const low = isLowStock(p)
   const expired = isExpired(p)
   const expiringSoon = isExpiringSoon(p)
@@ -369,21 +225,14 @@ function ProductCard({ product: p, onDelete }: { product: Product; onDelete: () 
   const barColor = expired || low ? 'bg-red-400' : expiringSoon ? 'bg-amber-400' : 'bg-emerald-400'
 
   return (
-    <div className={`bg-white rounded-2xl p-4 border shadow-sm flex flex-col gap-2 ${
+    <div onClick={onClick} className={`bg-white rounded-2xl p-4 border shadow-sm flex flex-col gap-2 cursor-pointer active:scale-[0.98] transition-transform ${
       expired ? 'border-red-200' : low ? 'border-amber-200' : 'border-slate-200'
     }`}>
       <div className="flex items-start justify-between gap-1">
         <span className="text-xs font-medium text-slate-400 truncate">{p.article_number}</span>
-        <div className="flex items-center gap-1 shrink-0">
-          {expired && <span className="text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full">Abgelaufen</span>}
-          {!expired && low && <span className="text-xs bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded-full">Niedrig</span>}
-          {!expired && !low && expiringSoon && <span className="text-xs bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full">Läuft ab</span>}
-          <button onClick={onDelete} className="text-slate-300 hover:text-red-400 transition-colors ml-1" title="Löschen">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M6 2a1 1 0 0 0-1 1v.5H2.5a.5.5 0 0 0 0 1H3v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-8h.5a.5.5 0 0 0 0-1H11V3a1 1 0 0 0-1-1H6zm0 1h4v.5H6V3zm-2 2h8v8H4V5zm2 1.5a.5.5 0 0 0-.5.5v4a.5.5 0 0 0 1 0V7a.5.5 0 0 0-.5-.5zm4 0a.5.5 0 0 0-.5.5v4a.5.5 0 0 0 1 0V7a.5.5 0 0 0-.5-.5z"/>
-            </svg>
-          </button>
-        </div>
+        {expired && <span className="shrink-0 text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full">Abgelaufen</span>}
+        {!expired && low && <span className="shrink-0 text-xs bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded-full">Niedrig</span>}
+        {!expired && !low && expiringSoon && <span className="shrink-0 text-xs bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full">Läuft ab</span>}
       </div>
       <p className="font-semibold text-slate-800 text-sm leading-snug line-clamp-2">{p.name}</p>
       <div>
@@ -406,6 +255,7 @@ function ProductCard({ product: p, onDelete }: { product: Product; onDelete: () 
       </div>
       {(low || expired) && p.supplier_url && (
         <a href={p.supplier_url} target="_blank" rel="noopener noreferrer"
+          onClick={e => e.stopPropagation()}
           className="mt-1 w-full text-center text-xs bg-sky-50 hover:bg-sky-100 text-sky-600 font-medium py-1.5 rounded-lg transition-colors">
           Nachbestellen →
         </a>
