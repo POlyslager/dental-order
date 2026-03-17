@@ -4,14 +4,12 @@ import type { Product, Role } from '../lib/types'
 import ProductDetailModal from '../components/ProductDetailModal'
 import Drawer from '../components/Drawer'
 import CategorySelect from '../components/CategorySelect'
-import { Search, LayoutGrid, List, Table2, Plus, X, ChevronDown, ChevronUp, ChevronRight, ExternalLink, ArrowUpDown } from 'lucide-react'
+import { Search, LayoutGrid, List, Plus, X, ChevronDown, ChevronUp, ChevronRight, ExternalLink } from 'lucide-react'
 
 interface Props { role: Role | null; initialBarcode?: string | null; onBarcodeConsumed?: () => void }
 
 type Filter = 'all' | 'low' | 'expired'
-type ViewMode = 'grid' | 'list' | 'table'
-type SortField = 'name' | 'current_stock' | 'min_stock' | 'expiry_date' | 'preferred_supplier'
-type SortDir = 'asc' | 'desc'
+type ViewMode = 'grid' | 'list'
 
 const TODAY = new Date()
 TODAY.setHours(0, 0, 0, 0)
@@ -51,8 +49,6 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [sortField, setSortField] = useState<SortField>('name')
-  const [sortDir, setSortDir] = useState<SortDir>('asc')
 
   useEffect(() => { fetchProducts() }, [])
   useEffect(() => {
@@ -104,22 +100,6 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
     return matchesSearch && matchesCategory && matchesFilter
   })
 
-  // Sorted list for table view
-  const sorted = [...filtered].sort((a, b) => {
-    let av: string | number = a[sortField] ?? ''
-    let bv: string | number = b[sortField] ?? ''
-    if (typeof av === 'string') av = av.toLowerCase()
-    if (typeof bv === 'string') bv = bv.toLowerCase()
-    if (av < bv) return sortDir === 'asc' ? -1 : 1
-    if (av > bv) return sortDir === 'asc' ? 1 : -1
-    return 0
-  })
-
-  function toggleSort(field: SortField) {
-    if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
-    else { setSortField(field); setSortDir('asc') }
-  }
-
   const lowCount = products.filter(isLowStock).length
   const expiredCount = products.filter(isExpired).length
 
@@ -162,17 +142,14 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
             )}
           </div>
           <div className="flex border border-slate-300 rounded-xl overflow-hidden bg-white">
-            {([
-              { mode: 'grid' as ViewMode,  icon: <LayoutGrid size={15} />, title: 'Raster' },
-              { mode: 'list' as ViewMode,  icon: <List size={15} />,       title: 'Liste' },
-              { mode: 'table' as ViewMode, icon: <Table2 size={15} />,     title: 'Tabelle' },
-            ]).map((v, i) => (
-              <button key={v.mode} onClick={() => setViewMode(v.mode)}
-                title={v.title}
-                className={`px-2.5 flex items-center transition-colors ${i > 0 ? 'border-l border-slate-300' : ''} ${viewMode === v.mode ? 'bg-sky-500 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
-                {v.icon}
-              </button>
-            ))}
+            <button onClick={() => setViewMode('grid')} title="Raster"
+              className={`px-3 flex items-center transition-colors ${viewMode === 'grid' ? 'bg-sky-500 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
+              <LayoutGrid size={15} />
+            </button>
+            <button onClick={() => setViewMode('list')} title="Liste"
+              className={`px-3 flex items-center border-l border-slate-300 transition-colors ${viewMode === 'list' ? 'bg-sky-500 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
+              <List size={15} />
+            </button>
           </div>
           <button onClick={() => setShowForm(true)} title="Artikel hinzufügen"
             className="bg-sky-500 hover:bg-sky-600 text-white px-3 rounded-xl transition-colors flex items-center">
@@ -199,7 +176,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
           <div className="grid grid-cols-2 gap-3">
             {filtered.map(p => <ProductCard key={p.id} product={p} onClick={() => setSelectedProduct(p)} />)}
           </div>
-        ) : viewMode === 'list' ? (
+        ) : (
           <div className="space-y-1.5">
             {filtered.map(p => (
               <ExpandableRow
@@ -211,14 +188,6 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
               />
             ))}
           </div>
-        ) : (
-          <TableView
-            products={sorted}
-            sortField={sortField}
-            sortDir={sortDir}
-            onSort={toggleSort}
-            onOpen={p => setSelectedProduct(p)}
-          />
         )}
       </div>
 
@@ -358,74 +327,6 @@ function Detail({ label, value, alert }: { label: string; value: string; alert?:
     <div>
       <p className="text-xs text-slate-400">{label}</p>
       <p className={`text-sm font-medium ${alert === 'red' ? 'text-red-500' : alert === 'orange' ? 'text-orange-500' : 'text-slate-700'}`}>{value}</p>
-    </div>
-  )
-}
-
-// ── Table view (B) ─────────────────────────────────────────────────────────
-function TableView({ products, sortField, sortDir, onSort, onOpen }: {
-  products: Product[]
-  sortField: SortField
-  sortDir: SortDir
-  onSort: (f: SortField) => void
-  onOpen: (p: Product) => void
-}) {
-  function SortIcon({ field }: { field: SortField }) {
-    if (sortField !== field) return <ArrowUpDown size={11} className="text-slate-300" />
-    return sortDir === 'asc' ? <ChevronUp size={11} className="text-sky-500" /> : <ChevronDown size={11} className="text-sky-500" />
-  }
-
-  return (
-    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
-      {/* Header */}
-      <div className="grid grid-cols-[1fr_auto_auto_auto] gap-0 border-b border-slate-100 bg-slate-50">
-        {([
-          { field: 'name' as SortField,               label: 'Artikel',   cls: 'pl-4 pr-2 py-2.5' },
-          { field: 'current_stock' as SortField,      label: 'Bestand',   cls: 'px-3 py-2.5 text-right' },
-          { field: 'min_stock' as SortField,          label: 'Min',       cls: 'px-3 py-2.5 text-right' },
-          { field: 'expiry_date' as SortField,        label: 'Ablauf',    cls: 'pl-2 pr-4 py-2.5 text-right' },
-        ]).map(col => (
-          <button key={col.field} onClick={() => onSort(col.field)}
-            className={`flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-slate-700 ${col.cls} ${col.field === 'name' ? '' : 'justify-end'}`}>
-            {col.field !== 'name' && <SortIcon field={col.field} />}
-            {col.label}
-            {col.field === 'name' && <SortIcon field={col.field} />}
-          </button>
-        ))}
-      </div>
-
-      {/* Rows */}
-      <div className="divide-y divide-slate-50">
-        {products.map(p => {
-          const low = isLowStock(p)
-          const expired = isExpired(p)
-          const expiringSoon = isExpiringSoon(p)
-          return (
-            <button key={p.id} onClick={() => onOpen(p)}
-              className="w-full grid grid-cols-[1fr_auto_auto_auto] gap-0 items-center text-left hover:bg-slate-50 active:bg-slate-100 transition-colors">
-              <div className="pl-4 pr-2 py-3 min-w-0">
-                <p className="text-sm text-slate-800 truncate font-medium">{p.name}</p>
-                {p.preferred_supplier && <p className="text-xs text-slate-400 truncate">{p.preferred_supplier}</p>}
-              </div>
-              <div className="px-3 py-3 text-right">
-                <span className={`text-sm font-bold ${low || expired ? 'text-red-500' : 'text-slate-800'}`}>{p.current_stock}</span>
-              </div>
-              <div className="px-3 py-3 text-right">
-                <span className="text-sm text-slate-400">{p.min_stock}</span>
-              </div>
-              <div className="pl-2 pr-4 py-3 text-right">
-                {p.expiry_date ? (
-                  <span className={`text-xs ${expired ? 'text-red-500 font-medium' : expiringSoon ? 'text-orange-500' : 'text-slate-400'}`}>
-                    {new Date(p.expiry_date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' })}
-                  </span>
-                ) : (
-                  <span className="text-xs text-slate-200">—</span>
-                )}
-              </div>
-            </button>
-          )
-        })}
-      </div>
     </div>
   )
 }
