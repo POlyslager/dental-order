@@ -14,6 +14,12 @@ export default function Dashboard({ user }: Props) {
   const [role, setRole] = useState<Role | null>(null)
   const [tab, setTab] = useState<Tab>('stock')
   const [menuOpen, setMenuOpen] = useState(false)
+  const [pendingBarcode, setPendingBarcode] = useState<string | null>(null)
+
+  function handleAddWithBarcode(barcode: string) {
+    setPendingBarcode(barcode)
+    setTab('stock')
+  }
 
   useEffect(() => {
     getUserRole().then(setRole)
@@ -52,8 +58,8 @@ export default function Dashboard({ user }: Props) {
       {/* Page content */}
       <main className="flex-1 overflow-auto pb-20">
         <>
-          {tab === 'stock'  && <StockPage role={role} />}
-          {tab === 'scan'   && <ScanPage />}
+          {tab === 'stock'  && <StockPage role={role} initialBarcode={pendingBarcode} onBarcodeConsumed={() => setPendingBarcode(null)} />}
+          {tab === 'scan'   && <ScanPage onAddWithBarcode={handleAddWithBarcode} />}
           {tab === 'orders' && <OrdersPage role={role} user={user} />}
         </>
       </main>

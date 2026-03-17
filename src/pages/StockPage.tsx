@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import type { Product, Role } from '../lib/types'
 import ProductDetailModal from '../components/ProductDetailModal'
 
-interface Props { role: Role | null }
+interface Props { role: Role | null; initialBarcode?: string | null; onBarcodeConsumed?: () => void }
 
 type Filter = 'all' | 'low' | 'expired'
 type ViewMode = 'grid' | 'list'
@@ -25,7 +25,7 @@ function isLowStock(p: Product) {
 }
 
 const EMPTY_FORM = {
-  article_number: '', name: '', description: '', category: '',
+  article_number: '', name: '', description: '', category: '', barcode: '',
   min_stock: 1, unit: 'pcs', preferred_supplier: '', supplier_url: '',
   producer_url: '', last_price: '', storage_location: '', notes: '', reorder_quantity: '',
 }
@@ -36,7 +36,7 @@ const STORAGE_LOCATIONS = [
   'Steri', 'Rezeption', 'Büro', 'Radiologie', 'Keller',
 ]
 
-export default function StockPage({ role: _role }: Props) {
+export default function StockPage({ role: _role, initialBarcode, onBarcodeConsumed }: Props) {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -49,6 +49,14 @@ export default function StockPage({ role: _role }: Props) {
   const [saving, setSaving] = useState(false)
 
   useEffect(() => { fetchProducts() }, [])
+
+  useEffect(() => {
+    if (initialBarcode) {
+      setForm(f => ({ ...f, barcode: initialBarcode }))
+      setShowForm(true)
+      onBarcodeConsumed?.()
+    }
+  }, [initialBarcode])
 
   async function fetchProducts() {
     const { data } = await supabase.from('products').select('*').order('name')
@@ -65,6 +73,7 @@ export default function StockPage({ role: _role }: Props) {
       last_price: form.last_price ? parseFloat(form.last_price) : null,
       reorder_quantity: form.reorder_quantity ? parseFloat(form.reorder_quantity) : null,
       article_number: form.article_number || null,
+      barcode: form.barcode || null,
       supplier_url: form.supplier_url || null,
       producer_url: form.producer_url || null,
       preferred_supplier: form.preferred_supplier || null,
@@ -215,6 +224,7 @@ export default function StockPage({ role: _role }: Props) {
                 <Field label="Artikelnummer" value={form.article_number} onChange={v => setForm(f => ({ ...f, article_number: v }))} />
                 <Field label="Name *" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} required />
               </div>
+              <Field label="Barcode / QR-Code" value={form.barcode} onChange={v => setForm(f => ({ ...f, barcode: v }))} />
               <Field label="Beschreibung" value={form.description} onChange={v => setForm(f => ({ ...f, description: v }))} />
               <Field label="Kategorie *" value={form.category} onChange={v => setForm(f => ({ ...f, category: v }))} required />
               <div className="grid grid-cols-2 gap-3">

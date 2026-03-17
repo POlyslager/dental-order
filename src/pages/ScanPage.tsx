@@ -5,7 +5,9 @@ import type { Product } from '../lib/types'
 
 type ScanMode = 'in' | 'out'
 
-export default function ScanPage() {
+interface Props { onAddWithBarcode: (barcode: string) => void }
+
+export default function ScanPage({ onAddWithBarcode }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const readerRef = useRef<BrowserMultiFormatReader | null>(null)
   const [scanning, setScanning] = useState(false)
@@ -74,7 +76,7 @@ export default function ScanPage() {
       .single()
 
     if (!data) {
-      setError(`Kein Produkt gefunden. Gescannter Code: ${barcode}`)
+      setError(`Unbekannter Code: ${barcode}`)
       return
     }
     setScannedProduct(data)
@@ -189,7 +191,19 @@ export default function ScanPage() {
       )}
 
       {status && <p className="text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-sm">{status}</p>}
-      {error && <p className="text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm">{error}</p>}
+      {error && (
+        <div className="space-y-2">
+          <p className="text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm">{error}</p>
+          {rawCode && (
+            <button
+              onClick={() => onAddWithBarcode(rawCode)}
+              className="w-full bg-sky-500 hover:bg-sky-600 text-white rounded-xl py-3 text-sm font-medium"
+            >
+              + Als neuen Artikel hinzufügen
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }
