@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Product } from '../lib/types'
+import Drawer from './Drawer'
 
 interface Props {
   product: Product
@@ -10,16 +11,9 @@ interface Props {
 }
 
 const STORAGE_LOCATIONS = [
-  'Behandlungsraum 1',
-  'Behandlungsraum 2',
-  'Behandlungsraum 3',
-  'Behandlungsraum 4',
-  'Behandlungsraum 5',
-  'Steri',
-  'Rezeption',
-  'Büro',
-  'Radiologie',
-  'Keller',
+  'Behandlungsraum 1', 'Behandlungsraum 2', 'Behandlungsraum 3',
+  'Behandlungsraum 4', 'Behandlungsraum 5',
+  'Steri', 'Rezeption', 'Büro', 'Radiologie', 'Keller',
 ]
 
 function stockStatus(p: Product): 'green' | 'orange' | 'red' {
@@ -64,9 +58,7 @@ export default function ProductDetailModal({ product, onClose, onUpdated, onDele
       .order('created_at', { ascending: false })
       .limit(1)
       .single()
-      .then(({ data }) => {
-        if (data) setLastScan(data.created_at)
-      })
+      .then(({ data }) => { if (data) setLastScan(data.created_at) })
   }, [product.id])
 
   async function handleSave() {
@@ -154,9 +146,8 @@ export default function ProductDetailModal({ product, onClose, onUpdated, onDele
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50">
-      <div className="bg-white rounded-t-3xl sm:rounded-2xl w-full max-w-lg max-h-[92vh] flex flex-col shadow-xl">
-
+    <>
+      <Drawer open onClose={editing ? () => { setForm(product); setEditing(false) } : onClose}>
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0">
           <div className="flex items-center gap-2">
@@ -183,16 +174,12 @@ export default function ProductDetailModal({ product, onClose, onUpdated, onDele
               </>
             )}
             <button onClick={editing ? () => { setForm(product); setEditing(false) } : onClose}
-              className="text-slate-400 hover:text-slate-600 text-xl px-1">
-              {editing ? '✕' : '✕'}
-            </button>
+              className="text-slate-400 hover:text-slate-600 text-xl px-1">✕</button>
           </div>
         </div>
 
         {/* Scrollable content */}
         <div className="overflow-y-auto flex-1 px-5 py-4 space-y-5">
-
-          {/* Title + description */}
           <div className="space-y-3">
             {editing ? (
               <>
@@ -231,7 +218,6 @@ export default function ProductDetailModal({ product, onClose, onUpdated, onDele
             )}
           </div>
 
-          {/* Details grid */}
           <div className="grid grid-cols-2 gap-4">
             {f('Kategorie', 'category')}
             {f('Lagerort', 'storage_location', editing ? 'select' : 'text', STORAGE_LOCATIONS)}
@@ -246,7 +232,6 @@ export default function ProductDetailModal({ product, onClose, onUpdated, onDele
 
           {f('Notizen', 'notes')}
 
-          {/* Ordering */}
           <div>
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Bestellung</p>
             <div className="space-y-3">
@@ -266,7 +251,6 @@ export default function ProductDetailModal({ product, onClose, onUpdated, onDele
             </div>
           </div>
 
-          {/* Alternative price */}
           <div>
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Günstigere Alternative</p>
             <div className="space-y-3">
@@ -307,27 +291,27 @@ export default function ProductDetailModal({ product, onClose, onUpdated, onDele
             </button>
           </div>
         )}
-      </div>
+      </Drawer>
 
-      {/* Delete confirm */}
-      {confirmDelete && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-60 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl">
-            <h3 className="font-semibold text-slate-800 mb-2">Artikel löschen?</h3>
-            <p className="text-sm text-slate-500 mb-5">{product.name} wird dauerhaft gelöscht.</p>
-            <div className="flex gap-3">
-              <button onClick={() => setConfirmDelete(false)}
-                className="flex-1 border border-slate-300 rounded-xl py-2.5 text-sm text-slate-600">
-                Abbrechen
-              </button>
-              <button onClick={handleDelete}
-                className="flex-1 bg-red-500 hover:bg-red-600 text-white rounded-xl py-2.5 text-sm font-medium">
-                Löschen
-              </button>
-            </div>
+      {/* Delete confirmation drawer */}
+      <Drawer open={confirmDelete} onClose={() => setConfirmDelete(false)} zIndex={60}>
+        <div className="px-5 py-6 space-y-4">
+          <div>
+            <h3 className="font-semibold text-slate-800 text-lg">Artikel löschen?</h3>
+            <p className="text-sm text-slate-500 mt-1">{product.name} wird dauerhaft gelöscht.</p>
+          </div>
+          <div className="flex gap-3">
+            <button onClick={() => setConfirmDelete(false)}
+              className="flex-1 border border-slate-300 rounded-xl py-3 text-sm text-slate-600">
+              Abbrechen
+            </button>
+            <button onClick={handleDelete}
+              className="flex-1 bg-red-500 hover:bg-red-600 text-white rounded-xl py-3 text-sm font-medium">
+              Löschen
+            </button>
           </div>
         </div>
-      )}
-    </div>
+      </Drawer>
+    </>
   )
 }
