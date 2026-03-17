@@ -345,47 +345,46 @@ function ProductCard({ product: p, onClick }: { product: Product; onClick: () =>
   const expired = isExpired(p)
   const expiringSoon = isExpiringSoon(p)
 
-  // Bar: scale to max = biggest of (current stock × 1.2) or (min × 2), so threshold marker is meaningful
-  const max = Math.max(p.current_stock * 1.2, p.min_stock * 2, 1)
+  // Scale: max is the larger of current stock or 2.5× the reorder threshold
+  // so the threshold marker sits at a consistent ~40% position when stock = min
+  const max = Math.max(p.current_stock, p.min_stock * 2.5, 1)
   const fillPct = Math.min(100, (p.current_stock / max) * 100)
-  const thresholdPct = Math.min(100, (p.min_stock / max) * 100)
+  const thresholdPct = Math.min(99, (p.min_stock / max) * 100)
   const barColor = expired || low ? 'bg-red-400' : expiringSoon ? 'bg-amber-400' : 'bg-emerald-400'
 
   return (
-    <div onClick={onClick} className={`bg-white rounded-2xl p-4 border shadow-sm flex flex-col gap-2 cursor-pointer active:scale-[0.98] transition-transform ${
+    <div onClick={onClick} className={`bg-white rounded-2xl border shadow-sm flex flex-col cursor-pointer active:scale-[0.98] transition-transform overflow-hidden ${
       expired ? 'border-red-200' : low ? 'border-amber-200' : 'border-slate-200'
     }`}>
-      <div className="flex items-start justify-between gap-1">
-        <span className="text-xs font-medium text-slate-400 truncate">{p.article_number}</span>
-        {expired && <span className="shrink-0 text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full">Abgelaufen</span>}
-        {!expired && low && <span className="shrink-0 text-xs bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded-full">Niedrig</span>}
-        {!expired && !low && expiringSoon && <span className="shrink-0 text-xs bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full">Läuft ab</span>}
-      </div>
-      <p className="font-semibold text-slate-800 text-sm leading-snug line-clamp-2">{p.name}</p>
-      <div>
-        <div className="flex items-baseline justify-between mb-2">
+      {/* Card content */}
+      <div className="p-4 flex flex-col gap-2">
+        <div className="flex items-start justify-between gap-1">
+          <span className="text-xs font-medium text-slate-400 truncate">{p.article_number}</span>
+          {expired && <span className="shrink-0 text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full">Abgelaufen</span>}
+          {!expired && low && <span className="shrink-0 text-xs bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded-full">Niedrig</span>}
+          {!expired && !low && expiringSoon && <span className="shrink-0 text-xs bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full">Läuft ab</span>}
+        </div>
+        <p className="font-semibold text-slate-800 text-sm leading-snug line-clamp-2">{p.name}</p>
+        <div className="flex items-baseline justify-between">
           <span className={`text-2xl font-bold ${low || expired ? 'text-red-500' : 'text-slate-800'}`}>{p.current_stock}</span>
           <span className="text-xs text-slate-400">min {p.min_stock}</span>
         </div>
-        {/* Bar with threshold marker */}
-        <div className="relative h-2">
-          <div className="absolute inset-0 bg-slate-100 rounded-full" />
-          <div className={`absolute left-0 top-0 h-full rounded-full transition-all ${barColor}`} style={{ width: `${fillPct}%` }} />
-          {/* Threshold line */}
-          <div
-            className="absolute top-[-3px] bottom-[-3px] w-[2px] bg-slate-400 rounded-full"
-            style={{ left: `${thresholdPct}%` }}
-          />
+        <div className="space-y-1">
+          {p.storage_location && <p className="text-xs text-slate-400 truncate">{p.storage_location}</p>}
+          {p.expiry_date && (
+            <p className={`text-xs truncate ${expired ? 'text-red-500 font-medium' : expiringSoon ? 'text-orange-500' : 'text-slate-400'}`}>
+              Exp. {new Date(p.expiry_date).toLocaleDateString('de-DE')}
+            </p>
+          )}
+          {p.preferred_supplier && <p className="text-xs text-slate-400 truncate">{p.preferred_supplier}</p>}
         </div>
       </div>
-      <div className="space-y-1 mt-1">
-        {p.storage_location && <p className="text-xs text-slate-400 truncate">{p.storage_location}</p>}
-        {p.expiry_date && (
-          <p className={`text-xs truncate ${expired ? 'text-red-500 font-medium' : expiringSoon ? 'text-orange-500' : 'text-slate-400'}`}>
-            Exp. {new Date(p.expiry_date).toLocaleDateString('de-DE')}
-          </p>
-        )}
-        {p.preferred_supplier && <p className="text-xs text-slate-400 truncate">{p.preferred_supplier}</p>}
+
+      {/* Full-width stock bar at bottom */}
+      <div className="relative h-2 bg-slate-100 mt-auto">
+        <div className={`absolute left-0 top-0 h-full transition-all ${barColor}`} style={{ width: `${fillPct}%` }} />
+        {/* Reorder threshold marker */}
+        <div className="absolute top-0 h-full w-[2px] bg-slate-400" style={{ left: `${thresholdPct}%` }} />
       </div>
     </div>
   )
