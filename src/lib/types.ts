@@ -1,0 +1,67 @@
+export type Role = 'employee' | 'admin'
+
+export interface Profile {
+  id: string
+  email: string
+  full_name: string
+  role: Role
+  created_at: string
+}
+
+export interface Product {
+  id: string
+  name: string
+  barcode: string | null
+  category: string
+  current_stock: number
+  min_stock: number
+  unit: string
+  preferred_supplier: string | null
+  supplier_url: string | null
+  last_price: number | null
+  image_url: string | null
+  notes: string | null
+  created_at: string
+}
+
+export interface StockMovement {
+  id: string
+  product_id: string
+  type: 'scan_in' | 'scan_out' | 'manual_in' | 'manual_out'
+  quantity: number
+  scanned_by: string
+  notes: string | null
+  created_at: string
+  product?: Product
+}
+
+export type OrderStatus = 'draft' | 'pending_approval' | 'approved' | 'ordered' | 'received' | 'cancelled'
+
+export interface Order {
+  id: string
+  status: OrderStatus
+  created_by: string
+  approved_by: string | null
+  notes: string | null
+  total_estimate: number | null
+  created_at: string
+  updated_at: string
+  items?: OrderItem[]
+  creator?: Profile
+}
+
+export interface OrderItem {
+  id: string
+  order_id: string
+  product_id: string
+  quantity: number
+  supplier_url: string | null
+  estimated_price: number | null
+  alternative_product_name: string | null
+  alternative_url: string | null
+  alternative_price: number | null
+  voucher_code: string | null
+  voucher_discount: number | null
+  created_at: string
+  product?: Product
+}
