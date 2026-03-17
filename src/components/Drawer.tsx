@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { type ReactNode, useEffect } from 'react'
 
 interface Props {
   open: boolean
@@ -8,6 +8,15 @@ interface Props {
 }
 
 export default function Drawer({ open, onClose, children, zIndex = 50 }: Props) {
+  useEffect(() => {
+    if (open) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => { document.body.style.overflow = '' }
+  }, [open])
+
   if (!open) return null
   return (
     <div className="fixed inset-0 flex flex-col justify-end" style={{ zIndex }}>

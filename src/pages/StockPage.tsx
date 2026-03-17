@@ -39,6 +39,12 @@ const STORAGE_LOCATIONS = [
   'Steri', 'Rezeption', 'Büro', 'Radiologie', 'Keller',
 ]
 
+const UNITS = [
+  'Stück', 'Packung', 'Box', 'Kartusche', 'Flasche', 'Tube',
+  'Beutel', 'Spritze', 'Set', 'Kit', 'Kanister', 'Dose',
+  'Ries', 'Paar', 'Rolle',
+]
+
 export default function StockPage({ role: _role, initialBarcode, onBarcodeConsumed }: Props) {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
@@ -227,7 +233,14 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
           </div>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Meldebestand *" type="number" value={String(form.min_stock)} onChange={v => setForm(f => ({ ...f, min_stock: parseFloat(v) || 0 }))} required />
-            <Field label="Einheit" value={form.unit} onChange={v => setForm(f => ({ ...f, unit: v }))} />
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Einheit</label>
+              <CategorySelect
+                value={form.unit}
+                onChange={v => setForm(f => ({ ...f, unit: v }))}
+                categories={UNITS}
+              />
+            </div>
           </div>
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">Lagerort</label>
