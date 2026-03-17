@@ -4,45 +4,39 @@ import type { Product, Role } from '../lib/types'
 import ProductDetailModal from '../components/ProductDetailModal'
 import Drawer from '../components/Drawer'
 import CategorySelect from '../components/CategorySelect'
-import { Search, LayoutGrid, List, Plus, X } from 'lucide-react'
+import { Search, LayoutGrid, List, Table2, Plus, X, ChevronDown, ChevronUp, ChevronRight, ExternalLink, ArrowUpDown } from 'lucide-react'
 
 interface Props { role: Role | null; initialBarcode?: string | null; onBarcodeConsumed?: () => void }
 
 type Filter = 'all' | 'low' | 'expired'
-type ViewMode = 'grid' | 'list'
+type ViewMode = 'grid' | 'list' | 'table'
+type SortField = 'name' | 'current_stock' | 'min_stock' | 'expiry_date' | 'preferred_supplier'
+type SortDir = 'asc' | 'desc'
 
 const TODAY = new Date()
 TODAY.setHours(0, 0, 0, 0)
 
-function isExpired(p: Product) {
-  return p.expiry_date ? new Date(p.expiry_date) < TODAY : false
-}
+function isExpired(p: Product) { return p.expiry_date ? new Date(p.expiry_date) < TODAY : false }
 function isExpiringSoon(p: Product) {
   if (!p.expiry_date) return false
-  const exp = new Date(p.expiry_date)
-  const diff = (exp.getTime() - TODAY.getTime()) / (1000 * 60 * 60 * 24)
+  const diff = (new Date(p.expiry_date).getTime() - TODAY.getTime()) / (1000 * 60 * 60 * 24)
   return diff >= 0 && diff <= 60
 }
-function isLowStock(p: Product) {
-  return p.current_stock <= p.min_stock
-}
+function isLowStock(p: Product) { return p.current_stock <= p.min_stock }
 
 const EMPTY_FORM = {
   article_number: '', name: '', description: '', category: '', barcode: '',
   min_stock: 1, unit: 'pcs', preferred_supplier: '', supplier_url: '',
   producer_url: '', last_price: '', storage_location: '', notes: '', reorder_quantity: '',
 }
-
 const STORAGE_LOCATIONS = [
   'Behandlungsraum 1', 'Behandlungsraum 2', 'Behandlungsraum 3',
   'Behandlungsraum 4', 'Behandlungsraum 5',
   'Steri', 'Rezeption', 'Büro', 'Radiologie', 'Keller',
 ]
-
 const UNITS = [
   'Stück', 'Packung', 'Box', 'Kartusche', 'Flasche', 'Tube',
-  'Beutel', 'Spritze', 'Set', 'Kit', 'Kanister', 'Dose',
-  'Ries', 'Paar', 'Rolle',
+  'Beutel', 'Spritze', 'Set', 'Kit', 'Kanister', 'Dose', 'Ries', 'Paar', 'Rolle',
 ]
 
 export default function StockPage({ role: _role, initialBarcode, onBarcodeConsumed }: Props) {
@@ -56,9 +50,11 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [sortField, setSortField] = useState<SortField>('name')
+  const [sortDir, setSortDir] = useState<SortDir>('asc')
 
   useEffect(() => { fetchProducts() }, [])
-
   useEffect(() => {
     if (initialBarcode) {
       setForm(f => ({ ...f, barcode: initialBarcode }))
@@ -104,12 +100,25 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
       p.category.toLowerCase().includes(search.toLowerCase()) ||
       (p.article_number?.toLowerCase().includes(search.toLowerCase()) ?? false)
     const matchesCategory = selectedCategory === 'all' || p.category === selectedCategory
-    const matchesFilter =
-      filter === 'all' ? true :
-      filter === 'low' ? isLowStock(p) :
-      filter === 'expired' ? isExpired(p) : true
+    const matchesFilter = filter === 'all' ? true : filter === 'low' ? isLowStock(p) : isExpired(p)
     return matchesSearch && matchesCategory && matchesFilter
   })
+
+  // Sorted list for table view
+  const sorted = [...filtered].sort((a, b) => {
+    let av: string | number = a[sortField] ?? ''
+    let bv: string | number = b[sortField] ?? ''
+    if (typeof av === 'string') av = av.toLowerCase()
+    if (typeof bv === 'string') bv = bv.toLowerCase()
+    if (av < bv) return sortDir === 'asc' ? -1 : 1
+    if (av > bv) return sortDir === 'asc' ? 1 : -1
+    return 0
+  })
+
+  function toggleSort(field: SortField) {
+    if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortField(field); setSortDir('asc') }
+  }
 
   const lowCount = products.filter(isLowStock).length
   const expiredCount = products.filter(isExpired).length
@@ -122,20 +131,17 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
 
   return (
     <div className="max-w-2xl mx-auto">
-      {/* Summary bar — tappable filters */}
+      {/* Summary bar */}
       <div className="grid grid-cols-3 divide-x divide-slate-200 border-b border-slate-200 bg-white">
-        <button onClick={() => setFilter('all')}
-          className={`py-2 px-4 text-center transition-colors ${filter === 'all' ? 'bg-sky-50' : ''}`}>
+        <button onClick={() => setFilter('all')} className={`py-2 px-4 text-center transition-colors ${filter === 'all' ? 'bg-sky-50' : ''}`}>
           <p className={`text-xl font-bold ${filter === 'all' ? 'text-sky-600' : 'text-slate-800'}`}>{products.length}</p>
           <p className={`text-xs mt-0.5 ${filter === 'all' ? 'text-sky-500 font-medium' : 'text-slate-500'}`}>Gesamt</p>
         </button>
-        <button onClick={() => setFilter(filter === 'low' ? 'all' : 'low')}
-          className={`py-2 px-4 text-center transition-colors ${filter === 'low' ? 'bg-amber-50' : ''}`}>
+        <button onClick={() => setFilter(filter === 'low' ? 'all' : 'low')} className={`py-2 px-4 text-center transition-colors ${filter === 'low' ? 'bg-amber-50' : ''}`}>
           <p className={`text-xl font-bold ${filter === 'low' ? 'text-amber-500' : lowCount > 0 ? 'text-amber-500' : 'text-slate-800'}`}>{lowCount}</p>
           <p className={`text-xs mt-0.5 ${filter === 'low' ? 'text-amber-500 font-medium' : 'text-slate-500'}`}>Niedrig</p>
         </button>
-        <button onClick={() => setFilter(filter === 'expired' ? 'all' : 'expired')}
-          className={`py-2 px-4 text-center transition-colors ${filter === 'expired' ? 'bg-red-50' : ''}`}>
+        <button onClick={() => setFilter(filter === 'expired' ? 'all' : 'expired')} className={`py-2 px-4 text-center transition-colors ${filter === 'expired' ? 'bg-red-50' : ''}`}>
           <p className={`text-xl font-bold ${filter === 'expired' ? 'text-red-500' : expiredCount > 0 ? 'text-red-500' : 'text-slate-800'}`}>{expiredCount}</p>
           <p className={`text-xs mt-0.5 ${filter === 'expired' ? 'text-red-500 font-medium' : 'text-slate-500'}`}>Abgelaufen</p>
         </button>
@@ -146,13 +152,9 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
         <div className="flex gap-2">
           <div className="relative flex-1">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="search"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
+            <input type="search" value={search} onChange={e => setSearch(e.target.value)}
               placeholder="Artikel suchen…"
-              className="w-full border border-slate-300 rounded-xl pl-9 pr-9 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white"
-            />
+              className="w-full border border-slate-300 rounded-xl pl-9 pr-9 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white" />
             {search && (
               <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
                 <X size={15} />
@@ -160,22 +162,20 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
             )}
           </div>
           <div className="flex border border-slate-300 rounded-xl overflow-hidden bg-white">
-            <button onClick={() => setViewMode('grid')}
-              className={`px-3 flex items-center transition-colors ${viewMode === 'grid' ? 'bg-sky-500 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
-              title="Rasteransicht">
-              <LayoutGrid size={16} />
-            </button>
-            <button onClick={() => setViewMode('list')}
-              className={`px-3 flex items-center border-l border-slate-300 transition-colors ${viewMode === 'list' ? 'bg-sky-500 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
-              title="Listenansicht">
-              <List size={16} />
-            </button>
+            {([
+              { mode: 'grid' as ViewMode,  icon: <LayoutGrid size={15} />, title: 'Raster' },
+              { mode: 'list' as ViewMode,  icon: <List size={15} />,       title: 'Liste' },
+              { mode: 'table' as ViewMode, icon: <Table2 size={15} />,     title: 'Tabelle' },
+            ]).map((v, i) => (
+              <button key={v.mode} onClick={() => setViewMode(v.mode)}
+                title={v.title}
+                className={`px-2.5 flex items-center transition-colors ${i > 0 ? 'border-l border-slate-300' : ''} ${viewMode === v.mode ? 'bg-sky-500 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
+                {v.icon}
+              </button>
+            ))}
           </div>
-          <button
-            onClick={() => setShowForm(true)}
-            className="bg-sky-500 hover:bg-sky-600 text-white px-3 rounded-xl transition-colors flex items-center"
-            title="Artikel hinzufügen"
-          >
+          <button onClick={() => setShowForm(true)} title="Artikel hinzufügen"
+            className="bg-sky-500 hover:bg-sky-600 text-white px-3 rounded-xl transition-colors flex items-center">
             <Plus size={20} />
           </button>
         </div>
@@ -199,19 +199,34 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
           <div className="grid grid-cols-2 gap-3">
             {filtered.map(p => <ProductCard key={p.id} product={p} onClick={() => setSelectedProduct(p)} />)}
           </div>
-        ) : (
-          <div className="space-y-2">
-            {filtered.map(p => <ProductRow key={p.id} product={p} onClick={() => setSelectedProduct(p)} />)}
+        ) : viewMode === 'list' ? (
+          <div className="space-y-1.5">
+            {filtered.map(p => (
+              <ExpandableRow
+                key={p.id}
+                product={p}
+                expanded={expandedId === p.id}
+                onToggle={() => setExpandedId(expandedId === p.id ? null : p.id)}
+                onOpen={() => setSelectedProduct(p)}
+              />
+            ))}
           </div>
+        ) : (
+          <TableView
+            products={sorted}
+            sortField={sortField}
+            sortDir={sortDir}
+            onSort={toggleSort}
+            onOpen={p => setSelectedProduct(p)}
+          />
         )}
       </div>
 
+      {/* Add product drawer */}
       <Drawer open={showForm} onClose={() => { setShowForm(false); setForm(EMPTY_FORM) }}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0">
           <h3 className="font-semibold text-slate-800">Neuer Artikel</h3>
-          <button onClick={() => { setShowForm(false); setForm(EMPTY_FORM) }} className="text-slate-400 hover:text-slate-600">
-            <X size={20} />
-          </button>
+          <button onClick={() => { setShowForm(false); setForm(EMPTY_FORM) }} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
         </div>
         <form onSubmit={handleCreate} className="overflow-y-auto flex-1 p-5 space-y-4">
           <div className="bg-sky-50 border border-sky-200 rounded-xl px-4 py-3">
@@ -225,21 +240,13 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
           <Field label="Beschreibung" value={form.description} onChange={v => setForm(f => ({ ...f, description: v }))} />
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">Kategorie *</label>
-            <CategorySelect
-              value={form.category}
-              onChange={v => setForm(f => ({ ...f, category: v }))}
-              categories={categories.filter(c => c !== 'all')}
-            />
+            <CategorySelect value={form.category} onChange={v => setForm(f => ({ ...f, category: v }))} categories={categories.filter(c => c !== 'all')} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Meldebestand *" type="number" value={String(form.min_stock)} onChange={v => setForm(f => ({ ...f, min_stock: parseFloat(v) || 0 }))} required />
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Einheit</label>
-              <CategorySelect
-                value={form.unit}
-                onChange={v => setForm(f => ({ ...f, unit: v }))}
-                categories={UNITS}
-              />
+              <CategorySelect value={form.unit} onChange={v => setForm(f => ({ ...f, unit: v }))} categories={UNITS} />
             </div>
           </div>
           <div>
@@ -283,59 +290,152 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
   )
 }
 
-function Field({ label, value, onChange, type = 'text', required = false }: {
-  label: string; value: string; onChange: (v: string) => void; type?: string; required?: boolean
+// ── Expandable list row (D) ────────────────────────────────────────────────
+function ExpandableRow({ product: p, expanded, onToggle, onOpen }: {
+  product: Product; expanded: boolean; onToggle: () => void; onOpen: () => void
 }) {
-  return (
-    <div>
-      <label className="block text-xs font-medium text-slate-600 mb-1">{label}</label>
-      <input type={type} value={value} onChange={e => onChange(e.target.value)} required={required}
-        step={type === 'number' ? 'any' : undefined}
-        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
-    </div>
-  )
-}
-
-function ProductRow({ product: p, onClick }: { product: Product; onClick: () => void }) {
   const low = isLowStock(p)
   const expired = isExpired(p)
   const expiringSoon = isExpiringSoon(p)
 
+  const dot = expired || low ? 'bg-red-400' : expiringSoon ? 'bg-amber-400' : 'bg-emerald-400'
+  const border = expired ? 'border-red-200' : low ? 'border-amber-200' : 'border-slate-200'
+
   return (
-    <div onClick={onClick} className={`bg-white rounded-xl px-4 py-3 border shadow-sm flex items-center gap-3 cursor-pointer active:scale-[0.99] transition-transform ${
-      expired ? 'border-red-200' : low ? 'border-amber-200' : 'border-slate-200'
-    }`}>
-      <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-        expired || low ? 'bg-red-400' : expiringSoon ? 'bg-amber-400' : 'bg-emerald-400'
-      }`} />
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-slate-800 truncate">{p.name}</p>
-        <div className="flex gap-2 mt-0.5 flex-wrap">
-          <span className="text-xs text-slate-400">{p.category}</span>
-          {p.storage_location && <span className="text-xs text-slate-400">· {p.storage_location}</span>}
-          {p.expiry_date && (
-            <span className={`text-xs ${expired ? 'text-red-500 font-medium' : expiringSoon ? 'text-orange-500' : 'text-slate-400'}`}>
-              · {new Date(p.expiry_date).toLocaleDateString('de-DE')}
-            </span>
-          )}
+    <div className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-all ${border}`}>
+      {/* Collapsed row */}
+      <button onClick={onToggle} className="w-full flex items-center gap-3 px-4 py-3 text-left">
+        <div className={`w-2 h-2 rounded-full shrink-0 ${dot}`} />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-slate-800 truncate">{p.name}</p>
+          <p className="text-xs text-slate-400 truncate mt-0.5">{p.category}{p.storage_location ? ` · ${p.storage_location}` : ''}</p>
         </div>
+        <div className="text-right shrink-0 mr-2">
+          <p className={`text-base font-bold leading-none ${low || expired ? 'text-red-500' : 'text-slate-800'}`}>{p.current_stock}</p>
+          <p className="text-xs text-slate-400">min {p.min_stock}</p>
+        </div>
+        {expanded ? <ChevronUp size={16} className="text-slate-400 shrink-0" /> : <ChevronDown size={16} className="text-slate-400 shrink-0" />}
+      </button>
+
+      {/* Expanded details */}
+      {expanded && (
+        <div className="border-t border-slate-100 px-4 py-3 space-y-3 bg-slate-50/50">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+            {p.unit && <Detail label="Einheit" value={p.unit} />}
+            {p.last_price != null && <Detail label="Stückpreis" value={`€ ${p.last_price}`} />}
+            {p.reorder_quantity != null && <Detail label="Nachbestellmenge" value={String(p.reorder_quantity)} />}
+            {p.expiry_date && (
+              <Detail
+                label="Ablaufdatum"
+                value={new Date(p.expiry_date).toLocaleDateString('de-DE')}
+                alert={expired ? 'red' : expiringSoon ? 'orange' : undefined}
+              />
+            )}
+            {p.preferred_supplier && <Detail label="Lieferant" value={p.preferred_supplier} />}
+            {p.article_number && <Detail label="Artikelnr." value={p.article_number} />}
+          </div>
+          {p.notes && <p className="text-xs text-slate-500 italic">{p.notes}</p>}
+          <div className="flex gap-2 pt-1">
+            {p.supplier_url && (
+              <a href={p.supplier_url} target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-xs text-sky-600 font-medium border border-sky-200 rounded-lg px-3 py-1.5 hover:bg-sky-50">
+                Bestellen <ExternalLink size={11} />
+              </a>
+            )}
+            <button onClick={onOpen}
+              className="flex items-center gap-1.5 text-xs text-slate-600 border border-slate-300 rounded-lg px-3 py-1.5 hover:bg-slate-100 ml-auto">
+              Details <ChevronRight size={11} />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function Detail({ label, value, alert }: { label: string; value: string; alert?: 'red' | 'orange' }) {
+  return (
+    <div>
+      <p className="text-xs text-slate-400">{label}</p>
+      <p className={`text-sm font-medium ${alert === 'red' ? 'text-red-500' : alert === 'orange' ? 'text-orange-500' : 'text-slate-700'}`}>{value}</p>
+    </div>
+  )
+}
+
+// ── Table view (B) ─────────────────────────────────────────────────────────
+function TableView({ products, sortField, sortDir, onSort, onOpen }: {
+  products: Product[]
+  sortField: SortField
+  sortDir: SortDir
+  onSort: (f: SortField) => void
+  onOpen: (p: Product) => void
+}) {
+  function SortIcon({ field }: { field: SortField }) {
+    if (sortField !== field) return <ArrowUpDown size={11} className="text-slate-300" />
+    return sortDir === 'asc' ? <ChevronUp size={11} className="text-sky-500" /> : <ChevronDown size={11} className="text-sky-500" />
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+      {/* Header */}
+      <div className="grid grid-cols-[1fr_auto_auto_auto] gap-0 border-b border-slate-100 bg-slate-50">
+        {([
+          { field: 'name' as SortField,               label: 'Artikel',   cls: 'pl-4 pr-2 py-2.5' },
+          { field: 'current_stock' as SortField,      label: 'Bestand',   cls: 'px-3 py-2.5 text-right' },
+          { field: 'min_stock' as SortField,          label: 'Min',       cls: 'px-3 py-2.5 text-right' },
+          { field: 'expiry_date' as SortField,        label: 'Ablauf',    cls: 'pl-2 pr-4 py-2.5 text-right' },
+        ]).map(col => (
+          <button key={col.field} onClick={() => onSort(col.field)}
+            className={`flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-slate-700 ${col.cls} ${col.field === 'name' ? '' : 'justify-end'}`}>
+            {col.field !== 'name' && <SortIcon field={col.field} />}
+            {col.label}
+            {col.field === 'name' && <SortIcon field={col.field} />}
+          </button>
+        ))}
       </div>
-      <div className="text-right shrink-0">
-        <p className={`text-lg font-bold leading-none ${low || expired ? 'text-red-500' : 'text-slate-800'}`}>{p.current_stock}</p>
-        <p className="text-xs text-slate-400 mt-0.5">min {p.min_stock}</p>
+
+      {/* Rows */}
+      <div className="divide-y divide-slate-50">
+        {products.map(p => {
+          const low = isLowStock(p)
+          const expired = isExpired(p)
+          const expiringSoon = isExpiringSoon(p)
+          return (
+            <button key={p.id} onClick={() => onOpen(p)}
+              className="w-full grid grid-cols-[1fr_auto_auto_auto] gap-0 items-center text-left hover:bg-slate-50 active:bg-slate-100 transition-colors">
+              <div className="pl-4 pr-2 py-3 min-w-0">
+                <p className="text-sm text-slate-800 truncate font-medium">{p.name}</p>
+                {p.preferred_supplier && <p className="text-xs text-slate-400 truncate">{p.preferred_supplier}</p>}
+              </div>
+              <div className="px-3 py-3 text-right">
+                <span className={`text-sm font-bold ${low || expired ? 'text-red-500' : 'text-slate-800'}`}>{p.current_stock}</span>
+              </div>
+              <div className="px-3 py-3 text-right">
+                <span className="text-sm text-slate-400">{p.min_stock}</span>
+              </div>
+              <div className="pl-2 pr-4 py-3 text-right">
+                {p.expiry_date ? (
+                  <span className={`text-xs ${expired ? 'text-red-500 font-medium' : expiringSoon ? 'text-orange-500' : 'text-slate-400'}`}>
+                    {new Date(p.expiry_date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                  </span>
+                ) : (
+                  <span className="text-xs text-slate-200">—</span>
+                )}
+              </div>
+            </button>
+          )
+        })}
       </div>
     </div>
   )
 }
 
+// ── Grid card ──────────────────────────────────────────────────────────────
 function ProductCard({ product: p, onClick }: { product: Product; onClick: () => void }) {
   const low = isLowStock(p)
   const expired = isExpired(p)
   const expiringSoon = isExpiringSoon(p)
-
-  const stockPercent = p.min_stock > 0
-    ? Math.min(100, Math.round((p.current_stock / (p.min_stock * 2)) * 100))
-    : 100
+  const stockPercent = p.min_stock > 0 ? Math.min(100, Math.round((p.current_stock / (p.min_stock * 2)) * 100)) : 100
   const barColor = expired || low ? 'bg-red-400' : expiringSoon ? 'bg-amber-400' : 'bg-emerald-400'
 
   return (
@@ -367,6 +467,19 @@ function ProductCard({ product: p, onClick }: { product: Product; onClick: () =>
         )}
         {p.preferred_supplier && <p className="text-xs text-slate-400 truncate">{p.preferred_supplier}</p>}
       </div>
+    </div>
+  )
+}
+
+function Field({ label, value, onChange, type = 'text', required = false }: {
+  label: string; value: string; onChange: (v: string) => void; type?: string; required?: boolean
+}) {
+  return (
+    <div>
+      <label className="block text-xs font-medium text-slate-600 mb-1">{label}</label>
+      <input type={type} value={value} onChange={e => onChange(e.target.value)} required={required}
+        step={type === 'number' ? 'any' : undefined}
+        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
     </div>
   )
 }
