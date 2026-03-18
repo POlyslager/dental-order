@@ -177,6 +177,17 @@ export default function OrdersPage({ role, user, onBadgeChange }: Props) {
                               € {item.product.last_price} / {item.product.unit}
                             </p>
                           )}
+                          {item.product?.alternative_price != null &&
+                           item.product?.last_price != null &&
+                           item.product.alternative_price < item.product.last_price && (
+                            <a href={item.product.alternative_url ?? undefined}
+                              target="_blank" rel="noopener noreferrer"
+                              onClick={e => e.stopPropagation()}
+                              className="flex items-center gap-1 text-xs text-emerald-600 mt-0.5">
+                              <ExternalLink size={10} />
+                              Günstiger: € {item.product.alternative_price} bei {item.product.alternative_supplier ?? 'Alternativlieferant'}
+                            </a>
+                          )}
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
                           <button onClick={() => updateQuantity(item.id, item.quantity - 1)}

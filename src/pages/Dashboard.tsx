@@ -9,6 +9,8 @@ import ScanPage from './ScanPage'
 import OverviewPage from './OverviewPage'
 import { Package, ScanLine, ShoppingCart, Menu, X, Settings, LayoutDashboard, Bell, BellOff } from 'lucide-react'
 
+const NAV_LABELS: Record<string, string> = { stock: 'Lager', scan: 'Scannen', orders: 'Bestellungen' }
+
 type Tab = 'overview' | 'stock' | 'orders' | 'scan'
 
 interface Props { user: User }
@@ -63,11 +65,12 @@ export default function Dashboard({ user }: Props) {
     orders: 'Bestellungen',
   }
 
-  const bottomTabs: { id: Tab; label: string; icon: React.ReactNode; badge?: number }[] = [
-    { id: 'stock',  label: 'Lager',        icon: <Package size={20} /> },
-    { id: 'scan',   label: 'Scannen',      icon: <ScanLine size={20} /> },
-    { id: 'orders', label: 'Bestellungen', icon: <ShoppingCart size={20} />, badge: orderBadge },
+  const bottomTabs: { id: Tab; icon: React.ReactNode; badge?: number }[] = [
+    { id: 'stock',  icon: <Package size={26} /> },
+    { id: 'scan',   icon: <ScanLine size={26} /> },
+    { id: 'orders', icon: <ShoppingCart size={26} />, badge: orderBadge },
   ]
+  const activeIndex = bottomTabs.findIndex(t => t.id === tab)
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -93,25 +96,39 @@ export default function Dashboard({ user }: Props) {
         {tab === 'orders'   && <OrdersPage role={role} user={user} onBadgeChange={setOrderBadge} />}
       </main>
 
-      {/* Bottom nav */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex">
-        {bottomTabs.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)}
-            className={`flex-1 flex flex-col items-center py-3 gap-1 text-xs transition-colors relative ${
-              tab === t.id ? 'text-sky-600' : 'text-slate-500'
-            }`}
-          >
-            <div className="relative">
-              {t.icon}
-              {!!t.badge && t.badge > 0 && (
-                <span className="absolute -top-1.5 -right-2 bg-red-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center leading-none">
-                  {t.badge > 9 ? '9+' : t.badge}
-                </span>
+      {/* Bottom nav — liquid pill */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100">
+        <div className="relative flex max-w-2xl mx-auto px-2 py-2">
+          {/* Sliding pill */}
+          {activeIndex >= 0 && (
+            <div
+              className="absolute top-2 bottom-2 rounded-2xl bg-sky-50 transition-all duration-300 ease-out pointer-events-none"
+              style={{
+                left: `calc(${activeIndex / bottomTabs.length * 100}% + 8px)`,
+                width: `calc(${100 / bottomTabs.length}% - 16px)`,
+              }}
+            />
+          )}
+          {bottomTabs.map(t => (
+            <button key={t.id} onClick={() => setTab(t.id)}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 relative z-10 transition-colors duration-200 rounded-2xl ${
+                tab === t.id ? 'text-sky-600' : 'text-slate-400'
+              }`}
+            >
+              <div className="relative shrink-0">
+                {t.icon}
+                {!!t.badge && t.badge > 0 && (
+                  <span className="absolute -top-1.5 -right-2 bg-red-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center leading-none">
+                    {t.badge > 9 ? '9+' : t.badge}
+                  </span>
+                )}
+              </div>
+              {tab === t.id && (
+                <span className="text-sm font-semibold whitespace-nowrap">{NAV_LABELS[t.id]}</span>
               )}
-            </div>
-            {t.label}
-          </button>
-        ))}
+            </button>
+          ))}
+        </div>
       </nav>
 
       {/* Side menu */}

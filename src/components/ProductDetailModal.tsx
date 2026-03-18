@@ -180,7 +180,7 @@ export default function ProductDetailModal({ product, onClose, onUpdated, onDele
         </div>
 
         {/* Scrollable content */}
-        <div className="overflow-y-auto flex-1 px-5 py-4 space-y-5">
+        <div className="overflow-y-auto overscroll-contain flex-1 px-5 py-4 space-y-5">
           <div className="space-y-3">
             {editing ? (
               <>

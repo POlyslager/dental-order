@@ -40,10 +40,12 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
   const [saving, setSaving] = useState(false)
   const [addedToCart, setAddedToCart] = useState<Set<string>>(new Set())
 
-  async function addToCart(productId: string, reorderQty: number | null) {
+  async function addToCart(productId: string, minStock: number, currentStock: number) {
     const user = await getCurrentUser()
     if (!user) return
-    const qty = reorderQty ?? 1
+    // Order enough to reach min_stock + 35% buffer
+    const target = Math.ceil(minStock * 1.35)
+    const qty = Math.max(1, target - currentStock)
     const { data: existing } = await supabase
       .from('cart_items').select('id, quantity').eq('product_id', productId).maybeSingle()
     if (existing) {
@@ -192,7 +194,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
           <h3 className="font-semibold text-slate-800">Neuer Artikel</h3>
           <button onClick={() => { setShowForm(false); setForm(EMPTY_FORM) }} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
         </div>
-        <form onSubmit={handleCreate} className="overflow-y-auto flex-1 p-5 space-y-4">
+        <form onSubmit={handleCreate} className="overflow-y-auto overscroll-contain flex-1 p-5 space-y-4">
           <div className="bg-sky-50 border border-sky-200 rounded-xl px-4 py-3">
             <p className="text-xs text-sky-700">Der Bestand wird automatisch über das Scannen aktualisiert.</p>
           </div>
@@ -258,7 +260,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
 function ProductGroup({ label, color, textColor, products, onOpen, addedToCart, onAddToCart }: {
   label: string; color: string; textColor: string
   products: Product[]; onOpen: (p: Product) => void
-  addedToCart: Set<string>; onAddToCart: (id: string, qty: number | null) => void
+  addedToCart: Set<string>; onAddToCart: (id: string, minStock: number, currentStock: number) => void
 }) {
   if (products.length === 0) return null
   return (
@@ -271,7 +273,7 @@ function ProductGroup({ label, color, textColor, products, onOpen, addedToCart, 
       <div className="space-y-2">
         {products.map(p => (
           <ProductRow key={p.id} product={p} onOpen={() => onOpen(p)}
-            added={addedToCart.has(p.id)} onAddToCart={() => onAddToCart(p.id, p.reorder_quantity)} />
+            added={addedToCart.has(p.id)} onAddToCart={() => onAddToCart(p.id, p.min_stock, p.current_stock)} />
         ))}
       </div>
     </div>
