@@ -69,12 +69,27 @@ export default function ScanPage({ onAddWithBarcode }: Props) {
   }
 
   function selectProductManually(product: Product) {
-    setScannedProduct(product)
-    setQuantity(1)
     setManualSearch('')
     setSearchResults([])
     setError(null)
-    setMatchedItem(null)
+
+    // For scan_in: check if product is in an open order
+    if (mode === 'in') {
+      for (const order of openOrders) {
+        for (const item of order.items ?? []) {
+          if (item.product_id === product.id && !receivedItems.has(item.id)) {
+            setMatchedItem({ orderId: order.id, itemId: item.id, expectedQty: item.quantity })
+            setQuantity(item.quantity)
+            setScannedProduct(product)
+            return
+          }
+        }
+      }
+      setMatchedItem(null)
+    }
+
+    setScannedProduct(product)
+    setQuantity(1)
   }
 
   function selectOrderItemManually(orderId: string, itemId: string, product: Product, qty: number) {
@@ -278,8 +293,8 @@ export default function ScanPage({ onAddWithBarcode }: Props) {
           </button>
         )}
 
-        {/* Manual search fallback (scan_out only) */}
-        {mode === 'out' && !scannedProduct && (
+        {/* Manual search fallback */}
+        {!scannedProduct && (
           <div className="space-y-2">
             <div className="relative">
               <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
