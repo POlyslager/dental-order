@@ -4,9 +4,8 @@ import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
 import { supabase, getCurrentUser } from '../lib/supabase'
 import type { Product, Role } from '../lib/types'
 import ProductDetailPage from './ProductDetailPage'
-import Drawer from '../components/Drawer'
 import CategorySelect from '../components/CategorySelect'
-import { Search, Plus, X, ShoppingCart, Check, Camera } from 'lucide-react'
+import { Search, Plus, X, ShoppingCart, Check, Camera, ArrowLeft } from 'lucide-react'
 
 const SCAN_FORMATS = [
   Html5QrcodeSupportedFormats.QR_CODE, Html5QrcodeSupportedFormats.DATA_MATRIX,
@@ -208,6 +207,79 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
     />
   )
 
+  function closeForm() { stopBarcodeScanner(); setShowForm(false); setForm(EMPTY_FORM) }
+
+  if (showForm) return (
+    <div className="max-w-2xl mx-auto animate-slide-in-right">
+      <header className="bg-white border-b border-slate-200 px-4 py-3 flex items-center gap-3 sticky top-0 z-10">
+        <button onClick={closeForm} className="text-slate-500 hover:text-slate-800 p-1 -ml-1">
+          <ArrowLeft size={20} />
+        </button>
+        <h2 className="font-semibold text-slate-800">Neuer Artikel</h2>
+      </header>
+      <form onSubmit={handleCreate} className="p-4 space-y-4 pb-10">
+        <div className="bg-sky-50 border border-sky-200 rounded-xl px-4 py-3">
+          <p className="text-xs text-sky-700">Der Bestand wird automatisch über das Scannen aktualisiert.</p>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Artikelnummer" value={form.article_number} onChange={v => setForm(f => ({ ...f, article_number: v }))} />
+          <Field label="Name *" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} required />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-slate-600 mb-1">Barcode / QR-Code</label>
+          <div className="flex gap-2">
+            <input type="text" value={form.barcode}
+              onChange={e => setForm(f => ({ ...f, barcode: e.target.value }))}
+              className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
+            <button type="button" onClick={startBarcodeScanner} disabled={scanning}
+              className="px-3 rounded-lg border border-slate-300 text-slate-500 hover:bg-sky-50 hover:border-sky-300 hover:text-sky-600 disabled:opacity-40 transition-colors">
+              <Camera size={16} />
+            </button>
+          </div>
+          <div className={`relative bg-slate-900 rounded-xl overflow-hidden mt-2 ${scanning ? '' : 'h-0 mt-0 overflow-hidden'}`} style={{ minHeight: scanning ? 280 : 0 }}>
+            <div id="barcode-scanner" className="w-full" />
+            {scanning && (
+              <button type="button" onClick={stopBarcodeScanner}
+                className="absolute top-2 right-2 bg-black/40 text-white rounded-full p-1 z-10">
+                <X size={14} />
+              </button>
+            )}
+          </div>
+        </div>
+        <Field label="Beschreibung" value={form.description} onChange={v => setForm(f => ({ ...f, description: v }))} />
+        <div>
+          <label className="block text-xs font-medium text-slate-600 mb-1">Kategorie *</label>
+          <CategorySelect value={form.category} onChange={v => setForm(f => ({ ...f, category: v }))} categories={categories.filter(c => c !== 'all')} />
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          <Field label="Bestand" inputMode="numeric" value={form.current_stock} onChange={v => setForm(f => ({ ...f, current_stock: v }))} />
+          <Field label="Meldebestand *" inputMode="numeric" value={form.min_stock} onChange={v => setForm(f => ({ ...f, min_stock: v }))} required />
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Einheit</label>
+            <CategorySelect value={form.unit} onChange={v => setForm(f => ({ ...f, unit: v }))} categories={UNITS} />
+          </div>
+        </div>
+        <Field label="Stückpreis (€)" inputMode="decimal" value={form.last_price} onChange={v => setForm(f => ({ ...f, last_price: v }))} />
+        <div>
+          <label className="block text-xs font-medium text-slate-600 mb-1">Lagerort</label>
+          <select value={form.storage_location} onChange={e => setForm(f => ({ ...f, storage_location: e.target.value }))}
+            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500">
+            <option value="">— Kein Lagerort —</option>
+            {STORAGE_LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}
+          </select>
+        </div>
+        <Field label="Lieferant" value={form.preferred_supplier} onChange={v => setForm(f => ({ ...f, preferred_supplier: v }))} />
+        <Field label="Bestell-Website" type="url" value={form.supplier_url} onChange={v => setForm(f => ({ ...f, supplier_url: v }))} />
+        <Field label="Hersteller-Website" type="url" value={form.producer_url} onChange={v => setForm(f => ({ ...f, producer_url: v }))} />
+        <Field label="Notizen" value={form.notes} onChange={v => setForm(f => ({ ...f, notes: v }))} rows={3} />
+        <button type="submit" disabled={saving}
+          className="w-full bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white font-medium rounded-xl py-3 text-sm">
+          {saving ? 'Speichern…' : 'Artikel hinzufügen'}
+        </button>
+      </form>
+    </div>
+  )
+
   if (loading) return (
     <div className="flex justify-center py-16">
       <div className="w-6 h-6 border-4 border-sky-500 border-t-transparent rounded-full animate-spin" />
@@ -274,75 +346,6 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
           </div>
         )}
       </div>
-
-      {/* Add product drawer */}
-      <Drawer open={showForm} onClose={() => { stopBarcodeScanner(); setShowForm(false); setForm(EMPTY_FORM) }}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0">
-          <h3 className="font-semibold text-slate-800">Neuer Artikel</h3>
-          <button onClick={() => { stopBarcodeScanner(); setShowForm(false); setForm(EMPTY_FORM) }} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
-        </div>
-        <form onSubmit={handleCreate} className="overflow-y-auto overscroll-contain flex-1 p-5 space-y-4">
-          <div className="bg-sky-50 border border-sky-200 rounded-xl px-4 py-3">
-            <p className="text-xs text-sky-700">Der Bestand wird automatisch über das Scannen aktualisiert.</p>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Artikelnummer" value={form.article_number} onChange={v => setForm(f => ({ ...f, article_number: v }))} />
-            <Field label="Name *" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} required />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Barcode / QR-Code</label>
-            <div className="flex gap-2">
-              <input type="text" value={form.barcode}
-                onChange={e => setForm(f => ({ ...f, barcode: e.target.value }))}
-                className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
-              <button type="button" onClick={startBarcodeScanner} disabled={scanning}
-                className="px-3 rounded-lg border border-slate-300 text-slate-500 hover:bg-sky-50 hover:border-sky-300 hover:text-sky-600 disabled:opacity-40 transition-colors">
-                <Camera size={16} />
-              </button>
-            </div>
-            {/* Container always in DOM so Html5Qrcode finds the element with real dimensions */}
-            <div className={`relative bg-slate-900 rounded-xl overflow-hidden mt-2 transition-all ${scanning ? '' : 'h-0 mt-0 overflow-hidden'}`} style={{ minHeight: scanning ? 280 : 0 }}>
-              <div id="barcode-scanner" className="w-full" />
-              {scanning && (
-                <button type="button" onClick={stopBarcodeScanner}
-                  className="absolute top-2 right-2 bg-black/40 text-white rounded-full p-1 z-10">
-                  <X size={14} />
-                </button>
-              )}
-            </div>
-          </div>
-          <Field label="Beschreibung" value={form.description} onChange={v => setForm(f => ({ ...f, description: v }))} />
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Kategorie *</label>
-            <CategorySelect value={form.category} onChange={v => setForm(f => ({ ...f, category: v }))} categories={categories.filter(c => c !== 'all')} />
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            <Field label="Bestand" inputMode="numeric" value={form.current_stock} onChange={v => setForm(f => ({ ...f, current_stock: v }))} />
-            <Field label="Meldebestand *" inputMode="numeric" value={form.min_stock} onChange={v => setForm(f => ({ ...f, min_stock: v }))} required />
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Einheit</label>
-              <CategorySelect value={form.unit} onChange={v => setForm(f => ({ ...f, unit: v }))} categories={UNITS} />
-            </div>
-          </div>
-          <Field label="Stückpreis (€)" inputMode="decimal" value={form.last_price} onChange={v => setForm(f => ({ ...f, last_price: v }))} />
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Lagerort</label>
-            <select value={form.storage_location} onChange={e => setForm(f => ({ ...f, storage_location: e.target.value }))}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500">
-              <option value="">— Kein Lagerort —</option>
-              {STORAGE_LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}
-            </select>
-          </div>
-          <Field label="Lieferant" value={form.preferred_supplier} onChange={v => setForm(f => ({ ...f, preferred_supplier: v }))} />
-          <Field label="Bestell-Website" type="url" value={form.supplier_url} onChange={v => setForm(f => ({ ...f, supplier_url: v }))} />
-          <Field label="Hersteller-Website" type="url" value={form.producer_url} onChange={v => setForm(f => ({ ...f, producer_url: v }))} />
-          <Field label="Notizen" value={form.notes} onChange={v => setForm(f => ({ ...f, notes: v }))} rows={3} />
-          <button type="submit" disabled={saving}
-            className="w-full bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white font-medium rounded-xl py-3 text-sm">
-            {saving ? 'Speichern…' : 'Artikel hinzufügen'}
-          </button>
-        </form>
-      </Drawer>
 
     </div>
   )
