@@ -2,7 +2,7 @@ const SW_VERSION = "v1";
 const CACHE_NAME = "app-shell-" + SW_VERSION;
 
 self.addEventListener("push", (event) => {
-  let data = { title: "Dental Order", body: "You have a pending action!" };
+  let data = { title: "Nieuwe bestelling", body: "Open de app om de bestelling te bekijken." };
   if (event.data) {
     try { data = event.data.json(); } catch { data.body = event.data.text(); }
   }
