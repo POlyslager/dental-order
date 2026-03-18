@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
 import { supabase, getCurrentUser } from '../lib/supabase'
 import type { Order, Product } from '../lib/types'
-import { Plus, Check, X, PackageCheck, ScanLine } from 'lucide-react'
+import { Plus, Check, X, PackageCheck, ScanLine, Search } from 'lucide-react'
 
 type ScanMode = 'in' | 'out'
 
@@ -39,6 +39,10 @@ export default function ScanPage({ onAddWithBarcode }: Props) {
   const [receivedItems, setReceivedItems] = useState<Set<string>>(new Set())
   const [matchedItem, setMatchedItem] = useState<{ orderId: string; itemId: string; expectedQty: number } | null>(null)
 
+  // Manual search (scan_out fallback)
+  const [manualSearch, setManualSearch] = useState('')
+  const [searchResults, setSearchResults] = useState<Product[]>([])
+
   useEffect(() => {
     return () => { stopScanner() }
   }, [])
@@ -54,6 +58,29 @@ export default function ScanPage({ onAddWithBarcode }: Props) {
       .eq('status', 'ordered')
       .order('created_at', { ascending: false })
     setOpenOrders((data as unknown as Order[]) ?? [])
+  }
+
+  async function searchProducts(q: string) {
+    setManualSearch(q)
+    if (!q.trim()) { setSearchResults([]); return }
+    const { data } = await supabase.from('products').select('*')
+      .ilike('name', `%${q}%`).order('name').limit(8)
+    setSearchResults(data ?? [])
+  }
+
+  function selectProductManually(product: Product) {
+    setScannedProduct(product)
+    setQuantity(1)
+    setManualSearch('')
+    setSearchResults([])
+    setError(null)
+    setMatchedItem(null)
+  }
+
+  function selectOrderItemManually(orderId: string, itemId: string, product: Product, qty: number) {
+    setScannedProduct(product)
+    setMatchedItem({ orderId, itemId, expectedQty: qty })
+    setQuantity(qty)
   }
 
   function cleanBarcode(raw: string): string {
@@ -260,7 +287,9 @@ export default function ScanPage({ onAddWithBarcode }: Props) {
                       {items.map(item => {
                         const done = receivedItems.has(item.id)
                         return (
-                          <div key={item.id} className={`px-4 py-2.5 flex items-center gap-3 ${done ? 'opacity-40' : ''}`}>
+                          <button key={item.id} disabled={done}
+                            onClick={() => item.product && selectOrderItemManually(order.id, item.id, item.product, item.quantity)}
+                            className={`w-full px-4 py-2.5 flex items-center gap-3 text-left transition-colors ${done ? 'opacity-40' : 'hover:bg-slate-50 active:bg-slate-100'}`}>
                             <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
                               done ? 'bg-emerald-500 border-emerald-500' : 'border-slate-300'
                             }`}>
@@ -270,7 +299,7 @@ export default function ScanPage({ onAddWithBarcode }: Props) {
                               {item.product?.name ?? '—'}
                             </p>
                             <span className="text-xs text-slate-400 shrink-0">{item.quantity}×</span>
-                          </div>
+                          </button>
                         )
                       })}
                     </div>
@@ -298,6 +327,32 @@ export default function ScanPage({ onAddWithBarcode }: Props) {
           <button onClick={stopScanner} className="w-full py-2.5 text-sm text-slate-600 border border-slate-300 rounded-xl">
             Abbrechen
           </button>
+        )}
+
+        {/* Manual search fallback (scan_out only) */}
+        {mode === 'out' && !scannedProduct && (
+          <div className="space-y-2">
+            <div className="relative">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="search" value={manualSearch}
+                onChange={e => searchProducts(e.target.value)}
+                placeholder="Artikel manuell suchen…"
+                className="w-full border border-slate-300 rounded-xl pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white"
+              />
+            </div>
+            {searchResults.length > 0 && (
+              <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-50 overflow-hidden">
+                {searchResults.map(p => (
+                  <button key={p.id} onClick={() => selectProductManually(p)}
+                    className="w-full px-4 py-2.5 text-left hover:bg-slate-50 active:bg-slate-100 transition-colors">
+                    <p className="text-sm font-medium text-slate-800">{p.name}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">{p.category} · {p.current_stock} {p.unit}</p>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         )}
 
         {/* Scanned product confirmation */}
