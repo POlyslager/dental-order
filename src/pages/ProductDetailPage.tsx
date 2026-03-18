@@ -176,23 +176,14 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
         {/* ── Stock card (always shown) — order section appended when low/critical ── */}
         <div className={`rounded-2xl border overflow-hidden ${styles.border}`}>
           {/* Stock status */}
-          <div className={`p-4 ${styles.bg}`}>
-            <div className="flex items-center gap-2 mb-3">
+          <div className={`px-4 py-3 ${styles.bg}`}>
+            <div className="flex items-center justify-between mb-2">
+              <p className={`text-3xl font-bold ${styles.text}`}>
+                {form.current_stock} <span className="text-sm font-normal text-slate-400">{form.unit}</span>
+              </p>
               <span className={`text-xs font-semibold px-2.5 py-1 rounded-full bg-white/70 ${styles.text}`}>
                 {styles.label}
               </span>
-            </div>
-            <div className="flex items-end justify-between mb-3">
-              <div>
-                <p className="text-xs text-slate-500 mb-0.5">Aktueller Bestand</p>
-                <p className={`text-4xl font-bold ${styles.text}`}>
-                  {form.current_stock} <span className="text-base font-normal text-slate-400">{form.unit}</span>
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-xs text-slate-500 mb-0.5">Meldebestand</p>
-                <p className="text-xl font-semibold text-slate-700">{form.min_stock}</p>
-              </div>
             </div>
             <div className="relative h-2 bg-white/60 rounded-full overflow-hidden">
               <div className={`absolute left-0 top-0 h-full rounded-full ${styles.bar}`} style={{ width: `${fillPct}%` }} />
