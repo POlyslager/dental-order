@@ -181,7 +181,6 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
               <span className={`text-xs font-semibold px-2.5 py-1 rounded-full bg-white/70 ${styles.text}`}>
                 {styles.label}
               </span>
-              {form.article_number && <span className="text-xs text-slate-400">{form.article_number}</span>}
             </div>
             <div className="flex items-end justify-between mb-3">
               <div>
@@ -257,6 +256,7 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
           )}
 
           <div className="grid grid-cols-2 gap-4">
+            {field('Artikelnummer', 'article_number')}
             {field('Kategorie', 'category')}
             {field('Lagerort', 'storage_location', editing ? 'select' : 'text')}
             {field('Ablaufdatum', 'expiry_date', 'date')}
