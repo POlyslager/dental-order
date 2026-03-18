@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import type { CartItem, Order, Role } from '../lib/types'
 import { ShoppingCart, Package, Plus, Minus, Trash2, ChevronRight, CheckCircle, AlertCircle } from 'lucide-react'
 
-const APPROVAL_THRESHOLD = 3000
+const APPROVAL_THRESHOLD = 2000
 
 interface Props { role: Role | null; user: User; onBadgeChange: (n: number) => void }
 
