@@ -24,7 +24,7 @@ function isNearThreshold(p: Product) { return !isLowStock(p) && p.current_stock 
 
 const EMPTY_FORM = {
   article_number: '', name: '', description: '', category: '', barcode: '',
-  min_stock: 1, unit: 'pcs', preferred_supplier: '', supplier_url: '',
+  current_stock: 0, min_stock: 1, unit: 'pcs', preferred_supplier: '', supplier_url: '',
   producer_url: '', last_price: '', storage_location: '', notes: '', reorder_quantity: '',
 }
 const STORAGE_LOCATIONS = [
@@ -148,7 +148,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
     setSaving(true)
     await supabase.from('products').insert({
       ...form,
-      current_stock: 0,
+      current_stock: form.current_stock,
       last_price: form.last_price ? parseFloat(form.last_price) : null,
       reorder_quantity: form.reorder_quantity ? parseFloat(form.reorder_quantity) : null,
       article_number: form.article_number || null,
@@ -316,7 +316,8 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
             <label className="block text-xs font-medium text-slate-600 mb-1">Kategorie *</label>
             <CategorySelect value={form.category} onChange={v => setForm(f => ({ ...f, category: v }))} categories={categories.filter(c => c !== 'all')} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
+            <Field label="Bestand" type="number" value={String(form.current_stock)} onChange={v => setForm(f => ({ ...f, current_stock: parseFloat(v) || 0 }))} />
             <Field label="Meldebestand *" type="number" value={String(form.min_stock)} onChange={v => setForm(f => ({ ...f, min_stock: parseFloat(v) || 0 }))} required />
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Einheit</label>
