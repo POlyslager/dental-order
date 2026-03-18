@@ -431,13 +431,21 @@ function Field({ label, value, onChange, type = 'text', required = false, inputM
   inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode']
   rows?: number
 }) {
-  const cls = 'w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500'
+  const cls = 'w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500'
   return (
     <div>
       <label className="block text-xs font-medium text-slate-600 mb-1">{label}</label>
       {rows
         ? <textarea value={value} onChange={e => onChange(e.target.value)} required={required} rows={rows} className={`${cls} resize-none`} />
-        : <input type={type} value={value} onChange={e => onChange(e.target.value)} required={required} inputMode={inputMode} className={cls} />
+        : <input
+            type={type}
+            value={value}
+            onChange={e => onChange(e.target.value)}
+            required={required}
+            inputMode={inputMode}
+            pattern={inputMode === 'numeric' ? '[0-9]*' : undefined}
+            className={cls}
+          />
       }
     </div>
   )
