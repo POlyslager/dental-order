@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { supabase, getUserRole } from '../lib/supabase'
-import { subscribeToPush } from '../lib/push'
+import { subscribeToPush, currentPermission, isPushSupported } from '../lib/push'
 import type { Role } from '../lib/types'
 import StockPage from './StockPage'
 import OrdersPage from './OrdersPage'
 import ScanPage from './ScanPage'
 import OverviewPage from './OverviewPage'
-import { Package, ScanLine, ShoppingCart, Menu, X, Settings, LayoutDashboard } from 'lucide-react'
+import { Package, ScanLine, ShoppingCart, Menu, X, Settings, LayoutDashboard, Bell, BellOff } from 'lucide-react'
 
 type Tab = 'overview' | 'stock' | 'orders' | 'scan'
 
@@ -19,6 +19,7 @@ export default function Dashboard({ user }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [pendingBarcode, setPendingBarcode] = useState<string | null>(null)
   const [orderBadge, setOrderBadge] = useState(0)
+  const [pushPermission, setPushPermission] = useState(() => currentPermission())
 
   function handleAddWithBarcode(barcode: string) {
     setPendingBarcode(barcode)
@@ -30,12 +31,13 @@ export default function Dashboard({ user }: Props) {
     setMenuOpen(false)
   }
 
+  async function enableNotifications() {
+    const result = await subscribeToPush(user.id)
+    setPushPermission(result === 'granted' ? 'granted' : 'denied')
+  }
+
   useEffect(() => {
-    getUserRole().then(r => {
-      setRole(r)
-      // Subscribe to push once role is known
-      subscribeToPush(user.id)
-    })
+    getUserRole().then(setRole)
   }, [])
 
   // Fetch badge count: cart items + pending approval orders
@@ -127,6 +129,21 @@ export default function Dashboard({ user }: Props) {
             <nav className="flex-1 py-2">
               <MenuItem icon={<LayoutDashboard size={18} />} label="Übersicht"
                 active={tab === 'overview'} onClick={() => navigate('overview')} />
+              {isPushSupported() && pushPermission !== 'granted' && (
+                <MenuItem
+                  icon={<Bell size={18} />}
+                  label="Benachrichtigungen aktivieren"
+                  onClick={enableNotifications}
+                />
+              )}
+              {pushPermission === 'granted' && (
+                <MenuItem
+                  icon={<BellOff size={18} className="text-emerald-500" />}
+                  label="Benachrichtigungen aktiv"
+                  onClick={() => setMenuOpen(false)}
+                  active
+                />
+              )}
               <MenuItem icon={<Settings size={18} />} label="Einstellungen"
                 onClick={() => setMenuOpen(false)} disabled />
             </nav>

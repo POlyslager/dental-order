@@ -7,11 +7,20 @@ function urlBase64ToUint8Array(base64: string): Uint8Array {
   return Uint8Array.from([...raw].map(c => c.charCodeAt(0)))
 }
 
-export async function subscribeToPush(userId: string): Promise<void> {
-  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !VAPID_PUBLIC_KEY) return
+export function isPushSupported(): boolean {
+  return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window && !!VAPID_PUBLIC_KEY
+}
+
+export function currentPermission(): NotificationPermission | 'unsupported' {
+  if (!isPushSupported()) return 'unsupported'
+  return Notification.permission
+}
+
+export async function subscribeToPush(userId: string): Promise<'granted' | 'denied' | 'unsupported'> {
+  if (!isPushSupported()) return 'unsupported'
 
   const permission = await Notification.requestPermission()
-  if (permission !== 'granted') return
+  if (permission !== 'granted') return 'denied'
 
   try {
     const reg = await navigator.serviceWorker.ready
@@ -26,7 +35,8 @@ export async function subscribeToPush(userId: string): Promise<void> {
       { user_id: userId, subscription: sub.toJSON() },
       { onConflict: 'user_id' }
     )
+    return 'granted'
   } catch {
-    // Push not supported or user blocked — fail silently
+    return 'denied'
   }
 }
