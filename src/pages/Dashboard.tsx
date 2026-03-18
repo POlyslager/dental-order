@@ -123,7 +123,7 @@ export default function Dashboard({ user }: Props) {
       </header>
 
       {/* Page content */}
-      <main className={`flex-1 pb-20 ${menuOpen ? 'overflow-hidden' : 'overflow-auto'}`}>
+      <main className={`flex-1 pb-20 overflow-x-hidden ${menuOpen ? 'overflow-y-hidden' : 'overflow-y-auto'}`}>
         {showTerms
           ? <TermsPage onBack={() => setShowTerms(false)} />
           : <>

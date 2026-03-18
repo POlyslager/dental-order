@@ -253,8 +253,8 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
           </div>
         </div>
         <Field label="Stückpreis (€)" inputMode="decimal" value={form.last_price} onChange={v => setForm(f => ({ ...f, last_price: v }))} />
-        <Field label="Artikelnummer" value={form.article_number} onChange={v => setForm(f => ({ ...f, article_number: v }))} />
         <Field label="Beschreibung" value={form.description} onChange={v => setForm(f => ({ ...f, description: v }))} />
+        <Field label="Artikelnummer" value={form.article_number} onChange={v => setForm(f => ({ ...f, article_number: v }))} />
         <div>
           <label className="block text-xs font-medium text-slate-600 mb-1">Lagerort</label>
           <select value={form.storage_location} onChange={e => setForm(f => ({ ...f, storage_location: e.target.value }))}
