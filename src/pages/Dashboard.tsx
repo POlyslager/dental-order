@@ -9,7 +9,6 @@ import ScanPage from './ScanPage'
 import OverviewPage from './OverviewPage'
 import { Package, ScanLine, ShoppingCart, Menu, X, Settings, LayoutDashboard, Bell, BellOff } from 'lucide-react'
 
-const NAV_LABELS: Record<string, string> = { stock: 'Lager', scan: 'Scannen', orders: 'Bestellungen' }
 
 type Tab = 'overview' | 'stock' | 'orders' | 'scan'
 
