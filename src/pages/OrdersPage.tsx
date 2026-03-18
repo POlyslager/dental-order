@@ -288,7 +288,7 @@ function OrderCard({ order, role, onApprove, onReceive }: {
       <div className="px-4 py-3">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <p className="font-semibold text-slate-800 text-sm">{order.supplier ?? 'Onbekende leverancier'}</p>
+            <p className="font-semibold text-slate-800 text-sm">{order.supplier ?? 'Unbekannter Lieferant'}</p>
             <p className="text-xs text-slate-400 mt-0.5">
               {new Date(order.created_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}
             </p>

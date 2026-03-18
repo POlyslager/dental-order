@@ -2,7 +2,7 @@ const SW_VERSION = "v1";
 const CACHE_NAME = "app-shell-" + SW_VERSION;
 
 self.addEventListener("push", (event) => {
-  let data = { title: "Nieuwe bestelling", body: "Open de app om de bestelling te bekijken." };
+  let data = { title: "Neue Bestellung", body: "App öffnen, um die Bestellung zu überprüfen." };
   if (event.data) {
     try { data = event.data.json(); } catch { data.body = event.data.text(); }
   }
