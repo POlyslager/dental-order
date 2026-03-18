@@ -61,21 +61,50 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
       await scanner.start(
         { facingMode: 'environment' },
         { fps: 15, qrbox: (w, h) => ({ width: Math.min(w, h) * 0.85, height: Math.min(w, h) * 0.85 }) },
-        async (code) => {
+        async (raw) => {
           await scanner.stop()
           scannerRef.current = null
           setScanning(false)
-          setForm(f => {
-            let bc = code.replace(/^\][A-Za-z][0-9]/, '').replace(/[^\x20-\x7E]/g, '').trim()
-            const gs1 = bc.match(/^01(\d{14})/)
-            if (gs1) bc = gs1[1]
-            return { ...f, barcode: bc }
-          })
+          await applyScannedCode(raw)
         },
         () => {}
       )
     } catch {
       setScanning(false)
+    }
+  }
+
+  async function applyScannedCode(raw: string) {
+    const clean = raw.replace(/^\][A-Za-z][0-9]/, '').replace(/[^\x20-\x7E]/g, '').trim()
+
+    // Parse GS1 fields if present
+    const gtin14 = clean.match(/^01(\d{14})/)
+    const barcode = gtin14 ? gtin14[1] : clean
+
+    // Parse optional GS1 fields: lot (10), expiry (17)
+    const lot    = clean.match(/10([^\x1d]{1,20})/)
+    const expiry = clean.match(/17(\d{6})/)
+    let notes = ''
+    if (lot)    notes += `Charge: ${lot[1]}`
+    if (expiry) notes += (notes ? ' · ' : '') + `Ablauf: 20${expiry[1].slice(0,2)}-${expiry[1].slice(2,4)}-${expiry[1].slice(4,6)}`
+
+    setForm(f => ({ ...f, barcode, notes: f.notes || notes }))
+
+    // Best-effort product lookup via GTIN
+    if (barcode.length >= 8) {
+      try {
+        const res = await fetch(`https://api.upcitemdb.com/prod/trial/lookup?upc=${barcode}`)
+        const data = await res.json()
+        const item = data?.items?.[0]
+        if (item) {
+          setForm(f => ({
+            ...f,
+            name:               f.name               || item.title        || '',
+            description:        f.description        || item.description  || '',
+            preferred_supplier: f.preferred_supplier || item.brand        || '',
+          }))
+        }
+      } catch { /* silently ignore — lookup is best-effort */ }
     }
   }
 
