@@ -43,7 +43,6 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
   const status = stockStatus(form)
   const needsOrder = status === 'red' || status === 'orange'
   const reorderQty = Math.max(1, Math.ceil(form.min_stock * 1.5))
-  const totalPrice = form.last_price ? (form.last_price * reorderQty).toFixed(2) : null
   const altTotalPrice = form.alternative_price ? (form.alternative_price * reorderQty).toFixed(2) : null
 
   const barMax = Math.max(form.current_stock, form.min_stock * 2.5, 1)
@@ -212,71 +211,38 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
             )}
           </div>
 
-          {/* Ordering info — always shown */}
-          {!editing && (form.last_price != null || form.preferred_supplier || form.supplier_url) && (
-            <div className={`border-t px-4 py-4 ${styles.border} bg-white space-y-3`}>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Bestellung</p>
-              <div className="grid grid-cols-2 gap-4">
-                {form.last_price != null && (
-                  <div>
-                    <p className="text-xs text-slate-400 mb-0.5">Stückpreis</p>
-                    <p className="text-sm font-semibold text-slate-800">€ {form.last_price}</p>
-                  </div>
-                )}
-                <div>
-                  <p className="text-xs text-slate-400 mb-0.5">Nachbestellmenge</p>
-                  <p className="text-sm font-semibold text-slate-800">{reorderQty} <span className="text-xs font-normal text-slate-400">{form.unit}</span></p>
-                </div>
-              </div>
-              {totalPrice && (
-                <div className="bg-slate-50 rounded-xl px-3 py-2.5 flex items-center justify-between">
-                  <span className="text-sm text-slate-500">Gesamtkosten</span>
-                  <span className="font-bold text-slate-800">€ {totalPrice}</span>
-                </div>
-              )}
-              {form.preferred_supplier && (
-                <div>
-                  <p className="text-xs text-slate-400 mb-0.5">Lieferant</p>
-                  <p className="text-sm text-slate-800">{form.preferred_supplier}</p>
-                </div>
-              )}
-              {form.supplier_url && (
-                <a href={form.supplier_url} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 text-sm text-sky-600 hover:underline">
-                  <ExternalLink size={13} /> Bestellwebsite öffnen
-                </a>
-              )}
-              {form.producer_url && (
-                <a href={form.producer_url} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 text-sm text-sky-600 hover:underline">
-                  <ExternalLink size={13} /> Hersteller-Website öffnen
-                </a>
-              )}
-            </div>
-          )}
-
           {/* Order action — only when low or critical */}
           {needsOrder && !editing && (
             <div className={`border-t px-4 py-4 ${styles.border} bg-white`}>
               <div className="flex items-center gap-2 mb-3">
                 <AlertCircle size={14} className={status === 'red' ? 'text-red-500' : 'text-amber-500'} />
                 <p className={`text-xs font-semibold uppercase tracking-wide ${status === 'red' ? 'text-red-600' : 'text-amber-600'}`}>
-                  Nachbestellung aufgeben
+                  Nachbestellung
                 </p>
               </div>
-              <div className="flex items-center gap-3">
-                <div className="flex-1">
-                  <p className="text-xs text-slate-500 mb-1.5">Menge</p>
-                  <input type="number" min={1} value={orderQty}
-                    onChange={e => setOrderQty(Math.max(1, parseInt(e.target.value) || 1))}
-                    className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500"
-                  />
+              <div className="flex items-end gap-3">
+                <div className="flex-1 space-y-2">
+                  <div>
+                    <p className="text-xs text-slate-500 mb-1.5">Menge</p>
+                    <input type="number" min={1} value={orderQty}
+                      onChange={e => setOrderQty(Math.max(1, parseInt(e.target.value) || 1))}
+                      className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    />
+                  </div>
+                  {form.last_price != null && (
+                    <p className="text-xs text-slate-500">€ {form.last_price} pro {form.unit}</p>
+                  )}
+                  {form.last_price != null && (
+                    <p className="text-sm font-bold text-slate-800">
+                      Gesamt € {(orderQty * form.last_price).toFixed(2)}
+                    </p>
+                  )}
                 </div>
                 <button onClick={handleAddToCart}
-                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors shrink-0 mt-5 ${
-                    added ? 'bg-emerald-100 text-emerald-700' : 'bg-sky-500 hover:bg-sky-600 text-white'
+                  className={`w-11 h-11 flex items-center justify-center rounded-xl transition-colors shrink-0 ${
+                    added ? 'bg-emerald-100 text-emerald-600' : 'bg-sky-500 hover:bg-sky-600 text-white'
                   }`}>
-                  {added ? <><Check size={15} /> Hinzugefügt</> : <><ShoppingCart size={15} /> In den Warenkorb</>}
+                  {added ? <Check size={20} /> : <ShoppingCart size={20} />}
                 </button>
               </div>
             </div>
@@ -307,20 +273,39 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
           </div>
 
           {field('Notizen', 'notes')}
-          {editing && (
-            <>
-              <div className="border-t border-slate-100 pt-4">
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Bestellung</p>
-                <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    {field('Stückpreis (€)', 'last_price', 'number')}
-                  </div>
-                  {field('Lieferant', 'preferred_supplier')}
-                  {field('Bestellwebsite', 'supplier_url', 'url')}
-                  {field('Hersteller-Website', 'producer_url', 'url')}
+
+          {/* Lieferant + websites — view mode */}
+          {!editing && (form.preferred_supplier || form.supplier_url || form.producer_url) && (
+            <div className="border-t border-slate-100 pt-4 space-y-3">
+              {form.preferred_supplier && (
+                <div>
+                  <p className="text-xs text-slate-400 mb-0.5">Lieferant</p>
+                  <p className="text-sm text-slate-800">{form.preferred_supplier}</p>
                 </div>
-              </div>
-            </>
+              )}
+              {form.supplier_url && (
+                <a href={form.supplier_url} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-sm text-sky-600 hover:underline">
+                  <ExternalLink size={13} /> Bestellwebsite öffnen
+                </a>
+              )}
+              {form.producer_url && (
+                <a href={form.producer_url} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-sm text-sky-600 hover:underline">
+                  <ExternalLink size={13} /> Hersteller-Website öffnen
+                </a>
+              )}
+            </div>
+          )}
+
+          {/* Edit mode: all editable fields */}
+          {editing && (
+            <div className="border-t border-slate-100 pt-4 space-y-3">
+              {field('Stückpreis (€)', 'last_price', 'number')}
+              {field('Lieferant', 'preferred_supplier')}
+              {field('Bestellwebsite', 'supplier_url', 'url')}
+              {field('Hersteller-Website', 'producer_url', 'url')}
+            </div>
           )}
         </div>
 
