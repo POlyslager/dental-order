@@ -43,12 +43,14 @@ export default function ProductDetailModal({ product, onClose, onUpdated, onDele
     ? Math.min(100, Math.round((form.current_stock / (form.min_stock * 2)) * 100))
     : 100
 
-  const totalPrice = form.last_price && form.reorder_quantity
-    ? (form.last_price * form.reorder_quantity).toFixed(2)
+  const reorderQty = Math.max(1, Math.ceil(form.min_stock * 1.5))
+
+  const totalPrice = form.last_price
+    ? (form.last_price * reorderQty).toFixed(2)
     : null
 
-  const altTotalPrice = form.alternative_price && form.reorder_quantity
-    ? (form.alternative_price * form.reorder_quantity).toFixed(2)
+  const altTotalPrice = form.alternative_price
+    ? (form.alternative_price * reorderQty).toFixed(2)
     : null
 
   useEffect(() => {
@@ -78,7 +80,6 @@ export default function ProductDetailModal({ product, onClose, onUpdated, onDele
         expiry_date: form.expiry_date || null,
         notes: form.notes,
         last_price: form.last_price,
-        reorder_quantity: form.reorder_quantity,
         preferred_supplier: form.preferred_supplier,
         supplier_url: form.supplier_url,
         producer_url: form.producer_url,
@@ -238,7 +239,10 @@ export default function ProductDetailModal({ product, onClose, onUpdated, onDele
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-4">
                 {f('Stückpreis (€)', 'last_price', 'number')}
-                {f('Nachbestellmenge', 'reorder_quantity', 'number')}
+                <div>
+                  <p className="text-xs text-slate-400 mb-0.5">Nachbestellmenge</p>
+                  <p className="text-sm text-slate-800">{reorderQty} <span className="text-slate-400">(Meldebestand × 1,5)</span></p>
+                </div>
               </div>
               {totalPrice && !editing && (
                 <div className="bg-slate-50 rounded-xl px-4 py-3 flex items-center justify-between">
