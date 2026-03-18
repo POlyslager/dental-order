@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { supabase, getUserRole } from '../lib/supabase'
 import { subscribeToPush, currentPermission, isPushSupported } from '../lib/push'
@@ -7,7 +7,8 @@ import StockPage from './StockPage'
 import OrdersPage from './OrdersPage'
 import ScanPage from './ScanPage'
 import OverviewPage from './OverviewPage'
-import { Package, ScanLine, ShoppingCart, Menu, X, Settings, LayoutDashboard, Bell, BellOff } from 'lucide-react'
+import TermsPage from './TermsPage'
+import { Package, ScanLine, ShoppingCart, Menu, X, Settings, LayoutDashboard, Bell, BellOff, ScrollText } from 'lucide-react'
 
 
 type Tab = 'overview' | 'stock' | 'orders' | 'scan'
@@ -18,6 +19,8 @@ export default function Dashboard({ user }: Props) {
   const [role, setRole] = useState<Role | null>(null)
   const [tab, setTab] = useState<Tab>('stock')
   const [menuOpen, setMenuOpen] = useState(false)
+  const [showTerms, setShowTerms] = useState(false)
+  const swipeStartX = useRef<number | null>(null)
   const [pendingBarcode, setPendingBarcode] = useState<string | null>(null)
   const [orderBadge, setOrderBadge] = useState(0)
   const [pushPermission, setPushPermission] = useState(() => currentPermission())
@@ -89,10 +92,15 @@ export default function Dashboard({ user }: Props) {
 
       {/* Page content */}
       <main className="flex-1 overflow-auto pb-20">
-        {tab === 'overview' && role === 'admin' && <OverviewPage />}
-        {tab === 'stock'    && <StockPage role={role} initialBarcode={pendingBarcode} onBarcodeConsumed={() => setPendingBarcode(null)} />}
-        {tab === 'scan'     && <ScanPage onAddWithBarcode={handleAddWithBarcode} />}
-        {tab === 'orders'   && <OrdersPage role={role} user={user} onBadgeChange={setOrderBadge} />}
+        {showTerms
+          ? <TermsPage onBack={() => setShowTerms(false)} />
+          : <>
+              {tab === 'overview' && role === 'admin' && <OverviewPage />}
+              {tab === 'stock'    && <StockPage role={role} initialBarcode={pendingBarcode} onBarcodeConsumed={() => setPendingBarcode(null)} />}
+              {tab === 'scan'     && <ScanPage onAddWithBarcode={handleAddWithBarcode} />}
+              {tab === 'orders'   && <OrdersPage role={role} user={user} onBadgeChange={setOrderBadge} />}
+            </>
+        }
       </main>
 
       {/* Bottom nav — sliding circle, icons only */}
@@ -132,7 +140,16 @@ export default function Dashboard({ user }: Props) {
       {menuOpen && (
         <>
           <div className="fixed inset-0 bg-black/30 z-40" onClick={() => setMenuOpen(false)} />
-          <div className="fixed top-0 right-0 h-full w-72 bg-white shadow-2xl z-50 flex flex-col">
+          <div
+            className="fixed top-0 right-0 h-full w-72 bg-white shadow-2xl z-50 flex flex-col overscroll-contain"
+            onTouchStart={e => { swipeStartX.current = e.touches[0].clientX }}
+            onTouchEnd={e => {
+              if (swipeStartX.current !== null && e.changedTouches[0].clientX - swipeStartX.current > 60) {
+                setMenuOpen(false)
+              }
+              swipeStartX.current = null
+            }}
+          >
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
               <span className="font-semibold text-slate-800">Menü</span>
               <button onClick={() => setMenuOpen(false)} className="text-slate-400 hover:text-slate-600">
@@ -160,6 +177,8 @@ export default function Dashboard({ user }: Props) {
                   active
                 />
               )}
+              <MenuItem icon={<ScrollText size={18} />} label="Nutzungsbedingungen"
+                onClick={() => { setShowTerms(true); setMenuOpen(false) }} />
               <MenuItem icon={<Settings size={18} />} label="Einstellungen"
                 onClick={() => setMenuOpen(false)} disabled />
             </nav>
