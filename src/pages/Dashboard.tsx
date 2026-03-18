@@ -96,36 +96,34 @@ export default function Dashboard({ user }: Props) {
         {tab === 'orders'   && <OrdersPage role={role} user={user} onBadgeChange={setOrderBadge} />}
       </main>
 
-      {/* Bottom nav — liquid pill */}
+      {/* Bottom nav — liquid pill, icons only */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100">
-        <div className="relative flex max-w-2xl mx-auto px-2 py-2">
+        <div className="relative flex max-w-2xl mx-auto px-4 py-3 pb-safe">
           {/* Sliding pill */}
           {activeIndex >= 0 && (
             <div
-              className="absolute top-2 bottom-2 rounded-2xl bg-sky-50 transition-all duration-300 ease-out pointer-events-none"
+              className="absolute top-3 rounded-2xl bg-sky-50 transition-all duration-300 ease-out pointer-events-none"
               style={{
-                left: `calc(${activeIndex / bottomTabs.length * 100}% + 8px)`,
-                width: `calc(${100 / bottomTabs.length}% - 16px)`,
+                left: `calc(${activeIndex / bottomTabs.length * 100}% + 16px)`,
+                width: `calc(${100 / bottomTabs.length}% - 32px)`,
+                top: 12, bottom: 12,
               }}
             />
           )}
           {bottomTabs.map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
-              className={`flex-1 flex items-center justify-center gap-2 py-3 relative z-10 transition-colors duration-200 rounded-2xl ${
+              className={`flex-1 flex items-center justify-center py-4 relative z-10 transition-colors duration-200 ${
                 tab === t.id ? 'text-sky-600' : 'text-slate-400'
               }`}
             >
-              <div className="relative shrink-0">
+              <div className="relative">
                 {t.icon}
                 {!!t.badge && t.badge > 0 && (
-                  <span className="absolute -top-1.5 -right-2 bg-red-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center leading-none">
+                  <span className="absolute -top-1.5 -right-2.5 bg-red-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center leading-none">
                     {t.badge > 9 ? '9+' : t.badge}
                   </span>
                 )}
               </div>
-              {tab === t.id && (
-                <span className="text-sm font-semibold whitespace-nowrap">{NAV_LABELS[t.id]}</span>
-              )}
             </button>
           ))}
         </div>
