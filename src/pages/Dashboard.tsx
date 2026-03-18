@@ -63,8 +63,8 @@ export default function Dashboard({ user }: Props) {
 
   const bottomTabs: { id: Tab; label: string; icon: React.ReactNode; badge?: number }[] = [
     { id: 'stock',  label: 'Lager',        icon: <Package size={20} /> },
-    { id: 'orders', label: 'Bestellungen', icon: <ShoppingCart size={20} />, badge: orderBadge },
     { id: 'scan',   label: 'Scannen',      icon: <ScanLine size={20} /> },
+    { id: 'orders', label: 'Bestellungen', icon: <ShoppingCart size={20} />, badge: orderBadge },
   ]
 
   return (
