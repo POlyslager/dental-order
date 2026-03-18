@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import type { CartItem, Order, Role } from '../lib/types'
-import { ShoppingCart, Package, Plus, Minus, Trash2, ChevronRight, CheckCircle, AlertCircle } from 'lucide-react'
+import { ShoppingCart, Package, Plus, Minus, Trash2, ChevronRight, CheckCircle, AlertCircle, ExternalLink } from 'lucide-react'
 
 const APPROVAL_THRESHOLD = 2000
 
@@ -196,20 +196,34 @@ export default function OrdersPage({ role, user, onBadgeChange }: Props) {
                     ))}
                   </div>
 
-                  <div className="px-4 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-slate-400">Gesamt</p>
-                      <p className="text-base font-bold text-slate-800">
-                        € {total.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </p>
+                  <div className="px-4 py-3 bg-slate-50 border-t border-slate-100 space-y-3">
+                    {/* Supplier website link */}
+                    {items[0]?.product?.supplier_url && (
+                      <a
+                        href={items[0].product.supplier_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-2 w-full border border-slate-300 rounded-xl py-2.5 text-sm text-slate-600 hover:bg-white transition-colors"
+                      >
+                        <ExternalLink size={14} />
+                        Website öffnen — {supplier}
+                      </a>
+                    )}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs text-slate-400">Gesamt</p>
+                        <p className="text-base font-bold text-slate-800">
+                          € {total.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => placeOrder(supplier, items)}
+                        disabled={placing === supplier}
+                        className="bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition-colors"
+                      >
+                        {placing === supplier ? 'Wird gespeichert…' : needsApproval ? 'Zur Genehmigung' : 'Als bestellt markieren'}
+                      </button>
                     </div>
-                    <button
-                      onClick={() => placeOrder(supplier, items)}
-                      disabled={placing === supplier}
-                      className="bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition-colors"
-                    >
-                      {placing === supplier ? 'Wird bestellt…' : needsApproval ? 'Zur Genehmigung' : 'Bestellen'}
-                    </button>
                   </div>
                 </div>
               )
