@@ -40,18 +40,15 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
   const [saving, setSaving] = useState(false)
   const [addedToCart, setAddedToCart] = useState<Set<string>>(new Set())
 
-  async function addToCart(productId: string, minStock: number, currentStock: number) {
+  async function addToCart(productId: string, quantity: number) {
     const user = await getCurrentUser()
     if (!user) return
-    // Order enough to reach min_stock + 35% buffer
-    const target = Math.ceil(minStock * 1.35)
-    const qty = Math.max(1, target - currentStock)
     const { data: existing } = await supabase
       .from('cart_items').select('id, quantity').eq('product_id', productId).maybeSingle()
     if (existing) {
-      await supabase.from('cart_items').update({ quantity: existing.quantity + qty }).eq('id', existing.id)
+      await supabase.from('cart_items').update({ quantity: existing.quantity + quantity }).eq('id', existing.id)
     } else {
-      await supabase.from('cart_items').insert({ product_id: productId, quantity: qty, added_by: user.id })
+      await supabase.from('cart_items').insert({ product_id: productId, quantity, added_by: user.id })
     }
     setAddedToCart(prev => new Set(prev).add(productId))
     setTimeout(() => setAddedToCart(prev => { const s = new Set(prev); s.delete(productId); return s }), 2000)
@@ -260,7 +257,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
 function ProductGroup({ label, color, textColor, products, onOpen, addedToCart, onAddToCart }: {
   label: string; color: string; textColor: string
   products: Product[]; onOpen: (p: Product) => void
-  addedToCart: Set<string>; onAddToCart: (id: string, minStock: number, currentStock: number) => void
+  addedToCart: Set<string>; onAddToCart: (id: string, quantity: number) => void
 }) {
   if (products.length === 0) return null
   return (
@@ -273,7 +270,7 @@ function ProductGroup({ label, color, textColor, products, onOpen, addedToCart, 
       <div className="space-y-2">
         {products.map(p => (
           <ProductRow key={p.id} product={p} onOpen={() => onOpen(p)}
-            added={addedToCart.has(p.id)} onAddToCart={() => onAddToCart(p.id, p.min_stock, p.current_stock)} />
+            added={addedToCart.has(p.id)} onAddToCart={(qty) => onAddToCart(p.id, qty)} />
         ))}
       </div>
     </div>
@@ -282,10 +279,11 @@ function ProductGroup({ label, color, textColor, products, onOpen, addedToCart, 
 
 // ── Product row ────────────────────────────────────────────────────────────
 function ProductRow({ product: p, onOpen, added, onAddToCart }: {
-  product: Product; onOpen: () => void; added: boolean; onAddToCart: () => void
+  product: Product; onOpen: () => void; added: boolean; onAddToCart: (qty: number) => void
 }) {
   const low = isLowStock(p)
   const near = isNearThreshold(p)
+  const [qty, setQty] = useState(() => Math.max(1, Math.ceil(p.min_stock * 1.5)))
 
   const max = Math.max(p.current_stock, p.min_stock * 2.5, 1)
   const fillPct = Math.min(100, (p.current_stock / max) * 100)
@@ -310,15 +308,25 @@ function ProductRow({ product: p, onOpen, added, onAddToCart }: {
           <p className="text-xs text-slate-400 mt-0.5">{p.unit}</p>
         </button>
 
-        {/* Add to cart */}
-        <button
-          onClick={e => { e.stopPropagation(); onAddToCart() }}
-          className={`shrink-0 w-9 h-9 flex items-center justify-center rounded-xl transition-colors ${
-            added ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 hover:bg-sky-100 hover:text-sky-600 text-slate-500'
-          }`}
-        >
-          {added ? <Check size={16} /> : <ShoppingCart size={16} />}
-        </button>
+        {/* Quantity input + add to cart */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <input
+            type="number"
+            min={1}
+            value={qty}
+            onChange={e => setQty(Math.max(1, parseInt(e.target.value) || 1))}
+            onClick={e => e.stopPropagation()}
+            className="w-12 text-center text-sm font-semibold border border-slate-200 rounded-lg py-1 focus:outline-none focus:ring-2 focus:ring-sky-500"
+          />
+          <button
+            onClick={e => { e.stopPropagation(); onAddToCart(qty) }}
+            className={`w-9 h-9 flex items-center justify-center rounded-xl transition-colors ${
+              added ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 hover:bg-sky-100 hover:text-sky-600 text-slate-500'
+            }`}
+          >
+            {added ? <Check size={16} /> : <ShoppingCart size={16} />}
+          </button>
+        </div>
       </div>
 
       {/* Stock bar */}
