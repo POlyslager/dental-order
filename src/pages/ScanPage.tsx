@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
 import { supabase, getCurrentUser } from '../lib/supabase'
-import type { Product } from '../lib/types'
-import { Plus, Check, X } from 'lucide-react'
+import type { Order, Product } from '../lib/types'
+import { Plus, Check, X, PackageCheck, ScanLine } from 'lucide-react'
 
 type ScanMode = 'in' | 'out'
 
@@ -28,13 +28,33 @@ export default function ScanPage({ onAddWithBarcode }: Props) {
   const [status, setStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [rawCode, setRawCode] = useState<string | null>(null)
+
+  // Artikel entnehmen: reorder prompt
   const [reorderPrompt, setReorderPrompt] = useState<{ product: Product; qty: number } | null>(null)
   const [addingToCart, setAddingToCart] = useState(false)
   const [addedToCart, setAddedToCart] = useState(false)
 
+  // Lieferung einbuchen: open orders
+  const [openOrders, setOpenOrders] = useState<Order[]>([])
+  const [receivedItems, setReceivedItems] = useState<Set<string>>(new Set())
+  const [matchedItem, setMatchedItem] = useState<{ orderId: string; itemId: string; expectedQty: number } | null>(null)
+
   useEffect(() => {
     return () => { stopScanner() }
   }, [])
+
+  useEffect(() => {
+    if (mode === 'in') fetchOpenOrders()
+  }, [mode])
+
+  async function fetchOpenOrders() {
+    const { data } = await supabase
+      .from('orders')
+      .select('*, items:order_items(*, product:products(*))')
+      .eq('status', 'ordered')
+      .order('created_at', { ascending: false })
+    setOpenOrders((data as unknown as Order[]) ?? [])
+  }
 
   function cleanBarcode(raw: string): string {
     return raw.replace(/^\]d[0-9]/, '').replace(/^\$/, '').replace(/^[\x00-\x1F]+/, '').trim()
@@ -45,6 +65,7 @@ export default function ScanPage({ onAddWithBarcode }: Props) {
     setScannedProduct(null)
     setStatus(null)
     setRawCode(null)
+    setMatchedItem(null)
 
     const scanner = new Html5Qrcode('qr-reader', { formatsToSupport: FORMATS, verbose: false })
     scannerRef.current = scanner
@@ -58,7 +79,7 @@ export default function ScanPage({ onAddWithBarcode }: Props) {
           await stopScanner()
           await handleBarcode(text)
         },
-        () => { /* scanning frames, ignore per-frame errors */ }
+        () => {}
       )
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Kamera-Fehler')
@@ -79,16 +100,31 @@ export default function ScanPage({ onAddWithBarcode }: Props) {
     setRawCode(barcode)
 
     const { data } = await supabase
-      .from('products')
-      .select('*')
-      .eq('barcode', barcode)
-      .single()
+      .from('products').select('*').eq('barcode', barcode).single()
 
     if (!data) {
       setError(`Unbekannter Code: ${barcode}`)
       return
     }
+
     setScannedProduct(data)
+
+    // For scan_in: find matching unscanned order item
+    if (mode === 'in') {
+      for (const order of openOrders) {
+        for (const item of order.items ?? []) {
+          if (item.product_id === data.id && !receivedItems.has(item.id)) {
+            setMatchedItem({ orderId: order.id, itemId: item.id, expectedQty: item.quantity })
+            setQuantity(item.quantity)
+            return
+          }
+        }
+      }
+      setMatchedItem(null)
+      setQuantity(1)
+    } else {
+      setQuantity(1)
+    }
   }
 
   async function confirmMovement() {
@@ -109,28 +145,47 @@ export default function ScanPage({ onAddWithBarcode }: Props) {
     if (moveErr) { setError(moveErr.message); return }
 
     const { error: stockErr } = await supabase
-      .from('products')
-      .update({ current_stock: newStock })
-      .eq('id', scannedProduct.id)
+      .from('products').update({ current_stock: newStock }).eq('id', scannedProduct.id)
     if (stockErr) { setError(stockErr.message); return }
 
-    setStatus(`✓ ${scannedProduct.name}: Bestand aktualisiert auf ${newStock} ${scannedProduct.unit}`)
+    if (mode === 'out') {
+      setStatus(`✓ ${scannedProduct.name}: Bestand aktualisiert auf ${newStock} ${scannedProduct.unit}`)
 
-    // Prompt reorder if scan_out caused stock to drop at or below minimum
-    if (mode === 'out' && newStock <= scannedProduct.min_stock) {
-      const defaultQty = Math.max(1, Math.ceil(scannedProduct.min_stock * 1.5))
-      // Refine with velocity if scan history exists
-      const since = new Date()
-      since.setDate(since.getDate() - 60)
-      const { data: movements } = await supabase
-        .from('stock_movements').select('quantity')
-        .eq('product_id', scannedProduct.id).eq('type', 'scan_out')
-        .gte('created_at', since.toISOString())
-      const velocityQty = movements && movements.length > 0
-        ? Math.ceil((movements.reduce((s, m) => s + m.quantity, 0) / 60) * 42)
-        : 0
-      setReorderPrompt({ product: scannedProduct, qty: Math.max(velocityQty, defaultQty) })
-      setAddedToCart(false)
+      if (newStock <= scannedProduct.min_stock) {
+        const defaultQty = Math.max(1, Math.ceil(scannedProduct.min_stock * 1.5))
+        const since = new Date()
+        since.setDate(since.getDate() - 60)
+        const { data: movements } = await supabase
+          .from('stock_movements').select('quantity')
+          .eq('product_id', scannedProduct.id).eq('type', 'scan_out')
+          .gte('created_at', since.toISOString())
+        const velocityQty = movements && movements.length > 0
+          ? Math.ceil((movements.reduce((s, m) => s + m.quantity, 0) / 60) * 42)
+          : 0
+        setReorderPrompt({ product: scannedProduct, qty: Math.max(velocityQty, defaultQty) })
+        setAddedToCart(false)
+      }
+    } else {
+      // scan_in: mark item and check if order is complete
+      if (matchedItem) {
+        const updated = new Set(receivedItems).add(matchedItem.itemId)
+        setReceivedItems(updated)
+
+        const order = openOrders.find(o => o.id === matchedItem.orderId)
+        if (order) {
+          const allDone = (order.items ?? []).every(i => updated.has(i.id))
+          if (allDone) {
+            await supabase.from('orders').update({ status: 'received' }).eq('id', order.id)
+            setOpenOrders(prev => prev.filter(o => o.id !== order.id))
+            setStatus(`✓ Bestellung von ${order.supplier ?? 'Lieferant'} vollständig erhalten`)
+          } else {
+            setStatus(`✓ ${scannedProduct.name} eingebucht`)
+          }
+        }
+      } else {
+        setStatus(`✓ ${scannedProduct.name}: Bestand aktualisiert auf ${newStock} ${scannedProduct.unit}`)
+      }
+      setMatchedItem(null)
     }
 
     setScannedProduct(null)
@@ -157,130 +212,181 @@ export default function ScanPage({ onAddWithBarcode }: Props) {
     setAddedToCart(true)
   }
 
+  const pendingItemCount = openOrders.reduce((s, o) =>
+    s + (o.items ?? []).filter(i => !receivedItems.has(i.id)).length, 0)
+
   return (
-    <div className="p-4 max-w-md mx-auto space-y-4">
-      <h2 className="text-lg font-semibold text-slate-800">Scanner</h2>
+    <div className="max-w-md mx-auto">
 
       {/* Mode toggle */}
-      <div className="flex rounded-xl overflow-hidden border border-slate-300">
+      <div className="flex border-b border-slate-200 bg-white sticky top-0 z-10">
         {(['out', 'in'] as ScanMode[]).map(m => (
-          <button key={m}
-            onClick={() => setMode(m)}
-            className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
-              mode === m ? 'bg-sky-500 text-white' : 'bg-white text-slate-600'
-            }`}
-          >
-            {m === 'out' ? 'Artikel entnehmen' : 'Lieferung einbuchen'}
+          <button key={m} onClick={() => { setMode(m); setScannedProduct(null); setError(null); setStatus(null) }}
+            className={`flex-1 py-3 text-sm font-medium flex items-center justify-center gap-2 border-b-2 transition-colors ${
+              mode === m ? 'border-sky-500 text-sky-600' : 'border-transparent text-slate-500'
+            }`}>
+            {m === 'out' ? <><ScanLine size={15} /> Artikel entnehmen</> : <><PackageCheck size={15} /> Lieferung einbuchen</>}
           </button>
         ))}
       </div>
 
-      {/* Camera viewfinder */}
-      <div className="relative bg-slate-900 rounded-2xl overflow-hidden" style={{ minHeight: 280 }}>
-        <div id="qr-reader" className="w-full" />
-        {!scanning && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <button
-              onClick={startScanner}
-              className="bg-sky-500 hover:bg-sky-600 text-white px-6 py-3 rounded-xl font-medium text-sm"
-            >
-              Kamera starten
-            </button>
-          </div>
-        )}
-      </div>
+      <div className="p-4 space-y-4">
 
-      {scanning && (
-        <button onClick={stopScanner} className="w-full py-2.5 text-sm text-slate-600 border border-slate-300 rounded-xl">
-          Abbrechen
-        </button>
-      )}
-
-      {/* Found product */}
-      {scannedProduct && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
-          <div>
-            <p className="font-semibold text-slate-800">{scannedProduct.name}</p>
-            <p className="text-sm text-slate-500">Aktueller Bestand: {scannedProduct.current_stock} {scannedProduct.unit}</p>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Menge</label>
-            <input
-              type="number"
-              min={1}
-              value={quantity}
-              onChange={e => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-              className="w-24 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
-            />
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={confirmMovement}
-              className="flex-1 bg-sky-500 hover:bg-sky-600 text-white rounded-xl py-2.5 text-sm font-medium"
-            >
-              {mode === 'in' ? 'Einbuchen' : 'Entnehmen'}
-            </button>
-            <button
-              onClick={() => setScannedProduct(null)}
-              className="px-4 border border-slate-300 rounded-xl text-sm text-slate-600"
-            >
-              Abbrechen
-            </button>
-          </div>
-        </div>
-      )}
-
-      {status && <p className="text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-sm">{status}</p>}
-
-      {reorderPrompt && (
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-3">
-          <div>
-            <p className="text-sm font-semibold text-amber-800">Bestand unter Meldebestand</p>
-            <p className="text-xs text-amber-600 mt-0.5">{reorderPrompt.product.name}</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="flex-1">
-              <p className="text-xs text-slate-500 mb-1">Menge</p>
-              <input
-                type="number" min={1}
-                value={reorderPrompt.qty}
-                onChange={e => setReorderPrompt(p => p ? { ...p, qty: Math.max(1, parseInt(e.target.value) || 1) } : p)}
-                className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500"
-              />
+        {/* ── Lieferung einbuchen: open orders list ── */}
+        {mode === 'in' && !scannedProduct && (
+          openOrders.length === 0 ? (
+            <div className="text-center py-8">
+              <PackageCheck size={32} className="mx-auto text-slate-200 mb-2" />
+              <p className="text-sm text-slate-400">Keine offenen Bestellungen</p>
             </div>
-            <div className="flex gap-2 mt-5">
-              {addedToCart ? (
-                <div className="flex items-center gap-1.5 text-emerald-600 text-sm font-medium px-3">
-                  <Check size={16} /> Im Warenkorb
-                </div>
-              ) : (
-                <button onClick={addReorderToCart} disabled={addingToCart}
-                  className="bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors">
-                  {addingToCart ? '…' : 'In den Warenkorb'}
-                </button>
-              )}
-              <button onClick={() => setReorderPrompt(null)}
-                className="text-slate-400 hover:text-slate-600 px-2 py-2">
-                <X size={16} />
+          ) : (
+            <div className="space-y-3">
+              <p className="text-xs text-slate-400 font-medium uppercase tracking-wide">
+                {pendingItemCount} Artikel ausstehend
+              </p>
+              {openOrders.map(order => {
+                const items = order.items ?? []
+                const allDone = items.every(i => receivedItems.has(i.id))
+                return (
+                  <div key={order.id} className={`rounded-2xl border overflow-hidden ${allDone ? 'border-emerald-200' : 'border-slate-200'}`}>
+                    <div className={`px-4 py-2.5 flex items-center justify-between ${allDone ? 'bg-emerald-50' : 'bg-slate-50'}`}>
+                      <p className="text-sm font-semibold text-slate-800">{order.supplier ?? 'Lieferant'}</p>
+                      {allDone
+                        ? <Check size={16} className="text-emerald-500" />
+                        : <span className="text-xs text-slate-400">{items.filter(i => !receivedItems.has(i.id)).length} / {items.length} ausstehend</span>
+                      }
+                    </div>
+                    <div className="divide-y divide-slate-50 bg-white">
+                      {items.map(item => {
+                        const done = receivedItems.has(item.id)
+                        return (
+                          <div key={item.id} className={`px-4 py-2.5 flex items-center gap-3 ${done ? 'opacity-40' : ''}`}>
+                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                              done ? 'bg-emerald-500 border-emerald-500' : 'border-slate-300'
+                            }`}>
+                              {done && <Check size={11} className="text-white" />}
+                            </div>
+                            <p className={`text-sm flex-1 ${done ? 'line-through text-slate-400' : 'text-slate-700'}`}>
+                              {item.product?.name ?? '—'}
+                            </p>
+                            <span className="text-xs text-slate-400 shrink-0">{item.quantity}×</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )
+        )}
+
+        {/* Camera viewfinder */}
+        <div className="relative bg-slate-900 rounded-2xl overflow-hidden" style={{ minHeight: 280 }}>
+          <div id="qr-reader" className="w-full" />
+          {!scanning && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <button onClick={startScanner}
+                className="bg-sky-500 hover:bg-sky-600 text-white px-6 py-3 rounded-xl font-medium text-sm">
+                Kamera starten
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {error && (
-        <div className="space-y-2">
-          <p className="text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-sm">{error}</p>
-          {rawCode && (
-            <button
-              onClick={() => onAddWithBarcode(rawCode)}
-              className="w-full bg-sky-500 hover:bg-sky-600 text-white rounded-xl py-3 text-sm font-medium flex items-center justify-center gap-2"
-            >
-              <Plus size={16} /> Als neuen Artikel hinzufügen
-            </button>
           )}
         </div>
-      )}
+
+        {scanning && (
+          <button onClick={stopScanner} className="w-full py-2.5 text-sm text-slate-600 border border-slate-300 rounded-xl">
+            Abbrechen
+          </button>
+        )}
+
+        {/* Scanned product confirmation */}
+        {scannedProduct && (
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            {/* Product name — prominent visual check */}
+            <div className="px-4 py-4 border-b border-slate-100">
+              <p className="text-xs text-slate-400 mb-0.5">{mode === 'in' ? 'Lieferung einbuchen' : 'Artikel entnehmen'}</p>
+              <p className="text-lg font-bold text-slate-800">{scannedProduct.name}</p>
+              <p className="text-sm text-slate-400 mt-0.5">
+                Aktuell: {scannedProduct.current_stock} {scannedProduct.unit}
+                {matchedItem && <span className="ml-2 text-sky-600">· Bestellung gefunden</span>}
+              </p>
+            </div>
+            <div className="px-4 py-3 space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Menge</label>
+                <input type="number" min={1} value={quantity}
+                  onChange={e => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                  className="w-24 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                />
+              </div>
+              <div className="flex gap-2">
+                <button onClick={confirmMovement}
+                  className="flex-1 bg-sky-500 hover:bg-sky-600 text-white rounded-xl py-2.5 text-sm font-medium">
+                  {mode === 'in' ? 'Einbuchen' : 'Entnehmen'}
+                </button>
+                <button onClick={() => { setScannedProduct(null); setMatchedItem(null) }}
+                  className="px-4 border border-slate-300 rounded-xl text-sm text-slate-600">
+                  Abbrechen
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {status && (
+          <p className="text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-sm">
+            {status}
+          </p>
+        )}
+
+        {/* Reorder prompt (scan_out only) */}
+        {reorderPrompt && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-3">
+            <div>
+              <p className="text-sm font-semibold text-amber-800">Bestand unter Meldebestand</p>
+              <p className="text-xs text-amber-600 mt-0.5">{reorderPrompt.product.name}</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="flex-1">
+                <p className="text-xs text-slate-500 mb-1">Menge</p>
+                <input type="number" min={1} value={reorderPrompt.qty}
+                  onChange={e => setReorderPrompt(p => p ? { ...p, qty: Math.max(1, parseInt(e.target.value) || 1) } : p)}
+                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500"
+                />
+              </div>
+              <div className="flex gap-2 mt-5">
+                {addedToCart ? (
+                  <div className="flex items-center gap-1.5 text-emerald-600 text-sm font-medium px-3">
+                    <Check size={16} /> Im Warenkorb
+                  </div>
+                ) : (
+                  <button onClick={addReorderToCart} disabled={addingToCart}
+                    className="bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors">
+                    {addingToCart ? '…' : 'In den Warenkorb'}
+                  </button>
+                )}
+                <button onClick={() => setReorderPrompt(null)} className="text-slate-400 hover:text-slate-600 px-2 py-2">
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {error && (
+          <div className="space-y-2">
+            <p className="text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-sm">{error}</p>
+            {rawCode && (
+              <button onClick={() => onAddWithBarcode(rawCode)}
+                className="w-full bg-sky-500 hover:bg-sky-600 text-white rounded-xl py-3 text-sm font-medium flex items-center justify-center gap-2">
+                <Plus size={16} /> Als neuen Artikel hinzufügen
+              </button>
+            )}
+          </div>
+        )}
+
+      </div>
     </div>
   )
 }
