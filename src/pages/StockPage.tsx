@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
 import { supabase, getCurrentUser } from '../lib/supabase'
 import type { Product, Role } from '../lib/types'
@@ -48,33 +49,29 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
   const [saving, setSaving] = useState(false)
   const [addedToCart, setAddedToCart] = useState<Set<string>>(new Set())
   const [scanning, setScanning] = useState(false)
-  const [shouldStartScanner, setShouldStartScanner] = useState(false)
   const scannerRef = useRef<Html5Qrcode | null>(null)
 
-  // Start scanner in an effect so the div is visible in the DOM before Html5Qrcode attaches
-  useEffect(() => {
-    if (!shouldStartScanner) return
-    setShouldStartScanner(false)
+  async function startBarcodeScanner() {
+    // flushSync ensures the div is visible in the DOM before Html5Qrcode attaches
+    flushSync(() => setScanning(true))
 
     const scanner = new Html5Qrcode('barcode-scanner', { formatsToSupport: SCAN_FORMATS, verbose: false })
     scannerRef.current = scanner
-
-    scanner.start(
-      { facingMode: 'environment' },
-      { fps: 10, qrbox: { width: 220, height: 120 }, aspectRatio: 1.8 },
-      async (code) => {
-        await scanner.stop()
-        scannerRef.current = null
-        setScanning(false)
-        setForm(f => ({ ...f, barcode: code.replace(/^\]d[0-9]/, '').trim() }))
-      },
-      () => {}
-    ).catch(() => { setScanning(false) })
-  }, [shouldStartScanner])
-
-  function startBarcodeScanner() {
-    setScanning(true)
-    setShouldStartScanner(true)
+    try {
+      await scanner.start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: { width: 220, height: 120 }, aspectRatio: 1.8 },
+        async (code) => {
+          await scanner.stop()
+          scannerRef.current = null
+          setScanning(false)
+          setForm(f => ({ ...f, barcode: code.replace(/^\]d[0-9]/, '').trim() }))
+        },
+        () => {}
+      )
+    } catch {
+      setScanning(false)
+    }
   }
 
   function stopBarcodeScanner() {
