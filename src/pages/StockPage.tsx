@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase, getCurrentUser } from '../lib/supabase'
 import type { Product, Role } from '../lib/types'
-import ProductDetailModal from '../components/ProductDetailModal'
+import ProductDetailPage from './ProductDetailPage'
 import Drawer from '../components/Drawer'
 import CategorySelect from '../components/CategorySelect'
 import { Search, Plus, X, ShoppingCart, Check } from 'lucide-react'
@@ -117,6 +117,22 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
   const kritisch  = filtered.filter(p => isLowStock(p)).sort(byUrgency)
   const niedrig   = filtered.filter(p => isNearThreshold(p)).sort(byUrgency)
   const ok        = filtered.filter(p => !isLowStock(p) && !isNearThreshold(p)).sort(byUrgency)
+
+  if (selectedProduct) return (
+    <ProductDetailPage
+      product={selectedProduct}
+      onBack={() => setSelectedProduct(null)}
+      onUpdated={updated => {
+        setProducts(prev => prev.map(p => p.id === updated.id ? updated : p))
+        setSelectedProduct(updated)
+      }}
+      onDeleted={id => {
+        setProducts(prev => prev.filter(p => p.id !== id))
+        setSelectedProduct(null)
+      }}
+      onAddToCart={addToCart}
+    />
+  )
 
   if (loading) return (
     <div className="flex justify-center py-16">
@@ -235,20 +251,6 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
         </form>
       </Drawer>
 
-      {selectedProduct && (
-        <ProductDetailModal
-          product={selectedProduct}
-          onClose={() => setSelectedProduct(null)}
-          onUpdated={updated => {
-            setProducts(prev => prev.map(p => p.id === updated.id ? updated : p))
-            setSelectedProduct(updated)
-          }}
-          onDeleted={id => {
-            setProducts(prev => prev.filter(p => p.id !== id))
-            setSelectedProduct(null)
-          }}
-        />
-      )}
     </div>
   )
 }
@@ -283,7 +285,7 @@ function ProductRow({ product: p, onOpen, added, onAddToCart }: {
 }) {
   const low = isLowStock(p)
   const near = isNearThreshold(p)
-  const [qty, setQty] = useState(() => Math.max(1, Math.ceil(p.min_stock * 1.5)))
+  const defaultQty = Math.max(1, Math.ceil(p.min_stock * 1.5))
 
   const max = Math.max(p.current_stock, p.min_stock * 2.5, 1)
   const fillPct = Math.min(100, (p.current_stock / max) * 100)
@@ -294,7 +296,7 @@ function ProductRow({ product: p, onOpen, added, onAddToCart }: {
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
       <div className="flex items-center gap-3 px-4 pt-3 pb-2">
-        {/* Info */}
+        {/* Tappable info area → navigate to detail */}
         <button onClick={onOpen} className="flex-1 min-w-0 text-left">
           <p className="text-sm font-semibold text-slate-800 truncate">{p.name}</p>
           <p className="text-xs text-slate-400 truncate mt-0.5">
@@ -302,31 +304,21 @@ function ProductRow({ product: p, onOpen, added, onAddToCart }: {
           </p>
         </button>
 
-        {/* Stock count */}
+        {/* Stock count → also navigates */}
         <button onClick={onOpen} className="text-right shrink-0">
           <span className={`text-2xl font-bold leading-none ${stockColor}`}>{p.current_stock}</span>
           <p className="text-xs text-slate-400 mt-0.5">{p.unit}</p>
         </button>
 
-        {/* Quantity input + add to cart */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          <input
-            type="number"
-            min={1}
-            value={qty}
-            onChange={e => setQty(Math.max(1, parseInt(e.target.value) || 1))}
-            onClick={e => e.stopPropagation()}
-            className="w-12 text-center text-sm font-semibold border border-slate-200 rounded-lg py-1 focus:outline-none focus:ring-2 focus:ring-sky-500"
-          />
-          <button
-            onClick={e => { e.stopPropagation(); onAddToCart(qty) }}
-            className={`w-9 h-9 flex items-center justify-center rounded-xl transition-colors ${
-              added ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 hover:bg-sky-100 hover:text-sky-600 text-slate-500'
-            }`}
-          >
-            {added ? <Check size={16} /> : <ShoppingCart size={16} />}
-          </button>
-        </div>
+        {/* Add to cart with default qty */}
+        <button
+          onClick={e => { e.stopPropagation(); onAddToCart(defaultQty) }}
+          className={`shrink-0 w-9 h-9 flex items-center justify-center rounded-xl transition-colors ${
+            added ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 hover:bg-sky-100 hover:text-sky-600 text-slate-500'
+          }`}
+        >
+          {added ? <Check size={16} /> : <ShoppingCart size={16} />}
+        </button>
       </div>
 
       {/* Stock bar */}
