@@ -60,7 +60,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
     try {
       await scanner.start(
         { facingMode: 'environment' },
-        { fps: 10, qrbox: { width: 220, height: 220 }, aspectRatio: 1.0 },
+        { fps: 15, qrbox: (w, h) => ({ width: Math.min(w, h) * 0.85, height: Math.min(w, h) * 0.85 }) },
         async (code) => {
           await scanner.stop()
           scannerRef.current = null
