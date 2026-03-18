@@ -301,7 +301,7 @@ export default function ScanPage({ onAddWithBarcode }: Props) {
               <input
                 type="search" value={manualSearch}
                 onChange={e => searchProducts(e.target.value)}
-                placeholder="Artikel manuell suchen…"
+                placeholder={mode === 'in' ? 'Artikel oder Lieferant suchen…' : 'Artikel manuell suchen…'}
                 className="w-full border border-slate-300 rounded-xl pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white"
               />
             </div>
@@ -331,7 +331,11 @@ export default function ScanPage({ onAddWithBarcode }: Props) {
               <p className="text-xs text-slate-400 font-medium uppercase tracking-wide">
                 {pendingItemCount} Artikel ausstehend
               </p>
-              {openOrders.map(order => {
+              {openOrders.filter(order =>
+                !manualSearch.trim() ||
+                order.supplier?.toLowerCase().includes(manualSearch.toLowerCase()) ||
+                (order.items ?? []).some(i => i.product?.name.toLowerCase().includes(manualSearch.toLowerCase()))
+              ).map(order => {
                 const items = order.items ?? []
                 const allDone = items.every(i => receivedItems.has(i.id))
                 return (
