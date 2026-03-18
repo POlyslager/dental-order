@@ -217,20 +217,14 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
         </button>
         <h2 className="font-semibold text-slate-800">Neuer Artikel</h2>
       </header>
-      <form onSubmit={handleCreate} className="p-4 space-y-4 pb-10">
-        <div className="bg-sky-50 border border-sky-200 rounded-xl px-4 py-3">
-          <p className="text-xs text-sky-700">Der Bestand wird automatisch über das Scannen aktualisiert.</p>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Artikelnummer" value={form.article_number} onChange={v => setForm(f => ({ ...f, article_number: v }))} />
-          <Field label="Name *" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} required />
-        </div>
+      <form onSubmit={handleCreate} className="p-4 space-y-4" style={{ paddingBottom: '60vh' }}>
+        <Field label="Name *" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} required />
         <div>
           <label className="block text-xs font-medium text-slate-600 mb-1">Barcode / QR-Code</label>
           <div className="flex gap-2">
             <input type="text" value={form.barcode}
               onChange={e => setForm(f => ({ ...f, barcode: e.target.value }))}
-              className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
+              className="flex-1 border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
             <button type="button" onClick={startBarcodeScanner} disabled={scanning}
               className="px-3 rounded-lg border border-slate-300 text-slate-500 hover:bg-sky-50 hover:border-sky-300 hover:text-sky-600 disabled:opacity-40 transition-colors">
               <Camera size={16} />
@@ -246,7 +240,6 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
             )}
           </div>
         </div>
-        <Field label="Beschreibung" value={form.description} onChange={v => setForm(f => ({ ...f, description: v }))} />
         <div>
           <label className="block text-xs font-medium text-slate-600 mb-1">Kategorie *</label>
           <CategorySelect value={form.category} onChange={v => setForm(f => ({ ...f, category: v }))} categories={categories.filter(c => c !== 'all')} />
@@ -260,17 +253,18 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
           </div>
         </div>
         <Field label="Stückpreis (€)" inputMode="decimal" value={form.last_price} onChange={v => setForm(f => ({ ...f, last_price: v }))} />
+        <Field label="Artikelnummer" value={form.article_number} onChange={v => setForm(f => ({ ...f, article_number: v }))} />
+        <Field label="Beschreibung" value={form.description} onChange={v => setForm(f => ({ ...f, description: v }))} />
         <div>
           <label className="block text-xs font-medium text-slate-600 mb-1">Lagerort</label>
           <select value={form.storage_location} onChange={e => setForm(f => ({ ...f, storage_location: e.target.value }))}
-            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500">
+            className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500">
             <option value="">— Kein Lagerort —</option>
             {STORAGE_LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}
           </select>
         </div>
-        <Field label="Lieferant" value={form.preferred_supplier} onChange={v => setForm(f => ({ ...f, preferred_supplier: v }))} />
+        <Field label="Lieferant / Hersteller" value={form.preferred_supplier} onChange={v => setForm(f => ({ ...f, preferred_supplier: v }))} />
         <Field label="Bestell-Website" type="url" value={form.supplier_url} onChange={v => setForm(f => ({ ...f, supplier_url: v }))} />
-        <Field label="Hersteller-Website" type="url" value={form.producer_url} onChange={v => setForm(f => ({ ...f, producer_url: v }))} />
         <Field label="Notizen" value={form.notes} onChange={v => setForm(f => ({ ...f, notes: v }))} rows={3} />
         <button type="submit" disabled={saving}
           className="w-full bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white font-medium rounded-xl py-3 text-sm">
