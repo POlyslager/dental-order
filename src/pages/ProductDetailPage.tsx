@@ -263,7 +263,6 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
             {field('Artikelnummer', 'article_number')}
             {field('Kategorie', 'category')}
             {field('Lagerort', 'storage_location', editing ? 'select' : 'text')}
-            {field('Ablaufdatum', 'expiry_date', 'date')}
             {lastScan && !editing && (
               <div>
                 <p className="text-xs text-slate-400 mb-0.5">Zuletzt geprüft</p>
