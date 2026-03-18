@@ -99,7 +99,12 @@ export default function ScanPage({ onAddWithBarcode }: Props) {
   }
 
   function cleanBarcode(raw: string): string {
-    return raw.replace(/^\]d[0-9]/, '').replace(/^\$/, '').replace(/^[\x00-\x1F]+/, '').trim()
+    // Strip AIM identifier (]d2, ]C1, etc.) and leading control/FNC1 chars
+    let code = raw.replace(/^\][A-Za-z][0-9]/, '').replace(/^[\x00-\x1F\x7F]+/, '').trim()
+    // GS1: extract just the GTIN from the (01) application identifier
+    const gs1 = code.match(/(?:^|\x1d)01(\d{14})/)
+    if (gs1) return gs1[1]
+    return code
   }
 
   async function startScanner() {

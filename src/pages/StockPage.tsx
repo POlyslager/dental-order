@@ -65,7 +65,12 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
           await scanner.stop()
           scannerRef.current = null
           setScanning(false)
-          setForm(f => ({ ...f, barcode: code.replace(/^\]d[0-9]/, '').trim() }))
+          setForm(f => {
+            let bc = code.replace(/^\][A-Za-z][0-9]/, '').replace(/^[\x00-\x1F\x7F]+/, '').trim()
+            const gs1 = bc.match(/(?:^|\x1d)01(\d{14})/)
+            if (gs1) bc = gs1[1]
+            return { ...f, barcode: bc }
+          })
         },
         () => {}
       )
