@@ -24,8 +24,8 @@ function isNearThreshold(p: Product) { return !isLowStock(p) && p.current_stock 
 
 const EMPTY_FORM = {
   article_number: '', name: '', description: '', category: '', barcode: '',
-  current_stock: 0, min_stock: 1, unit: 'pcs', preferred_supplier: '', supplier_url: '',
-  producer_url: '', last_price: '', storage_location: '', notes: '', reorder_quantity: '',
+  current_stock: '', min_stock: '', unit: 'pcs', preferred_supplier: '', supplier_url: '',
+  producer_url: '', last_price: '', storage_location: '', notes: '',
 }
 const STORAGE_LOCATIONS = [
   'Behandlungsraum 1', 'Behandlungsraum 2', 'Behandlungsraum 3',
@@ -148,9 +148,9 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
     setSaving(true)
     await supabase.from('products').insert({
       ...form,
-      current_stock: form.current_stock,
+      current_stock: parseFloat(form.current_stock) || 0,
+      min_stock: parseFloat(form.min_stock) || 0,
       last_price: form.last_price ? parseFloat(form.last_price) : null,
-      reorder_quantity: form.reorder_quantity ? parseFloat(form.reorder_quantity) : null,
       article_number: form.article_number || null,
       barcode: form.barcode || null,
       supplier_url: form.supplier_url || null,
@@ -317,13 +317,14 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
             <CategorySelect value={form.category} onChange={v => setForm(f => ({ ...f, category: v }))} categories={categories.filter(c => c !== 'all')} />
           </div>
           <div className="grid grid-cols-3 gap-3">
-            <Field label="Bestand" type="number" inputMode="numeric" value={String(form.current_stock)} onChange={v => setForm(f => ({ ...f, current_stock: parseFloat(v) || 0 }))} />
-            <Field label="Meldebestand *" type="number" inputMode="numeric" value={String(form.min_stock)} onChange={v => setForm(f => ({ ...f, min_stock: parseFloat(v) || 0 }))} required />
+            <Field label="Bestand" inputMode="numeric" value={form.current_stock} onChange={v => setForm(f => ({ ...f, current_stock: v }))} />
+            <Field label="Meldebestand *" inputMode="numeric" value={form.min_stock} onChange={v => setForm(f => ({ ...f, min_stock: v }))} required />
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Einheit</label>
               <CategorySelect value={form.unit} onChange={v => setForm(f => ({ ...f, unit: v }))} categories={UNITS} />
             </div>
           </div>
+          <Field label="Stückpreis (€)" inputMode="decimal" value={form.last_price} onChange={v => setForm(f => ({ ...f, last_price: v }))} />
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">Lagerort</label>
             <select value={form.storage_location} onChange={e => setForm(f => ({ ...f, storage_location: e.target.value }))}
@@ -335,8 +336,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
           <Field label="Lieferant" value={form.preferred_supplier} onChange={v => setForm(f => ({ ...f, preferred_supplier: v }))} />
           <Field label="Bestell-Website" type="url" value={form.supplier_url} onChange={v => setForm(f => ({ ...f, supplier_url: v }))} />
           <Field label="Hersteller-Website" type="url" value={form.producer_url} onChange={v => setForm(f => ({ ...f, producer_url: v }))} />
-          <Field label="Stückpreis (€)" type="number" value={form.last_price} onChange={v => setForm(f => ({ ...f, last_price: v }))} />
-          <Field label="Notizen" value={form.notes} onChange={v => setForm(f => ({ ...f, notes: v }))} />
+          <Field label="Notizen" value={form.notes} onChange={v => setForm(f => ({ ...f, notes: v }))} rows={3} />
           <button type="submit" disabled={saving}
             className="w-full bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white font-medium rounded-xl py-3 text-sm">
             {saving ? 'Speichern…' : 'Artikel hinzufügen'}
@@ -423,17 +423,19 @@ function ProductRow({ product: p, onOpen, added, onAddToCart }: {
   )
 }
 
-function Field({ label, value, onChange, type = 'text', required = false, inputMode }: {
+function Field({ label, value, onChange, type = 'text', required = false, inputMode, rows }: {
   label: string; value: string; onChange: (v: string) => void; type?: string; required?: boolean
   inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode']
+  rows?: number
 }) {
+  const cls = 'w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500'
   return (
     <div>
       <label className="block text-xs font-medium text-slate-600 mb-1">{label}</label>
-      <input type={type} value={value} onChange={e => onChange(e.target.value)} required={required}
-        step={type === 'number' ? 'any' : undefined}
-        inputMode={inputMode ?? (type === 'number' ? 'decimal' : undefined)}
-        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
+      {rows
+        ? <textarea value={value} onChange={e => onChange(e.target.value)} required={required} rows={rows} className={`${cls} resize-none`} />
+        : <input type={type} value={value} onChange={e => onChange(e.target.value)} required={required} inputMode={inputMode} className={cls} />
+      }
     </div>
   )
 }
