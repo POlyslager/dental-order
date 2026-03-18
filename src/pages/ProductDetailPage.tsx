@@ -221,23 +221,19 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
                 </p>
               </div>
               <div className="flex items-end gap-3">
-                <div className="flex-1 space-y-2">
-                  <div>
-                    <p className="text-xs text-slate-500 mb-1.5">Menge</p>
-                    <input type="number" min={1} value={orderQty}
-                      onChange={e => setOrderQty(Math.max(1, parseInt(e.target.value) || 1))}
-                      className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500"
-                    />
-                  </div>
-                  {form.last_price != null && (
-                    <p className="text-xs text-slate-500">€ {form.last_price} pro {form.unit}</p>
-                  )}
-                  {form.last_price != null && (
-                    <p className="text-sm font-bold text-slate-800">
-                      Gesamt € {(orderQty * form.last_price).toFixed(2)}
-                    </p>
-                  )}
+                <div>
+                  <p className="text-xs text-slate-500 mb-1.5">Menge</p>
+                  <input type="number" min={1} value={orderQty}
+                    onChange={e => setOrderQty(Math.max(1, parseInt(e.target.value) || 1))}
+                    className="w-20 border border-slate-300 rounded-xl px-3 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  />
                 </div>
+                {form.last_price != null && (
+                  <div className="flex-1">
+                    <p className="text-xs text-slate-500 mb-1">€ {form.last_price} / {form.unit}</p>
+                    <p className="text-sm font-bold text-slate-800">€ {(orderQty * form.last_price).toFixed(2)}</p>
+                  </div>
+                )}
                 <button onClick={handleAddToCart}
                   className={`w-11 h-11 flex items-center justify-center rounded-xl transition-colors shrink-0 ${
                     added ? 'bg-emerald-100 text-emerald-600' : 'bg-sky-500 hover:bg-sky-600 text-white'
