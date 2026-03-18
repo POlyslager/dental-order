@@ -95,8 +95,10 @@ export default function OrdersPage({ role, user, onBadgeChange }: Props) {
     await supabase.from('cart_items').delete().in('id', items.map(i => i.id))
 
     // Send push notification to admins
-    supabase.functions.invoke('send-push', {
-      body: { order_id: order.id, total, supplier, needs_approval: needsApproval },
+    fetch('/api/send-push', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ total, supplier, needs_approval: needsApproval }),
     }).catch(() => null)
 
     setPlacing(null)
