@@ -19,8 +19,17 @@ export default function Dashboard({ user }: Props) {
   const [role, setRole] = useState<Role | null>(null)
   const [tab, setTab] = useState<Tab>('stock')
   const [menuOpen, setMenuOpen] = useState(false)
+  const [menuClosing, setMenuClosing] = useState(false)
   const [showTerms, setShowTerms] = useState(false)
   const swipeStartX = useRef<number | null>(null)
+  const swipeDeltaX = useRef(0)
+  const menuRef = useRef<HTMLDivElement | null>(null)
+  const isDragging = useRef(false)
+
+  function closeMenu() {
+    setMenuClosing(true)
+    setTimeout(() => { setMenuOpen(false); setMenuClosing(false) }, 260)
+  }
   const [pendingBarcode, setPendingBarcode] = useState<string | null>(null)
   const [orderBadge, setOrderBadge] = useState(0)
   const [pushPermission, setPushPermission] = useState(() => currentPermission())
@@ -32,7 +41,7 @@ export default function Dashboard({ user }: Props) {
 
   function navigate(t: Tab) {
     setTab(t)
-    setMenuOpen(false)
+    closeMenu()
   }
 
   async function enableNotifications() {
@@ -139,20 +148,38 @@ export default function Dashboard({ user }: Props) {
       {/* Side menu */}
       {menuOpen && (
         <>
-          <div className="fixed inset-0 bg-black/30 z-40" onClick={() => setMenuOpen(false)} />
+          <div className="fixed inset-0 bg-black/30 z-40 animate-fade-in" onClick={closeMenu} />
           <div
-            className="fixed top-0 right-0 h-full w-72 bg-white shadow-2xl z-50 flex flex-col overscroll-contain"
-            onTouchStart={e => { swipeStartX.current = e.touches[0].clientX }}
-            onTouchEnd={e => {
-              if (swipeStartX.current !== null && e.changedTouches[0].clientX - swipeStartX.current > 60) {
-                setMenuOpen(false)
+            ref={menuRef}
+            className={`fixed top-0 right-0 h-full w-72 bg-white shadow-2xl z-50 flex flex-col overscroll-contain ${menuClosing ? 'animate-slide-out-right' : 'animate-slide-in-right'}`}
+            onTouchStart={e => {
+              swipeStartX.current = e.touches[0].clientX
+              swipeDeltaX.current = 0
+              isDragging.current = true
+            }}
+            onTouchMove={e => {
+              if (!isDragging.current || swipeStartX.current === null) return
+              const delta = Math.max(0, e.touches[0].clientX - swipeStartX.current)
+              swipeDeltaX.current = delta
+              if (menuRef.current) {
+                menuRef.current.style.transition = 'none'
+                menuRef.current.style.transform = `translateX(${delta}px)`
+              }
+            }}
+            onTouchEnd={() => {
+              isDragging.current = false
+              if (swipeDeltaX.current > 80) {
+                closeMenu()
+              } else if (menuRef.current) {
+                menuRef.current.style.transition = 'transform 260ms cubic-bezier(0.32,0,0.2,1)'
+                menuRef.current.style.transform = 'translateX(0)'
               }
               swipeStartX.current = null
             }}
           >
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
               <span className="font-semibold text-slate-800">Menü</span>
-              <button onClick={() => setMenuOpen(false)} className="text-slate-400 hover:text-slate-600">
+              <button onClick={closeMenu} className="text-slate-400 hover:text-slate-600">
                 <X size={20} />
               </button>
             </div>
@@ -173,14 +200,14 @@ export default function Dashboard({ user }: Props) {
                 <MenuItem
                   icon={<BellOff size={18} className="text-emerald-500" />}
                   label="Benachrichtigungen aktiv"
-                  onClick={() => setMenuOpen(false)}
+                  onClick={closeMenu}
                   active
                 />
               )}
               <MenuItem icon={<ScrollText size={18} />} label="Nutzungsbedingungen"
-                onClick={() => { setShowTerms(true); setMenuOpen(false) }} />
+                onClick={() => { setShowTerms(true); closeMenu() }} />
               <MenuItem icon={<Settings size={18} />} label="Einstellungen"
-                onClick={() => setMenuOpen(false)} disabled />
+                onClick={closeMenu} disabled />
             </nav>
 
             <div className="border-t border-slate-100 p-4">

@@ -167,7 +167,7 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
   }
 
   return (
-    <div className="min-h-full bg-slate-50">
+    <div className="min-h-full bg-slate-50 animate-slide-in-right">
       {/* Sub-header */}
       <div className="bg-white border-b border-slate-200 px-4 py-3 flex items-center gap-2 sticky top-0 z-10">
         <button onClick={editing ? () => { setForm(product); setEditing(false) } : onBack}
