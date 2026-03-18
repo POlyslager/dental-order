@@ -263,9 +263,8 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
                 <Camera size={16} />
               </button>
             </div>
-            {scanning && (
-              <div id="barcode-scanner" className="mt-2 rounded-xl overflow-hidden bg-slate-900" style={{ minHeight: 120 }} />
-            )}
+            {/* Always in DOM so Html5Qrcode can find the element; hidden when not scanning */}
+            <div id="barcode-scanner" className={`rounded-xl overflow-hidden bg-slate-900 ${scanning ? 'mt-2' : 'hidden'}`} style={scanning ? { minHeight: 120 } : undefined} />
           </div>
           <Field label="Beschreibung" value={form.description} onChange={v => setForm(f => ({ ...f, description: v }))} />
           <div>
