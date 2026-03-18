@@ -4,23 +4,14 @@ import type { Product, Role } from '../lib/types'
 import ProductDetailModal from '../components/ProductDetailModal'
 import Drawer from '../components/Drawer'
 import CategorySelect from '../components/CategorySelect'
-import { Search, LayoutGrid, List, Plus, X, ChevronDown, ChevronUp, ChevronRight, ExternalLink } from 'lucide-react'
+import { Search, Plus, X, ShoppingCart } from 'lucide-react'
 
 interface Props { role: Role | null; initialBarcode?: string | null; onBarcodeConsumed?: () => void }
 
 type Filter = 'all' | 'low' | 'expired'
-type ViewMode = 'grid' | 'list'
 
-const TODAY = new Date()
-TODAY.setHours(0, 0, 0, 0)
-
-function isExpired(p: Product) { return p.expiry_date ? new Date(p.expiry_date) < TODAY : false }
-function isExpiringSoon(p: Product) {
-  if (!p.expiry_date) return false
-  const diff = (new Date(p.expiry_date).getTime() - TODAY.getTime()) / (1000 * 60 * 60 * 24)
-  return diff >= 0 && diff <= 60
-}
 function isLowStock(p: Product) { return p.current_stock <= p.min_stock }
+function isNearThreshold(p: Product) { return !isLowStock(p) && p.current_stock <= p.min_stock * 1.5 }
 
 const EMPTY_FORM = {
   article_number: '', name: '', description: '', category: '', barcode: '',
@@ -41,14 +32,12 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState<Filter>('all')
+  const [filter] = useState<Filter>('all')
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
-  const [viewMode, setViewMode] = useState<ViewMode>('grid')
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
-  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   useEffect(() => { fetchProducts() }, [])
   useEffect(() => {
@@ -90,26 +79,23 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
 
   const categories = ['all', ...Array.from(new Set(products.map(p => p.category))).sort()]
 
-  const filtered = products
-    .filter(p => {
-      const matchesSearch =
-        p.name.toLowerCase().includes(search.toLowerCase()) ||
-        p.category.toLowerCase().includes(search.toLowerCase()) ||
-        (p.article_number?.toLowerCase().includes(search.toLowerCase()) ?? false)
-      const matchesCategory = selectedCategory === 'all' || p.category === selectedCategory
-      const matchesFilter = filter === 'all' ? true : filter === 'low' ? isLowStock(p) : isExpired(p)
-      return matchesSearch && matchesCategory && matchesFilter
-    })
-    .sort((a, b) => {
-      const priority = (p: Product) => isExpired(p) ? 0 : isLowStock(p) ? 1 : 2
-      const pa = priority(a), pb = priority(b)
-      if (pa !== pb) return pa - pb
-      // Within same priority: least stock first
-      return a.current_stock - b.current_stock
-    })
+  const filtered = products.filter(p => {
+    const matchesSearch =
+      p.name.toLowerCase().includes(search.toLowerCase()) ||
+      p.category.toLowerCase().includes(search.toLowerCase()) ||
+      (p.article_number?.toLowerCase().includes(search.toLowerCase()) ?? false)
+    const matchesCategory = selectedCategory === 'all' || p.category === selectedCategory
+    const matchesFilter = filter === 'all' ? true : filter === 'low' ? isLowStock(p) : false
+    return matchesSearch && matchesCategory && matchesFilter
+  })
 
-  const lowCount = products.filter(isLowStock).length
-  const expiredCount = products.filter(isExpired).length
+  // Sort within each group by urgency (ratio of current to min, ascending)
+  const byUrgency = (a: Product, b: Product) =>
+    (a.current_stock / Math.max(a.min_stock, 1)) - (b.current_stock / Math.max(b.min_stock, 1))
+
+  const kritisch  = filtered.filter(p => isLowStock(p)).sort(byUrgency)
+  const niedrig   = filtered.filter(p => isNearThreshold(p)).sort(byUrgency)
+  const ok        = filtered.filter(p => !isLowStock(p) && !isNearThreshold(p)).sort(byUrgency)
 
   if (loading) return (
     <div className="flex justify-center py-16">
@@ -119,24 +105,8 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
 
   return (
     <div className="max-w-2xl mx-auto">
-      {/* Summary bar */}
-      <div className="grid grid-cols-3 divide-x divide-slate-200 border-b border-slate-200 bg-white">
-        <button onClick={() => setFilter('all')} className={`py-2 px-4 text-center transition-colors ${filter === 'all' ? 'bg-sky-50' : ''}`}>
-          <p className={`text-xl font-bold ${filter === 'all' ? 'text-sky-600' : 'text-slate-800'}`}>{products.length}</p>
-          <p className={`text-xs mt-0.5 ${filter === 'all' ? 'text-sky-500 font-medium' : 'text-slate-500'}`}>Gesamt</p>
-        </button>
-        <button onClick={() => setFilter(filter === 'low' ? 'all' : 'low')} className={`py-2 px-4 text-center transition-colors ${filter === 'low' ? 'bg-amber-50' : ''}`}>
-          <p className={`text-xl font-bold ${filter === 'low' ? 'text-amber-500' : lowCount > 0 ? 'text-amber-500' : 'text-slate-800'}`}>{lowCount}</p>
-          <p className={`text-xs mt-0.5 ${filter === 'low' ? 'text-amber-500 font-medium' : 'text-slate-500'}`}>Niedrig</p>
-        </button>
-        <button onClick={() => setFilter(filter === 'expired' ? 'all' : 'expired')} className={`py-2 px-4 text-center transition-colors ${filter === 'expired' ? 'bg-red-50' : ''}`}>
-          <p className={`text-xl font-bold ${filter === 'expired' ? 'text-red-500' : expiredCount > 0 ? 'text-red-500' : 'text-slate-800'}`}>{expiredCount}</p>
-          <p className={`text-xs mt-0.5 ${filter === 'expired' ? 'text-red-500 font-medium' : 'text-slate-500'}`}>Abgelaufen</p>
-        </button>
-      </div>
-
       <div className="p-4 space-y-3">
-        {/* Search + view toggle */}
+        {/* Search + add */}
         <div className="flex gap-2">
           <div className="relative flex-1">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -149,52 +119,31 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
               </button>
             )}
           </div>
-          <div className="flex border border-slate-300 rounded-xl overflow-hidden bg-white">
-            <button onClick={() => setViewMode('grid')} title="Raster"
-              className={`px-3 flex items-center transition-colors ${viewMode === 'grid' ? 'bg-sky-500 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
-              <LayoutGrid size={15} />
-            </button>
-            <button onClick={() => setViewMode('list')} title="Liste"
-              className={`px-3 flex items-center border-l border-slate-300 transition-colors ${viewMode === 'list' ? 'bg-sky-500 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
-              <List size={15} />
-            </button>
-          </div>
           <button onClick={() => setShowForm(true)} title="Artikel hinzufügen"
             className="bg-sky-500 hover:bg-sky-600 text-white px-3 rounded-xl transition-colors flex items-center">
             <Plus size={20} />
           </button>
         </div>
 
-        {/* Category scroll */}
+        {/* Category chips */}
         <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
           {categories.map(cat => (
             <button key={cat} onClick={() => setSelectedCategory(cat)}
               className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
                 selectedCategory === cat ? 'bg-slate-800 text-white' : 'bg-white border border-slate-200 text-slate-600'
               }`}>
-              {cat === 'all' ? 'Alle Kategorien' : cat}
+              {cat === 'all' ? 'Alle' : cat}
             </button>
           ))}
         </div>
 
-        {/* Products */}
         {filtered.length === 0 ? (
           <p className="text-center text-slate-400 py-12">Keine Artikel gefunden</p>
-        ) : viewMode === 'grid' ? (
-          <div className="grid grid-cols-2 gap-3">
-            {filtered.map(p => <ProductCard key={p.id} product={p} onClick={() => setSelectedProduct(p)} />)}
-          </div>
         ) : (
-          <div className="space-y-1.5">
-            {filtered.map(p => (
-              <ExpandableRow
-                key={p.id}
-                product={p}
-                expanded={expandedId === p.id}
-                onToggle={() => setExpandedId(expandedId === p.id ? null : p.id)}
-                onOpen={() => setSelectedProduct(p)}
-              />
-            ))}
+          <div className="space-y-5">
+            <ProductGroup label="Kritisch" color="bg-red-400" textColor="text-red-500" products={kritisch} onOpen={setSelectedProduct} />
+            <ProductGroup label="Niedrig" color="bg-amber-400" textColor="text-amber-500" products={niedrig} onOpen={setSelectedProduct} />
+            <ProductGroup label="Ausreichend" color="bg-emerald-400" textColor="text-emerald-600" products={ok} onOpen={setSelectedProduct} />
           </div>
         )}
       </div>
@@ -267,122 +216,67 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
   )
 }
 
-// ── Expandable list row (D) ────────────────────────────────────────────────
-function ExpandableRow({ product: p, expanded, onToggle, onOpen }: {
-  product: Product; expanded: boolean; onToggle: () => void; onOpen: () => void
+// ── Group section ──────────────────────────────────────────────────────────
+function ProductGroup({ label, color, textColor, products, onOpen }: {
+  label: string; color: string; textColor: string
+  products: Product[]; onOpen: (p: Product) => void
 }) {
-  const low = isLowStock(p)
-  const expired = isExpired(p)
-  const expiringSoon = isExpiringSoon(p)
-
-  const dot = expired || low ? 'bg-red-400' : expiringSoon ? 'bg-amber-400' : 'bg-emerald-400'
-  const border = expired ? 'border-red-200' : low ? 'border-amber-200' : 'border-slate-200'
-
+  if (products.length === 0) return null
   return (
-    <div className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-all ${border}`}>
-      {/* Collapsed row */}
-      <button onClick={onToggle} className="w-full flex items-center gap-3 px-4 py-3 text-left">
-        <div className={`w-2 h-2 rounded-full shrink-0 ${dot}`} />
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-slate-800 truncate">{p.name}</p>
-          <p className="text-xs text-slate-400 truncate mt-0.5">{p.category}{p.storage_location ? ` · ${p.storage_location}` : ''}</p>
-        </div>
-        <div className="text-right shrink-0 mr-2">
-          <p className={`text-base font-bold leading-none ${low || expired ? 'text-red-500' : 'text-slate-800'}`}>{p.current_stock}</p>
-          <p className="text-xs text-slate-400">min {p.min_stock}</p>
-        </div>
-        {expanded ? <ChevronUp size={16} className="text-slate-400 shrink-0" /> : <ChevronDown size={16} className="text-slate-400 shrink-0" />}
-      </button>
-
-      {/* Expanded details */}
-      {expanded && (
-        <div className="border-t border-slate-100 px-4 py-3 space-y-3 bg-slate-50/50">
-          <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-            {p.unit && <Detail label="Einheit" value={p.unit} />}
-            {p.last_price != null && <Detail label="Stückpreis" value={`€ ${p.last_price}`} />}
-            {p.reorder_quantity != null && <Detail label="Nachbestellmenge" value={String(p.reorder_quantity)} />}
-            {p.expiry_date && (
-              <Detail
-                label="Ablaufdatum"
-                value={new Date(p.expiry_date).toLocaleDateString('de-DE')}
-                alert={expired ? 'red' : expiringSoon ? 'orange' : undefined}
-              />
-            )}
-            {p.preferred_supplier && <Detail label="Lieferant" value={p.preferred_supplier} />}
-            {p.article_number && <Detail label="Artikelnr." value={p.article_number} />}
-          </div>
-          {p.notes && <p className="text-xs text-slate-500 italic">{p.notes}</p>}
-          <div className="flex gap-2 pt-1">
-            {p.supplier_url && (
-              <a href={p.supplier_url} target="_blank" rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-xs text-sky-600 font-medium border border-sky-200 rounded-lg px-3 py-1.5 hover:bg-sky-50">
-                Bestellen <ExternalLink size={11} />
-              </a>
-            )}
-            <button onClick={onOpen}
-              className="flex items-center gap-1.5 text-xs text-slate-600 border border-slate-300 rounded-lg px-3 py-1.5 hover:bg-slate-100 ml-auto">
-              Details <ChevronRight size={11} />
-            </button>
-          </div>
-        </div>
-      )}
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <div className={`w-2 h-2 rounded-full shrink-0 ${color}`} />
+        <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{label}</h3>
+        <span className={`text-xs font-semibold ${textColor}`}>{products.length}</span>
+      </div>
+      <div className="space-y-2">
+        {products.map(p => <ProductRow key={p.id} product={p} onOpen={() => onOpen(p)} />)}
+      </div>
     </div>
   )
 }
 
-function Detail({ label, value, alert }: { label: string; value: string; alert?: 'red' | 'orange' }) {
-  return (
-    <div>
-      <p className="text-xs text-slate-400">{label}</p>
-      <p className={`text-sm font-medium ${alert === 'red' ? 'text-red-500' : alert === 'orange' ? 'text-orange-500' : 'text-slate-700'}`}>{value}</p>
-    </div>
-  )
-}
-
-// ── Grid card ──────────────────────────────────────────────────────────────
-function ProductCard({ product: p, onClick }: { product: Product; onClick: () => void }) {
+// ── Product row ────────────────────────────────────────────────────────────
+function ProductRow({ product: p, onOpen }: { product: Product; onOpen: () => void }) {
   const low = isLowStock(p)
-  const expired = isExpired(p)
-  const expiringSoon = isExpiringSoon(p)
+  const near = isNearThreshold(p)
 
-  // Scale: max is the larger of current stock or 2.5× the reorder threshold
-  // so the threshold marker sits at a consistent ~40% position when stock = min
   const max = Math.max(p.current_stock, p.min_stock * 2.5, 1)
   const fillPct = Math.min(100, (p.current_stock / max) * 100)
   const thresholdPct = Math.min(99, (p.min_stock / max) * 100)
-  const closeToThreshold = !low && p.current_stock <= p.min_stock * 1.5
-  const barColor = expired ? 'bg-slate-900' : low ? 'bg-red-400' : closeToThreshold ? 'bg-amber-400' : 'bg-emerald-400'
+  const barColor = low ? 'bg-red-400' : near ? 'bg-amber-400' : 'bg-emerald-400'
+  const stockColor = low ? 'text-red-500' : near ? 'text-amber-500' : 'text-slate-800'
 
   return (
-    <div onClick={onClick} className={`bg-white rounded-2xl border shadow-sm flex flex-col cursor-pointer active:scale-[0.98] transition-transform overflow-hidden ${
-      expired ? 'border-red-200' : low ? 'border-amber-200' : 'border-slate-200'
-    }`}>
-      {/* Card content */}
-      <div className="p-4 flex flex-col gap-2">
-        <div className="flex items-start justify-between gap-1">
-          <span className="text-xs font-medium text-slate-400 truncate">{p.article_number}</span>
-          {expired && <span className="shrink-0 text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full">Abgelaufen</span>}
-          {!expired && low && <span className="shrink-0 text-xs bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded-full">Niedrig</span>}
-          {!expired && !low && expiringSoon && <span className="shrink-0 text-xs bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full">Läuft ab</span>}
-        </div>
-        <p className="font-semibold text-slate-800 text-sm leading-snug line-clamp-2">{p.name}</p>
-        <span className={`text-2xl font-bold ${low || expired ? 'text-red-500' : 'text-slate-800'}`}>{p.current_stock}</span>
-        <div className="space-y-1">
-          {p.storage_location && <p className="text-xs text-slate-400 truncate">{p.storage_location}</p>}
-          {p.expiry_date && (
-            <p className={`text-xs truncate ${expired ? 'text-red-500 font-medium' : expiringSoon ? 'text-orange-500' : 'text-slate-400'}`}>
-              Exp. {new Date(p.expiry_date).toLocaleDateString('de-DE')}
-            </p>
-          )}
-          {p.preferred_supplier && <p className="text-xs text-slate-400 truncate">{p.preferred_supplier}</p>}
-        </div>
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="flex items-center gap-3 px-4 pt-3 pb-2">
+        {/* Info */}
+        <button onClick={onOpen} className="flex-1 min-w-0 text-left">
+          <p className="text-sm font-semibold text-slate-800 truncate">{p.name}</p>
+          <p className="text-xs text-slate-400 truncate mt-0.5">
+            {p.category}{p.preferred_supplier ? ` · ${p.preferred_supplier}` : ''}
+          </p>
+        </button>
+
+        {/* Stock count */}
+        <button onClick={onOpen} className="text-right shrink-0">
+          <span className={`text-2xl font-bold leading-none ${stockColor}`}>{p.current_stock}</span>
+          <p className="text-xs text-slate-400 mt-0.5">{p.unit}</p>
+        </button>
+
+        {/* Add to cart */}
+        <button
+          onClick={e => { e.stopPropagation() }}
+          className="shrink-0 w-9 h-9 flex items-center justify-center rounded-xl bg-slate-100 hover:bg-sky-100 hover:text-sky-600 text-slate-500 transition-colors"
+        >
+          <ShoppingCart size={16} />
+        </button>
       </div>
 
-      {/* Full-width stock bar at bottom */}
-      <div className="relative h-2 bg-slate-100 mt-auto">
+      {/* Stock bar */}
+      <div className="relative h-1.5 bg-slate-100">
         <div className={`absolute left-0 top-0 h-full transition-all ${barColor}`} style={{ width: `${fillPct}%` }} />
-        {/* Reorder threshold marker */}
-        <div className="absolute top-0 h-full w-[3px] bg-slate-600" style={{ left: `${thresholdPct}%` }} />
+        <div className="absolute top-0 h-full w-[3px] bg-slate-500 opacity-60" style={{ left: `${thresholdPct}%` }} />
       </div>
     </div>
   )
