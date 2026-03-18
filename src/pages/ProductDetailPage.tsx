@@ -35,7 +35,8 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
   const [form, setForm] = useState(product)
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [orderQty, setOrderQty] = useState(Math.max(1, Math.ceil(product.min_stock * 1.5)))
+  const fallbackQty = Math.max(1, Math.ceil(product.min_stock * 1.5))
+  const [orderQty, setOrderQty] = useState(fallbackQty)
   const [added, setAdded] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [lastScan, setLastScan] = useState<string | null>(null)
@@ -57,11 +58,26 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
   const styles = STATUS_STYLES[status]
 
   useEffect(() => {
+    // Last scan date
     supabase.from('stock_movements').select('created_at')
       .eq('product_id', product.id)
       .order('created_at', { ascending: false })
       .limit(1).single()
       .then(({ data }) => { if (data) setLastScan(data.created_at) })
+
+    // Velocity-based reorder qty: avg daily consumption over 60 days × 42 days (6 weeks)
+    const since = new Date()
+    since.setDate(since.getDate() - 60)
+    supabase.from('stock_movements').select('quantity')
+      .eq('product_id', product.id)
+      .eq('type', 'scan_out')
+      .gte('created_at', since.toISOString())
+      .then(({ data }) => {
+        if (!data || data.length === 0) return
+        const total = data.reduce((s, m) => s + m.quantity, 0)
+        const velocityQty = Math.ceil((total / 60) * 42)
+        setOrderQty(Math.max(velocityQty, fallbackQty))
+      })
   }, [product.id])
 
   async function handleSave() {
