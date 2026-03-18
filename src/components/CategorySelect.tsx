@@ -5,9 +5,10 @@ interface Props {
   value: string
   onChange: (v: string) => void
   categories: string[]
+  required?: boolean
 }
 
-export default function CategorySelect({ value, onChange, categories }: Props) {
+export default function CategorySelect({ value, onChange, categories, required }: Props) {
   const [search, setSearch] = useState(value)
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -43,6 +44,7 @@ export default function CategorySelect({ value, onChange, categories }: Props) {
           value={search}
           onChange={e => { setSearch(e.target.value); setOpen(true) }}
           onFocus={() => setOpen(true)}
+          required={required}
           placeholder="Kategorie suchen…"
           className="w-full border border-slate-300 rounded-lg px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
         />

@@ -215,11 +215,12 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
         <h2 className="font-semibold text-slate-800">Neuer Artikel</h2>
       </header>
       <form onSubmit={handleCreate} className="p-4 space-y-4" style={{ paddingBottom: '60vh' }}>
-        <Field label="Name *" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} required />
+        <Field label="Name *" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} required/>
+
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">Barcode / QR-Code</label>
+          <label className="block text-xs font-medium text-slate-600 mb-1">Barcode / QR-Code *</label>
           <div className="flex gap-2">
-            <input type="text" value={form.barcode}
+            <input type="text" value={form.barcode} required
               onChange={e => setForm(f => ({ ...f, barcode: e.target.value }))}
               className="flex-1 border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
             <button type="button" onClick={startBarcodeScanner} disabled={scanning}
@@ -239,10 +240,10 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
         </div>
         <div>
           <label className="block text-xs font-medium text-slate-600 mb-1">Kategorie *</label>
-          <CategorySelect value={form.category} onChange={v => setForm(f => ({ ...f, category: v }))} categories={categories.filter(c => c !== 'all')} />
+          <CategorySelect value={form.category} onChange={v => setForm(f => ({ ...f, category: v }))} categories={categories.filter(c => c !== 'all')} required />
         </div>
         <div className="grid grid-cols-3 gap-3">
-          <Field label="Bestand" inputMode="numeric" value={form.current_stock} onChange={v => setForm(f => ({ ...f, current_stock: v }))} />
+          <Field label="Bestand *" inputMode="numeric" value={form.current_stock} onChange={v => setForm(f => ({ ...f, current_stock: v }))} required />
           <Field label="Meldebestand *" inputMode="numeric" value={form.min_stock} onChange={v => setForm(f => ({ ...f, min_stock: v }))} required />
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">Einheit</label>
