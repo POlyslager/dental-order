@@ -128,7 +128,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
   return (
     <div className="max-w-2xl mx-auto">
       {/* Summary filter bar */}
-      <div className="grid grid-cols-3 divide-x divide-slate-200 border-b border-slate-200 bg-white">
+      <div className="grid grid-cols-3 divide-x divide-slate-200 border-b border-slate-200 bg-white sticky top-14 z-10">
         <button onClick={() => setFilter('all')} className={`py-2 px-4 text-center transition-colors ${filter === 'all' ? 'bg-sky-50' : ''}`}>
           <p className={`text-xl font-bold ${filter === 'all' ? 'text-sky-600' : 'text-slate-800'}`}>{products.length}</p>
           <p className={`text-xs mt-0.5 ${filter === 'all' ? 'text-sky-500 font-medium' : 'text-slate-500'}`}>Alle</p>
