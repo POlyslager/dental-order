@@ -8,7 +8,7 @@ import { Search, Plus, X, ShoppingCart } from 'lucide-react'
 
 interface Props { role: Role | null; initialBarcode?: string | null; onBarcodeConsumed?: () => void }
 
-type Filter = 'all' | 'low' | 'expired'
+type Filter = 'all' | 'kritisch' | 'niedrig'
 
 function isLowStock(p: Product) { return p.current_stock <= p.min_stock }
 function isNearThreshold(p: Product) { return !isLowStock(p) && p.current_stock <= p.min_stock * 1.5 }
@@ -32,7 +32,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [filter] = useState<Filter>('all')
+  const [filter, setFilter] = useState<Filter>('all')
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [showForm, setShowForm] = useState(false)
@@ -79,13 +79,19 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
 
   const categories = ['all', ...Array.from(new Set(products.map(p => p.category))).sort()]
 
+  const kritischCount = products.filter(isLowStock).length
+  const niedrigCount  = products.filter(isNearThreshold).length
+
   const filtered = products.filter(p => {
     const matchesSearch =
       p.name.toLowerCase().includes(search.toLowerCase()) ||
       p.category.toLowerCase().includes(search.toLowerCase()) ||
       (p.article_number?.toLowerCase().includes(search.toLowerCase()) ?? false)
     const matchesCategory = selectedCategory === 'all' || p.category === selectedCategory
-    const matchesFilter = filter === 'all' ? true : filter === 'low' ? isLowStock(p) : false
+    const matchesFilter =
+      filter === 'all'      ? true :
+      filter === 'kritisch' ? isLowStock(p) :
+                              isNearThreshold(p)
     return matchesSearch && matchesCategory && matchesFilter
   })
 
@@ -105,6 +111,22 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
 
   return (
     <div className="max-w-2xl mx-auto">
+      {/* Summary filter bar */}
+      <div className="grid grid-cols-3 divide-x divide-slate-200 border-b border-slate-200 bg-white">
+        <button onClick={() => setFilter('all')} className={`py-2 px-4 text-center transition-colors ${filter === 'all' ? 'bg-sky-50' : ''}`}>
+          <p className={`text-xl font-bold ${filter === 'all' ? 'text-sky-600' : 'text-slate-800'}`}>{products.length}</p>
+          <p className={`text-xs mt-0.5 ${filter === 'all' ? 'text-sky-500 font-medium' : 'text-slate-500'}`}>Alle</p>
+        </button>
+        <button onClick={() => setFilter(filter === 'kritisch' ? 'all' : 'kritisch')} className={`py-2 px-4 text-center transition-colors ${filter === 'kritisch' ? 'bg-red-50' : ''}`}>
+          <p className={`text-xl font-bold ${filter === 'kritisch' ? 'text-red-500' : kritischCount > 0 ? 'text-red-500' : 'text-slate-800'}`}>{kritischCount}</p>
+          <p className={`text-xs mt-0.5 ${filter === 'kritisch' ? 'text-red-500 font-medium' : 'text-slate-500'}`}>Kritisch</p>
+        </button>
+        <button onClick={() => setFilter(filter === 'niedrig' ? 'all' : 'niedrig')} className={`py-2 px-4 text-center transition-colors ${filter === 'niedrig' ? 'bg-amber-50' : ''}`}>
+          <p className={`text-xl font-bold ${filter === 'niedrig' ? 'text-amber-500' : niedrigCount > 0 ? 'text-amber-500' : 'text-slate-800'}`}>{niedrigCount}</p>
+          <p className={`text-xs mt-0.5 ${filter === 'niedrig' ? 'text-amber-500 font-medium' : 'text-slate-500'}`}>Niedrig</p>
+        </button>
+      </div>
+
       <div className="p-4 space-y-3">
         {/* Search + add */}
         <div className="flex gap-2">
