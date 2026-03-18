@@ -31,10 +31,7 @@ const STORAGE_LOCATIONS = [
   'Behandlungsraum 4', 'Behandlungsraum 5',
   'Steri', 'Rezeption', 'Büro', 'Radiologie', 'Keller',
 ]
-const UNITS = [
-  'Stück', 'Packung', 'Box', 'Kartusche', 'Flasche', 'Tube',
-  'Beutel', 'Spritze', 'Set', 'Kit', 'Kanister', 'Dose', 'Ries', 'Paar', 'Rolle',
-]
+const UNITS = ['Stück', 'Packung', 'Flasche', 'Kanister']
 
 export default function StockPage({ role: _role, initialBarcode, onBarcodeConsumed }: Props) {
   const [products, setProducts] = useState<Product[]>([])
