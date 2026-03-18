@@ -100,7 +100,7 @@ export default function Dashboard({ user }: Props) {
       </header>
 
       {/* Page content */}
-      <main className="flex-1 overflow-auto pb-20">
+      <main className={`flex-1 pb-20 ${menuOpen ? 'overflow-hidden' : 'overflow-auto'}`}>
         {showTerms
           ? <TermsPage onBack={() => setShowTerms(false)} />
           : <>
