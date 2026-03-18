@@ -72,7 +72,7 @@ export default function Dashboard({ user }: Props) {
   const activeIndex = bottomTabs.findIndex(t => t.id === tab)
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="h-screen overflow-hidden bg-slate-50 flex flex-col">
       {/* Header */}
       <header className="bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-2">
