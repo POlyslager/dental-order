@@ -60,7 +60,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
     try {
       await scanner.start(
         { facingMode: 'environment' },
-        { fps: 10, qrbox: { width: 220, height: 120 }, aspectRatio: 1.8 },
+        { fps: 10, qrbox: { width: 220, height: 220 }, aspectRatio: 1.0 },
         async (code) => {
           await scanner.stop()
           scannerRef.current = null
@@ -267,7 +267,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
               </button>
             </div>
             {/* Container always in DOM so Html5Qrcode finds the element with real dimensions */}
-            <div className={`relative bg-slate-900 rounded-xl overflow-hidden mt-2 transition-all ${scanning ? '' : 'h-0 mt-0 overflow-hidden'}`} style={{ minHeight: scanning ? 140 : 0 }}>
+            <div className={`relative bg-slate-900 rounded-xl overflow-hidden mt-2 transition-all ${scanning ? '' : 'h-0 mt-0 overflow-hidden'}`} style={{ minHeight: scanning ? 280 : 0 }}>
               <div id="barcode-scanner" className="w-full" />
               {scanning && (
                 <button type="button" onClick={stopBarcodeScanner}
