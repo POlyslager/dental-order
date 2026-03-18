@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
 import { supabase, getCurrentUser } from '../lib/supabase'
 import type { Product } from '../lib/types'
-import { Plus } from 'lucide-react'
+import { Plus, Check, X } from 'lucide-react'
 
 type ScanMode = 'in' | 'out'
 
@@ -28,6 +28,9 @@ export default function ScanPage({ onAddWithBarcode }: Props) {
   const [status, setStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [rawCode, setRawCode] = useState<string | null>(null)
+  const [reorderPrompt, setReorderPrompt] = useState<{ product: Product; qty: number } | null>(null)
+  const [addingToCart, setAddingToCart] = useState(false)
+  const [addedToCart, setAddedToCart] = useState(false)
 
   useEffect(() => {
     return () => { stopScanner() }
@@ -112,8 +115,46 @@ export default function ScanPage({ onAddWithBarcode }: Props) {
     if (stockErr) { setError(stockErr.message); return }
 
     setStatus(`✓ ${scannedProduct.name}: Bestand aktualisiert auf ${newStock} ${scannedProduct.unit}`)
+
+    // Prompt reorder if scan_out caused stock to drop at or below minimum
+    if (mode === 'out' && newStock <= scannedProduct.min_stock) {
+      const defaultQty = Math.max(1, Math.ceil(scannedProduct.min_stock * 1.5))
+      // Refine with velocity if scan history exists
+      const since = new Date()
+      since.setDate(since.getDate() - 60)
+      const { data: movements } = await supabase
+        .from('stock_movements').select('quantity')
+        .eq('product_id', scannedProduct.id).eq('type', 'scan_out')
+        .gte('created_at', since.toISOString())
+      const velocityQty = movements && movements.length > 0
+        ? Math.ceil((movements.reduce((s, m) => s + m.quantity, 0) / 60) * 42)
+        : 0
+      setReorderPrompt({ product: scannedProduct, qty: Math.max(velocityQty, defaultQty) })
+      setAddedToCart(false)
+    }
+
     setScannedProduct(null)
     setQuantity(1)
+  }
+
+  async function addReorderToCart() {
+    if (!reorderPrompt) return
+    setAddingToCart(true)
+    const user = await getCurrentUser()
+    if (user) {
+      const { data: existing } = await supabase
+        .from('cart_items').select('id, quantity')
+        .eq('product_id', reorderPrompt.product.id).maybeSingle()
+      if (existing) {
+        await supabase.from('cart_items')
+          .update({ quantity: existing.quantity + reorderPrompt.qty }).eq('id', existing.id)
+      } else {
+        await supabase.from('cart_items')
+          .insert({ product_id: reorderPrompt.product.id, quantity: reorderPrompt.qty, added_by: user.id })
+      }
+    }
+    setAddingToCart(false)
+    setAddedToCart(true)
   }
 
   return (
@@ -190,6 +231,42 @@ export default function ScanPage({ onAddWithBarcode }: Props) {
       )}
 
       {status && <p className="text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-sm">{status}</p>}
+
+      {reorderPrompt && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-3">
+          <div>
+            <p className="text-sm font-semibold text-amber-800">Bestand unter Meldebestand</p>
+            <p className="text-xs text-amber-600 mt-0.5">{reorderPrompt.product.name}</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex-1">
+              <p className="text-xs text-slate-500 mb-1">Menge</p>
+              <input
+                type="number" min={1}
+                value={reorderPrompt.qty}
+                onChange={e => setReorderPrompt(p => p ? { ...p, qty: Math.max(1, parseInt(e.target.value) || 1) } : p)}
+                className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500"
+              />
+            </div>
+            <div className="flex gap-2 mt-5">
+              {addedToCart ? (
+                <div className="flex items-center gap-1.5 text-emerald-600 text-sm font-medium px-3">
+                  <Check size={16} /> Im Warenkorb
+                </div>
+              ) : (
+                <button onClick={addReorderToCart} disabled={addingToCart}
+                  className="bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors">
+                  {addingToCart ? '…' : 'In den Warenkorb'}
+                </button>
+              )}
+              <button onClick={() => setReorderPrompt(null)}
+                className="text-slate-400 hover:text-slate-600 px-2 py-2">
+                <X size={16} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="space-y-2">
