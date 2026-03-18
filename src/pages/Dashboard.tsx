@@ -53,6 +53,11 @@ export default function Dashboard({ user }: Props) {
     getUserRole().then(setRole)
   }, [])
 
+  useEffect(() => {
+    document.body.style.overflow = menuOpen ? 'hidden' : ''
+    return () => { document.body.style.overflow = '' }
+  }, [menuOpen])
+
   // Fetch badge count: cart items + pending approval orders
   useEffect(() => {
     async function fetchBadge() {
