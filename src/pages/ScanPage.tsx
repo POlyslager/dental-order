@@ -259,6 +259,51 @@ export default function ScanPage({ onAddWithBarcode }: Props) {
 
       <div className="p-4 space-y-4">
 
+        {/* Camera viewfinder */}
+        <div className="relative bg-slate-900 rounded-2xl overflow-hidden" style={{ minHeight: 280 }}>
+          <div id="qr-reader" className="w-full" />
+          {!scanning && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <button onClick={startScanner}
+                className="bg-sky-500 hover:bg-sky-600 text-white px-6 py-3 rounded-xl font-medium text-sm">
+                Kamera starten
+              </button>
+            </div>
+          )}
+        </div>
+
+        {scanning && (
+          <button onClick={stopScanner} className="w-full py-2.5 text-sm text-slate-600 border border-slate-300 rounded-xl">
+            Abbrechen
+          </button>
+        )}
+
+        {/* Manual search fallback (scan_out only) */}
+        {mode === 'out' && !scannedProduct && (
+          <div className="space-y-2">
+            <div className="relative">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="search" value={manualSearch}
+                onChange={e => searchProducts(e.target.value)}
+                placeholder="Artikel manuell suchen…"
+                className="w-full border border-slate-300 rounded-xl pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white"
+              />
+            </div>
+            {searchResults.length > 0 && (
+              <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-50 overflow-hidden">
+                {searchResults.map(p => (
+                  <button key={p.id} onClick={() => selectProductManually(p)}
+                    className="w-full px-4 py-2.5 text-left hover:bg-slate-50 active:bg-slate-100 transition-colors">
+                    <p className="text-sm font-medium text-slate-800">{p.name}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">{p.category} · {p.current_stock} {p.unit}</p>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ── Lieferung einbuchen: open orders list ── */}
         {mode === 'in' && !scannedProduct && (
           openOrders.length === 0 ? (
@@ -308,51 +353,6 @@ export default function ScanPage({ onAddWithBarcode }: Props) {
               })}
             </div>
           )
-        )}
-
-        {/* Camera viewfinder */}
-        <div className="relative bg-slate-900 rounded-2xl overflow-hidden" style={{ minHeight: 280 }}>
-          <div id="qr-reader" className="w-full" />
-          {!scanning && (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <button onClick={startScanner}
-                className="bg-sky-500 hover:bg-sky-600 text-white px-6 py-3 rounded-xl font-medium text-sm">
-                Kamera starten
-              </button>
-            </div>
-          )}
-        </div>
-
-        {scanning && (
-          <button onClick={stopScanner} className="w-full py-2.5 text-sm text-slate-600 border border-slate-300 rounded-xl">
-            Abbrechen
-          </button>
-        )}
-
-        {/* Manual search fallback (scan_out only) */}
-        {mode === 'out' && !scannedProduct && (
-          <div className="space-y-2">
-            <div className="relative">
-              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="search" value={manualSearch}
-                onChange={e => searchProducts(e.target.value)}
-                placeholder="Artikel manuell suchen…"
-                className="w-full border border-slate-300 rounded-xl pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white"
-              />
-            </div>
-            {searchResults.length > 0 && (
-              <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-50 overflow-hidden">
-                {searchResults.map(p => (
-                  <button key={p.id} onClick={() => selectProductManually(p)}
-                    className="w-full px-4 py-2.5 text-left hover:bg-slate-50 active:bg-slate-100 transition-colors">
-                    <p className="text-sm font-medium text-slate-800">{p.name}</p>
-                    <p className="text-xs text-slate-400 mt-0.5">{p.category} · {p.current_stock} {p.unit}</p>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
         )}
 
         {/* Scanned product confirmation */}
