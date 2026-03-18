@@ -48,27 +48,33 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
   const [saving, setSaving] = useState(false)
   const [addedToCart, setAddedToCart] = useState<Set<string>>(new Set())
   const [scanning, setScanning] = useState(false)
+  const [shouldStartScanner, setShouldStartScanner] = useState(false)
   const scannerRef = useRef<Html5Qrcode | null>(null)
 
-  async function startBarcodeScanner() {
-    setScanning(true)
+  // Start scanner in an effect so the div is visible in the DOM before Html5Qrcode attaches
+  useEffect(() => {
+    if (!shouldStartScanner) return
+    setShouldStartScanner(false)
+
     const scanner = new Html5Qrcode('barcode-scanner', { formatsToSupport: SCAN_FORMATS, verbose: false })
     scannerRef.current = scanner
-    try {
-      await scanner.start(
-        { facingMode: 'environment' },
-        { fps: 10, qrbox: { width: 220, height: 120 }, aspectRatio: 1.8 },
-        async (code) => {
-          await scanner.stop()
-          scannerRef.current = null
-          setScanning(false)
-          setForm(f => ({ ...f, barcode: code.replace(/^\]d[0-9]/, '').trim() }))
-        },
-        () => {}
-      )
-    } catch {
-      setScanning(false)
-    }
+
+    scanner.start(
+      { facingMode: 'environment' },
+      { fps: 10, qrbox: { width: 220, height: 120 }, aspectRatio: 1.8 },
+      async (code) => {
+        await scanner.stop()
+        scannerRef.current = null
+        setScanning(false)
+        setForm(f => ({ ...f, barcode: code.replace(/^\]d[0-9]/, '').trim() }))
+      },
+      () => {}
+    ).catch(() => { setScanning(false) })
+  }, [shouldStartScanner])
+
+  function startBarcodeScanner() {
+    setScanning(true)
+    setShouldStartScanner(true)
   }
 
   function stopBarcodeScanner() {
@@ -258,13 +264,21 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
               <input type="text" value={form.barcode}
                 onChange={e => setForm(f => ({ ...f, barcode: e.target.value }))}
                 className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
-              <button type="button" onClick={scanning ? stopBarcodeScanner : startBarcodeScanner}
-                className={`px-3 rounded-lg border transition-colors ${scanning ? 'bg-red-50 border-red-300 text-red-500' : 'border-slate-300 text-slate-500 hover:bg-sky-50 hover:border-sky-300 hover:text-sky-600'}`}>
+              <button type="button" onClick={startBarcodeScanner} disabled={scanning}
+                className="px-3 rounded-lg border border-slate-300 text-slate-500 hover:bg-sky-50 hover:border-sky-300 hover:text-sky-600 disabled:opacity-40 transition-colors">
                 <Camera size={16} />
               </button>
             </div>
-            {/* Always in DOM so Html5Qrcode can find the element; hidden when not scanning */}
-            <div id="barcode-scanner" className={`rounded-xl overflow-hidden bg-slate-900 ${scanning ? 'mt-2' : 'hidden'}`} style={scanning ? { minHeight: 120 } : undefined} />
+            {/* Container always in DOM so Html5Qrcode finds the element with real dimensions */}
+            <div className={`relative bg-slate-900 rounded-xl overflow-hidden mt-2 transition-all ${scanning ? '' : 'h-0 mt-0 overflow-hidden'}`} style={{ minHeight: scanning ? 140 : 0 }}>
+              <div id="barcode-scanner" className="w-full" />
+              {scanning && (
+                <button type="button" onClick={stopBarcodeScanner}
+                  className="absolute top-2 right-2 bg-black/40 text-white rounded-full p-1 z-10">
+                  <X size={14} />
+                </button>
+              )}
+            </div>
           </div>
           <Field label="Beschreibung" value={form.description} onChange={v => setForm(f => ({ ...f, description: v }))} />
           <div>
