@@ -317,8 +317,8 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
             <CategorySelect value={form.category} onChange={v => setForm(f => ({ ...f, category: v }))} categories={categories.filter(c => c !== 'all')} />
           </div>
           <div className="grid grid-cols-3 gap-3">
-            <Field label="Bestand" type="number" value={String(form.current_stock)} onChange={v => setForm(f => ({ ...f, current_stock: parseFloat(v) || 0 }))} />
-            <Field label="Meldebestand *" type="number" value={String(form.min_stock)} onChange={v => setForm(f => ({ ...f, min_stock: parseFloat(v) || 0 }))} required />
+            <Field label="Bestand" type="number" inputMode="numeric" value={String(form.current_stock)} onChange={v => setForm(f => ({ ...f, current_stock: parseFloat(v) || 0 }))} />
+            <Field label="Meldebestand *" type="number" inputMode="numeric" value={String(form.min_stock)} onChange={v => setForm(f => ({ ...f, min_stock: parseFloat(v) || 0 }))} required />
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Einheit</label>
               <CategorySelect value={form.unit} onChange={v => setForm(f => ({ ...f, unit: v }))} categories={UNITS} />
@@ -335,10 +335,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
           <Field label="Lieferant" value={form.preferred_supplier} onChange={v => setForm(f => ({ ...f, preferred_supplier: v }))} />
           <Field label="Bestell-Website" type="url" value={form.supplier_url} onChange={v => setForm(f => ({ ...f, supplier_url: v }))} />
           <Field label="Hersteller-Website" type="url" value={form.producer_url} onChange={v => setForm(f => ({ ...f, producer_url: v }))} />
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Stückpreis (€)" type="number" value={form.last_price} onChange={v => setForm(f => ({ ...f, last_price: v }))} />
-            <Field label="Nachbestellmenge" type="number" value={form.reorder_quantity} onChange={v => setForm(f => ({ ...f, reorder_quantity: v }))} />
-          </div>
+          <Field label="Stückpreis (€)" type="number" value={form.last_price} onChange={v => setForm(f => ({ ...f, last_price: v }))} />
           <Field label="Notizen" value={form.notes} onChange={v => setForm(f => ({ ...f, notes: v }))} />
           <button type="submit" disabled={saving}
             className="w-full bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white font-medium rounded-xl py-3 text-sm">
@@ -426,14 +423,16 @@ function ProductRow({ product: p, onOpen, added, onAddToCart }: {
   )
 }
 
-function Field({ label, value, onChange, type = 'text', required = false }: {
+function Field({ label, value, onChange, type = 'text', required = false, inputMode }: {
   label: string; value: string; onChange: (v: string) => void; type?: string; required?: boolean
+  inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode']
 }) {
   return (
     <div>
       <label className="block text-xs font-medium text-slate-600 mb-1">{label}</label>
       <input type={type} value={value} onChange={e => onChange(e.target.value)} required={required}
         step={type === 'number' ? 'any' : undefined}
+        inputMode={inputMode ?? (type === 'number' ? 'decimal' : undefined)}
         className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
     </div>
   )
