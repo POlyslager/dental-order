@@ -212,13 +212,56 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
             )}
           </div>
 
-          {/* Order section — only when low or critical */}
+          {/* Ordering info — always shown */}
+          {!editing && (form.last_price != null || form.preferred_supplier || form.supplier_url) && (
+            <div className={`border-t px-4 py-4 ${styles.border} bg-white space-y-3`}>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Bestellung</p>
+              <div className="grid grid-cols-2 gap-4">
+                {form.last_price != null && (
+                  <div>
+                    <p className="text-xs text-slate-400 mb-0.5">Stückpreis</p>
+                    <p className="text-sm font-semibold text-slate-800">€ {form.last_price}</p>
+                  </div>
+                )}
+                <div>
+                  <p className="text-xs text-slate-400 mb-0.5">Nachbestellmenge</p>
+                  <p className="text-sm font-semibold text-slate-800">{reorderQty} <span className="text-xs font-normal text-slate-400">{form.unit}</span></p>
+                </div>
+              </div>
+              {totalPrice && (
+                <div className="bg-slate-50 rounded-xl px-3 py-2.5 flex items-center justify-between">
+                  <span className="text-sm text-slate-500">Gesamtkosten</span>
+                  <span className="font-bold text-slate-800">€ {totalPrice}</span>
+                </div>
+              )}
+              {form.preferred_supplier && (
+                <div>
+                  <p className="text-xs text-slate-400 mb-0.5">Lieferant</p>
+                  <p className="text-sm text-slate-800">{form.preferred_supplier}</p>
+                </div>
+              )}
+              {form.supplier_url && (
+                <a href={form.supplier_url} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-sm text-sky-600 hover:underline">
+                  <ExternalLink size={13} /> Bestellwebsite öffnen
+                </a>
+              )}
+              {form.producer_url && (
+                <a href={form.producer_url} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-sm text-sky-600 hover:underline">
+                  <ExternalLink size={13} /> Hersteller-Website öffnen
+                </a>
+              )}
+            </div>
+          )}
+
+          {/* Order action — only when low or critical */}
           {needsOrder && !editing && (
             <div className={`border-t px-4 py-4 ${styles.border} bg-white`}>
               <div className="flex items-center gap-2 mb-3">
                 <AlertCircle size={14} className={status === 'red' ? 'text-red-500' : 'text-amber-500'} />
                 <p className={`text-xs font-semibold uppercase tracking-wide ${status === 'red' ? 'text-red-600' : 'text-amber-600'}`}>
-                  Nachbestellung
+                  Nachbestellung aufgeben
                 </p>
               </div>
               <div className="flex items-center gap-3">
@@ -264,29 +307,21 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
           </div>
 
           {field('Notizen', 'notes')}
-        </div>
-
-        {/* ── Ordering ── */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Bestellung</p>
-          <div className="grid grid-cols-2 gap-4">
-            {field('Stückpreis (€)', 'last_price', 'number')}
-            <div>
-              <p className="text-xs text-slate-400 mb-0.5">Nachbestellmenge</p>
-              <p className="text-sm text-slate-800">
-                {reorderQty} <span className="text-slate-400 text-xs">(Meldebestand × 1,5)</span>
-              </p>
-            </div>
-          </div>
-          {totalPrice && !editing && (
-            <div className="bg-slate-50 rounded-xl px-4 py-3 flex items-center justify-between">
-              <span className="text-sm text-slate-600">Gesamtkosten</span>
-              <span className="font-bold text-slate-800">€ {totalPrice}</span>
-            </div>
+          {editing && (
+            <>
+              <div className="border-t border-slate-100 pt-4">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Bestellung</p>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    {field('Stückpreis (€)', 'last_price', 'number')}
+                  </div>
+                  {field('Lieferant', 'preferred_supplier')}
+                  {field('Bestellwebsite', 'supplier_url', 'url')}
+                  {field('Hersteller-Website', 'producer_url', 'url')}
+                </div>
+              </div>
+            </>
           )}
-          {field('Lieferant', 'preferred_supplier')}
-          {field('Bestellwebsite', 'supplier_url', 'url')}
-          {field('Hersteller-Website', 'producer_url', 'url')}
         </div>
 
         {/* ── Alternative ── */}
