@@ -174,63 +174,66 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
 
       <div className="max-w-2xl mx-auto p-4 space-y-4 pb-24">
 
-        {/* ── Order section (only when stock is low or critical) ── */}
-        {needsOrder && !editing && (
-          <div className={`rounded-2xl p-4 border ${status === 'red' ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200'}`}>
+        {/* ── Stock card (always shown) — order section appended when low/critical ── */}
+        <div className={`rounded-2xl border overflow-hidden ${styles.border}`}>
+          {/* Stock status */}
+          <div className={`p-4 ${styles.bg}`}>
             <div className="flex items-center gap-2 mb-3">
-              <AlertCircle size={15} className={status === 'red' ? 'text-red-500' : 'text-amber-500'} />
-              <p className={`text-sm font-semibold ${status === 'red' ? 'text-red-700' : 'text-amber-700'}`}>
-                {status === 'red' ? 'Bestand kritisch — Nachbestellung empfohlen' : 'Bestand niedrig — Nachbestellung empfohlen'}
-              </p>
+              <span className={`text-xs font-semibold px-2.5 py-1 rounded-full bg-white/70 ${styles.text}`}>
+                {styles.label}
+              </span>
+              {form.article_number && <span className="text-xs text-slate-400">{form.article_number}</span>}
             </div>
-            <div className="flex items-end gap-3">
-              <div className="flex-1">
-                <p className={`text-xs mb-1.5 ${status === 'red' ? 'text-red-600' : 'text-amber-600'}`}>Menge</p>
-                <input type="number" min={1} value={orderQty}
-                  onChange={e => setOrderQty(Math.max(1, parseInt(e.target.value) || 1))}
-                  className="w-full border border-slate-300 bg-white rounded-xl px-3 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500"
-                />
-              </div>
-              <button onClick={handleAddToCart}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors shrink-0 ${
-                  added ? 'bg-emerald-100 text-emerald-700' : 'bg-sky-500 hover:bg-sky-600 text-white'
-                }`}>
-                {added ? <><Check size={15} /> Hinzugefügt</> : <><ShoppingCart size={15} /> In den Warenkorb</>}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* ── Stock status ── */}
-        <div className={`rounded-2xl p-4 border ${styles.border} ${styles.bg}`}>
-          <div className="flex items-center gap-2 mb-3">
-            <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${styles.bg} ${styles.text} border ${styles.border}`}>
-              {styles.label}
-            </span>
-            {form.article_number && <span className="text-xs text-slate-400">{form.article_number}</span>}
-          </div>
-          <div className="flex items-end justify-between mb-2">
-            <div>
-              <p className="text-xs text-slate-500 mb-0.5">Aktueller Bestand</p>
-              <p className={`text-4xl font-bold ${styles.text}`}>
-                {form.current_stock} <span className="text-base font-normal text-slate-400">{form.unit}</span>
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-xs text-slate-500 mb-0.5">Meldebestand</p>
-              <p className="text-xl font-semibold text-slate-700">{form.min_stock}</p>
-            </div>
-          </div>
-          <div className="h-2 bg-white/60 rounded-full overflow-hidden">
-            <div className={`h-full rounded-full ${styles.bar}`} style={{ width: `${stockPercent}%` }} />
-          </div>
-          {editing && (
-            <div className="grid grid-cols-3 gap-3 mt-3">
-              {field('Aktuell', 'current_stock', 'number')}
-              {field('Meldebestand', 'min_stock', 'number')}
+            <div className="flex items-end justify-between mb-3">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Einheit</label>
-                <CategorySelect value={form.unit ?? ''} onChange={v => setForm(p => ({ ...p, unit: v }))} categories={UNITS} />
+                <p className="text-xs text-slate-500 mb-0.5">Aktueller Bestand</p>
+                <p className={`text-4xl font-bold ${styles.text}`}>
+                  {form.current_stock} <span className="text-base font-normal text-slate-400">{form.unit}</span>
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-slate-500 mb-0.5">Meldebestand</p>
+                <p className="text-xl font-semibold text-slate-700">{form.min_stock}</p>
+              </div>
+            </div>
+            <div className="h-2 bg-white/60 rounded-full overflow-hidden">
+              <div className={`h-full rounded-full ${styles.bar}`} style={{ width: `${stockPercent}%` }} />
+            </div>
+            {editing && (
+              <div className="grid grid-cols-3 gap-3 mt-3">
+                {field('Aktuell', 'current_stock', 'number')}
+                {field('Meldebestand', 'min_stock', 'number')}
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Einheit</label>
+                  <CategorySelect value={form.unit ?? ''} onChange={v => setForm(p => ({ ...p, unit: v }))} categories={UNITS} />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Order section — only when low or critical */}
+          {needsOrder && !editing && (
+            <div className={`border-t px-4 py-4 ${styles.border} bg-white`}>
+              <div className="flex items-center gap-2 mb-3">
+                <AlertCircle size={14} className={status === 'red' ? 'text-red-500' : 'text-amber-500'} />
+                <p className={`text-xs font-semibold uppercase tracking-wide ${status === 'red' ? 'text-red-600' : 'text-amber-600'}`}>
+                  Nachbestellung
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="flex-1">
+                  <p className="text-xs text-slate-500 mb-1.5">Menge</p>
+                  <input type="number" min={1} value={orderQty}
+                    onChange={e => setOrderQty(Math.max(1, parseInt(e.target.value) || 1))}
+                    className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  />
+                </div>
+                <button onClick={handleAddToCart}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors shrink-0 mt-5 ${
+                    added ? 'bg-emerald-100 text-emerald-700' : 'bg-sky-500 hover:bg-sky-600 text-white'
+                  }`}>
+                  {added ? <><Check size={15} /> Hinzugefügt</> : <><ShoppingCart size={15} /> In den Warenkorb</>}
+                </button>
               </div>
             </div>
           )}
