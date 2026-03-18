@@ -44,11 +44,21 @@ export interface StockMovement {
   product?: Product
 }
 
+export interface CartItem {
+  id: string
+  product_id: string
+  quantity: number
+  added_by: string | null
+  created_at: string
+  product?: Product
+}
+
 export type OrderStatus = 'draft' | 'pending_approval' | 'approved' | 'ordered' | 'received' | 'cancelled'
 
 export interface Order {
   id: string
   status: OrderStatus
+  supplier: string | null
   created_by: string
   approved_by: string | null
   notes: string | null

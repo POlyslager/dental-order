@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, getCurrentUser } from '../lib/supabase'
 import type { Product, Role } from '../lib/types'
 import ProductDetailModal from '../components/ProductDetailModal'
 import Drawer from '../components/Drawer'
 import CategorySelect from '../components/CategorySelect'
-import { Search, Plus, X, ShoppingCart } from 'lucide-react'
+import { Search, Plus, X, ShoppingCart, Check } from 'lucide-react'
 
 interface Props { role: Role | null; initialBarcode?: string | null; onBarcodeConsumed?: () => void }
 
@@ -38,6 +38,22 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
+  const [addedToCart, setAddedToCart] = useState<Set<string>>(new Set())
+
+  async function addToCart(productId: string, reorderQty: number | null) {
+    const user = await getCurrentUser()
+    if (!user) return
+    const qty = reorderQty ?? 1
+    const { data: existing } = await supabase
+      .from('cart_items').select('id, quantity').eq('product_id', productId).maybeSingle()
+    if (existing) {
+      await supabase.from('cart_items').update({ quantity: existing.quantity + qty }).eq('id', existing.id)
+    } else {
+      await supabase.from('cart_items').insert({ product_id: productId, quantity: qty, added_by: user.id })
+    }
+    setAddedToCart(prev => new Set(prev).add(productId))
+    setTimeout(() => setAddedToCart(prev => { const s = new Set(prev); s.delete(productId); return s }), 2000)
+  }
 
   useEffect(() => { fetchProducts() }, [])
   useEffect(() => {
@@ -163,9 +179,9 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
           <p className="text-center text-slate-400 py-12">Keine Artikel gefunden</p>
         ) : (
           <div className="space-y-5">
-            <ProductGroup label="Kritisch" color="bg-red-400" textColor="text-red-500" products={kritisch} onOpen={setSelectedProduct} />
-            <ProductGroup label="Niedrig" color="bg-amber-400" textColor="text-amber-500" products={niedrig} onOpen={setSelectedProduct} />
-            <ProductGroup label="Ausreichend" color="bg-emerald-400" textColor="text-emerald-600" products={ok} onOpen={setSelectedProduct} />
+            <ProductGroup label="Kritisch" color="bg-red-400" textColor="text-red-500" products={kritisch} onOpen={setSelectedProduct} addedToCart={addedToCart} onAddToCart={addToCart} />
+            <ProductGroup label="Niedrig" color="bg-amber-400" textColor="text-amber-500" products={niedrig} onOpen={setSelectedProduct} addedToCart={addedToCart} onAddToCart={addToCart} />
+            <ProductGroup label="Ausreichend" color="bg-emerald-400" textColor="text-emerald-600" products={ok} onOpen={setSelectedProduct} addedToCart={addedToCart} onAddToCart={addToCart} />
           </div>
         )}
       </div>
@@ -239,9 +255,10 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
 }
 
 // ── Group section ──────────────────────────────────────────────────────────
-function ProductGroup({ label, color, textColor, products, onOpen }: {
+function ProductGroup({ label, color, textColor, products, onOpen, addedToCart, onAddToCart }: {
   label: string; color: string; textColor: string
   products: Product[]; onOpen: (p: Product) => void
+  addedToCart: Set<string>; onAddToCart: (id: string, qty: number | null) => void
 }) {
   if (products.length === 0) return null
   return (
@@ -252,14 +269,19 @@ function ProductGroup({ label, color, textColor, products, onOpen }: {
         <span className={`text-xs font-semibold ${textColor}`}>{products.length}</span>
       </div>
       <div className="space-y-2">
-        {products.map(p => <ProductRow key={p.id} product={p} onOpen={() => onOpen(p)} />)}
+        {products.map(p => (
+          <ProductRow key={p.id} product={p} onOpen={() => onOpen(p)}
+            added={addedToCart.has(p.id)} onAddToCart={() => onAddToCart(p.id, p.reorder_quantity)} />
+        ))}
       </div>
     </div>
   )
 }
 
 // ── Product row ────────────────────────────────────────────────────────────
-function ProductRow({ product: p, onOpen }: { product: Product; onOpen: () => void }) {
+function ProductRow({ product: p, onOpen, added, onAddToCart }: {
+  product: Product; onOpen: () => void; added: boolean; onAddToCart: () => void
+}) {
   const low = isLowStock(p)
   const near = isNearThreshold(p)
 
@@ -288,10 +310,12 @@ function ProductRow({ product: p, onOpen }: { product: Product; onOpen: () => vo
 
         {/* Add to cart */}
         <button
-          onClick={e => { e.stopPropagation() }}
-          className="shrink-0 w-9 h-9 flex items-center justify-center rounded-xl bg-slate-100 hover:bg-sky-100 hover:text-sky-600 text-slate-500 transition-colors"
+          onClick={e => { e.stopPropagation(); onAddToCart() }}
+          className={`shrink-0 w-9 h-9 flex items-center justify-center rounded-xl transition-colors ${
+            added ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 hover:bg-sky-100 hover:text-sky-600 text-slate-500'
+          }`}
         >
-          <ShoppingCart size={16} />
+          {added ? <Check size={16} /> : <ShoppingCart size={16} />}
         </button>
       </div>
 
