@@ -95,23 +95,23 @@ export default function Dashboard({ user }: Props) {
         {tab === 'orders'   && <OrdersPage role={role} user={user} onBadgeChange={setOrderBadge} />}
       </main>
 
-      {/* Bottom nav — liquid pill, icons only */}
+      {/* Bottom nav — sliding circle, icons only */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100">
-        <div className="relative flex max-w-2xl mx-auto px-4 py-3 pb-safe">
-          {/* Sliding pill */}
+        <div className="relative flex max-w-2xl mx-auto">
+          {/* Sliding circle — centered on active icon */}
           {activeIndex >= 0 && (
             <div
-              className="absolute top-3 rounded-2xl bg-sky-50 transition-all duration-300 ease-out pointer-events-none"
+              className="absolute w-14 h-14 rounded-full bg-sky-50 transition-all duration-300 ease-out pointer-events-none"
               style={{
-                left: `calc(${activeIndex / bottomTabs.length * 100}% + 16px)`,
-                width: `calc(${100 / bottomTabs.length}% - 32px)`,
-                top: 12, bottom: 12,
+                left: `calc(${(activeIndex + 0.5) / bottomTabs.length * 100}% - 28px)`,
+                top: '50%',
+                transform: 'translateY(-50%)',
               }}
             />
           )}
           {bottomTabs.map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
-              className={`flex-1 flex items-center justify-center py-4 relative z-10 transition-colors duration-200 ${
+              className={`flex-1 flex items-center justify-center py-5 relative z-10 transition-colors duration-200 ${
                 tab === t.id ? 'text-sky-600' : 'text-slate-400'
               }`}
             >
