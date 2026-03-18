@@ -4,7 +4,7 @@ import type { Product } from '../lib/types'
 import Drawer from '../components/Drawer'
 import CategorySelect from '../components/CategorySelect'
 import {
-  ArrowLeft, Pencil, Trash2, ShoppingCart, Check, AlertCircle, ExternalLink,
+  ArrowLeft, Pencil, Trash2, ShoppingCart, Check, ExternalLink,
 } from 'lucide-react'
 
 const STORAGE_LOCATIONS = [
@@ -204,12 +204,9 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
           {/* Order action — only when low or critical */}
           {needsOrder && !editing && (
             <div className={`border-t px-4 py-4 ${styles.border} bg-white`}>
-              <div className="flex items-center gap-2 mb-3">
-                <AlertCircle size={14} className={status === 'red' ? 'text-red-500' : 'text-amber-500'} />
-                <p className={`text-xs font-semibold uppercase tracking-wide ${status === 'red' ? 'text-red-600' : 'text-amber-600'}`}>
-                  Nachbestellung
-                </p>
-              </div>
+              <p className={`text-xs font-semibold uppercase tracking-wide mb-3 ${status === 'red' ? 'text-red-600' : 'text-amber-600'}`}>
+                Nachbestellung
+              </p>
               <div className="flex items-end gap-3">
                 <div>
                   <p className="text-xs text-slate-500 mb-1.5">Menge</p>
