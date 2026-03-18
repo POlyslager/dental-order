@@ -1,10 +1,18 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
 import { supabase, getCurrentUser } from '../lib/supabase'
 import type { Product, Role } from '../lib/types'
 import ProductDetailPage from './ProductDetailPage'
 import Drawer from '../components/Drawer'
 import CategorySelect from '../components/CategorySelect'
-import { Search, Plus, X, ShoppingCart, Check } from 'lucide-react'
+import { Search, Plus, X, ShoppingCart, Check, Camera } from 'lucide-react'
+
+const SCAN_FORMATS = [
+  Html5QrcodeSupportedFormats.QR_CODE, Html5QrcodeSupportedFormats.DATA_MATRIX,
+  Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8,
+  Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.CODE_39,
+  Html5QrcodeSupportedFormats.UPC_A, Html5QrcodeSupportedFormats.UPC_EAN_EXTENSION,
+]
 
 interface Props { role: Role | null; initialBarcode?: string | null; onBarcodeConsumed?: () => void }
 
@@ -39,6 +47,35 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
   const [addedToCart, setAddedToCart] = useState<Set<string>>(new Set())
+  const [scanning, setScanning] = useState(false)
+  const scannerRef = useRef<Html5Qrcode | null>(null)
+
+  async function startBarcodeScanner() {
+    setScanning(true)
+    const scanner = new Html5Qrcode('barcode-scanner', { formatsToSupport: SCAN_FORMATS, verbose: false })
+    scannerRef.current = scanner
+    try {
+      await scanner.start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: { width: 220, height: 120 }, aspectRatio: 1.8 },
+        async (code) => {
+          await scanner.stop()
+          scannerRef.current = null
+          setScanning(false)
+          setForm(f => ({ ...f, barcode: code.replace(/^\]d[0-9]/, '').trim() }))
+        },
+        () => {}
+      )
+    } catch {
+      setScanning(false)
+    }
+  }
+
+  function stopBarcodeScanner() {
+    if (scannerRef.current?.isScanning) scannerRef.current.stop()
+    scannerRef.current = null
+    setScanning(false)
+  }
 
   async function addToCart(productId: string, quantity: number) {
     const user = await getCurrentUser()
@@ -202,10 +239,10 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
       </div>
 
       {/* Add product drawer */}
-      <Drawer open={showForm} onClose={() => { setShowForm(false); setForm(EMPTY_FORM) }}>
+      <Drawer open={showForm} onClose={() => { stopBarcodeScanner(); setShowForm(false); setForm(EMPTY_FORM) }}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0">
           <h3 className="font-semibold text-slate-800">Neuer Artikel</h3>
-          <button onClick={() => { setShowForm(false); setForm(EMPTY_FORM) }} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
+          <button onClick={() => { stopBarcodeScanner(); setShowForm(false); setForm(EMPTY_FORM) }} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
         </div>
         <form onSubmit={handleCreate} className="overflow-y-auto overscroll-contain flex-1 p-5 space-y-4">
           <div className="bg-sky-50 border border-sky-200 rounded-xl px-4 py-3">
@@ -215,7 +252,21 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
             <Field label="Artikelnummer" value={form.article_number} onChange={v => setForm(f => ({ ...f, article_number: v }))} />
             <Field label="Name *" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} required />
           </div>
-          <Field label="Barcode / QR-Code" value={form.barcode} onChange={v => setForm(f => ({ ...f, barcode: v }))} />
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Barcode / QR-Code</label>
+            <div className="flex gap-2">
+              <input type="text" value={form.barcode}
+                onChange={e => setForm(f => ({ ...f, barcode: e.target.value }))}
+                className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
+              <button type="button" onClick={scanning ? stopBarcodeScanner : startBarcodeScanner}
+                className={`px-3 rounded-lg border transition-colors ${scanning ? 'bg-red-50 border-red-300 text-red-500' : 'border-slate-300 text-slate-500 hover:bg-sky-50 hover:border-sky-300 hover:text-sky-600'}`}>
+                <Camera size={16} />
+              </button>
+            </div>
+            {scanning && (
+              <div id="barcode-scanner" className="mt-2 rounded-xl overflow-hidden bg-slate-900" style={{ minHeight: 120 }} />
+            )}
+          </div>
           <Field label="Beschreibung" value={form.description} onChange={v => setForm(f => ({ ...f, description: v }))} />
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">Kategorie *</label>
