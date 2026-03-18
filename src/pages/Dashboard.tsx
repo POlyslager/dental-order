@@ -87,7 +87,7 @@ export default function Dashboard({ user }: Props) {
 
       {/* Page content */}
       <main className="flex-1 overflow-auto pb-20">
-        {tab === 'overview' && <OverviewPage />}
+        {tab === 'overview' && role === 'admin' && <OverviewPage />}
         {tab === 'stock'    && <StockPage role={role} initialBarcode={pendingBarcode} onBarcodeConsumed={() => setPendingBarcode(null)} />}
         {tab === 'scan'     && <ScanPage onAddWithBarcode={handleAddWithBarcode} />}
         {tab === 'orders'   && <OrdersPage role={role} user={user} onBadgeChange={setOrderBadge} />}
@@ -127,8 +127,10 @@ export default function Dashboard({ user }: Props) {
             </div>
 
             <nav className="flex-1 py-2">
-              <MenuItem icon={<LayoutDashboard size={18} />} label="Übersicht"
-                active={tab === 'overview'} onClick={() => navigate('overview')} />
+              {role === 'admin' && (
+                <MenuItem icon={<LayoutDashboard size={18} />} label="Übersicht"
+                  active={tab === 'overview'} onClick={() => navigate('overview')} />
+              )}
               {isPushSupported() && pushPermission !== 'granted' && (
                 <MenuItem
                   icon={<Bell size={18} />}
