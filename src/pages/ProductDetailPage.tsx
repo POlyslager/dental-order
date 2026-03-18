@@ -46,9 +46,9 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
   const totalPrice = form.last_price ? (form.last_price * reorderQty).toFixed(2) : null
   const altTotalPrice = form.alternative_price ? (form.alternative_price * reorderQty).toFixed(2) : null
 
-  const stockPercent = form.min_stock > 0
-    ? Math.min(100, Math.round((form.current_stock / (form.min_stock * 2)) * 100))
-    : 100
+  const barMax = Math.max(form.current_stock, form.min_stock * 2.5, 1)
+  const fillPct = Math.min(100, (form.current_stock / barMax) * 100)
+  const thresholdPct = Math.min(99, (form.min_stock / barMax) * 100)
 
   const STATUS_STYLES = {
     green:  { bar: 'bg-emerald-400', text: 'text-emerald-600', bg: 'bg-emerald-50',  border: 'border-emerald-200', label: 'Ausreichend' },
@@ -196,8 +196,9 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
                 <p className="text-xl font-semibold text-slate-700">{form.min_stock}</p>
               </div>
             </div>
-            <div className="h-2 bg-white/60 rounded-full overflow-hidden">
-              <div className={`h-full rounded-full ${styles.bar}`} style={{ width: `${stockPercent}%` }} />
+            <div className="relative h-2 bg-white/60 rounded-full overflow-hidden">
+              <div className={`absolute left-0 top-0 h-full rounded-full ${styles.bar}`} style={{ width: `${fillPct}%` }} />
+              <div className="absolute top-0 h-full w-[3px] bg-slate-500 opacity-40" style={{ left: `${thresholdPct}%` }} />
             </div>
             {editing && (
               <div className="grid grid-cols-3 gap-3 mt-3">
