@@ -249,7 +249,10 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
           <Field label="Meldebestand *" inputMode="numeric" value={form.min_stock} onChange={v => setForm(f => ({ ...f, min_stock: v }))} required />
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">Einheit</label>
-            <CategorySelect value={form.unit} onChange={v => setForm(f => ({ ...f, unit: v }))} categories={UNITS} />
+            <select value={form.unit} onChange={e => setForm(f => ({ ...f, unit: e.target.value }))}
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500">
+              {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+            </select>
           </div>
         </div>
         <Field label="Stückpreis (€)" inputMode="decimal" value={form.last_price} onChange={v => setForm(f => ({ ...f, last_price: v }))} />
