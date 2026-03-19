@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
 import { supabase, getCurrentUser } from '../lib/supabase'
 import type { Order, Product } from '../lib/types'
-import { Plus, Check, X, PackageCheck, ScanLine, Search } from 'lucide-react'
+import { Plus, Check, X, PackageCheck, ScanLine, Search, ShoppingCart } from 'lucide-react'
 
 type ScanMode = 'in' | 'out'
 
@@ -24,13 +24,13 @@ export default function ScanPage({ onAddWithBarcode }: Props) {
   const [scanning, setScanning] = useState(false)
   const [mode, setMode] = useState<ScanMode>('out')
   const [scannedProduct, setScannedProduct] = useState<Product | null>(null)
-  const [quantity, setQuantity] = useState(1)
+  const [quantity, setQuantity] = useState('1')
   const [status, setStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [rawCode, setRawCode] = useState<string | null>(null)
 
   // Artikel entnehmen: reorder prompt
-  const [reorderPrompt, setReorderPrompt] = useState<{ product: Product; qty: number } | null>(null)
+  const [reorderPrompt, setReorderPrompt] = useState<{ product: Product; qty: string } | null>(null)
   const [addingToCart, setAddingToCart] = useState(false)
   const [addedToCart, setAddedToCart] = useState(false)
 
@@ -79,7 +79,7 @@ export default function ScanPage({ onAddWithBarcode }: Props) {
         for (const item of order.items ?? []) {
           if (item.product_id === product.id && !receivedItems.has(item.id)) {
             setMatchedItem({ orderId: order.id, itemId: item.id, expectedQty: item.quantity })
-            setQuantity(item.quantity)
+            setQuantity(String(item.quantity))
             setScannedProduct(product)
             return
           }
@@ -89,13 +89,13 @@ export default function ScanPage({ onAddWithBarcode }: Props) {
     }
 
     setScannedProduct(product)
-    setQuantity(1)
+    setQuantity('1')
   }
 
   function selectOrderItemManually(orderId: string, itemId: string, product: Product, qty: number) {
     setScannedProduct(product)
     setMatchedItem({ orderId, itemId, expectedQty: qty })
-    setQuantity(qty)
+    setQuantity(String(qty))
   }
 
   function cleanBarcode(raw: string): string {
@@ -162,15 +162,15 @@ export default function ScanPage({ onAddWithBarcode }: Props) {
         for (const item of order.items ?? []) {
           if (item.product_id === data.id && !receivedItems.has(item.id)) {
             setMatchedItem({ orderId: order.id, itemId: item.id, expectedQty: item.quantity })
-            setQuantity(item.quantity)
+            setQuantity(String(item.quantity))
             return
           }
         }
       }
       setMatchedItem(null)
-      setQuantity(1)
+      setQuantity('1')
     } else {
-      setQuantity(1)
+      setQuantity('1')
     }
   }
 
@@ -179,14 +179,15 @@ export default function ScanPage({ onAddWithBarcode }: Props) {
     const user = await getCurrentUser()
     if (!user) return
 
+    const qty = parseInt(quantity) || 0
     const movementType = mode === 'in' ? 'scan_in' : 'scan_out'
-    const stockDelta = mode === 'in' ? quantity : -quantity
+    const stockDelta = mode === 'in' ? qty : -qty
     const newStock = scannedProduct.current_stock + stockDelta
 
     const { error: moveErr } = await supabase.from('stock_movements').insert({
       product_id: scannedProduct.id,
       type: movementType,
-      quantity,
+      quantity: qty,
       scanned_by: user.id,
     })
     if (moveErr) { setError(moveErr.message); return }
@@ -209,7 +210,7 @@ export default function ScanPage({ onAddWithBarcode }: Props) {
         const velocityQty = movements && movements.length > 0
           ? Math.ceil((movements.reduce((s, m) => s + m.quantity, 0) / 60) * 42)
           : 0
-        setReorderPrompt({ product: scannedProduct, qty: Math.max(velocityQty, defaultQty) })
+        setReorderPrompt({ product: scannedProduct, qty: String(Math.max(velocityQty, defaultQty)) })
         setAddedToCart(false)
       }
     } else {
@@ -236,12 +237,13 @@ export default function ScanPage({ onAddWithBarcode }: Props) {
     }
 
     setScannedProduct(null)
-    setQuantity(1)
+    setQuantity('1')
   }
 
   async function addReorderToCart() {
     if (!reorderPrompt) return
     setAddingToCart(true)
+    const reorderQty = parseInt(reorderPrompt.qty) || 1
     const user = await getCurrentUser()
     if (user) {
       const { data: existing } = await supabase
@@ -249,10 +251,10 @@ export default function ScanPage({ onAddWithBarcode }: Props) {
         .eq('product_id', reorderPrompt.product.id).maybeSingle()
       if (existing) {
         await supabase.from('cart_items')
-          .update({ quantity: existing.quantity + reorderPrompt.qty }).eq('id', existing.id)
+          .update({ quantity: existing.quantity + reorderQty }).eq('id', existing.id)
       } else {
         await supabase.from('cart_items')
-          .insert({ product_id: reorderPrompt.product.id, quantity: reorderPrompt.qty, added_by: user.id })
+          .insert({ product_id: reorderPrompt.product.id, quantity: reorderQty, added_by: user.id })
       }
     }
     setAddingToCart(false)
@@ -394,10 +396,22 @@ export default function ScanPage({ onAddWithBarcode }: Props) {
             <div className="px-4 py-3 space-y-3">
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Menge</label>
-                <input type="number" min={1} value={quantity}
-                  onChange={e => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                  className="w-24 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
-                />
+                <div className="flex items-center gap-3">
+                  <input type="text" inputMode="numeric" pattern="[0-9]*" value={quantity}
+                    onChange={e => setQuantity(e.target.value)}
+                    className="w-24 border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  />
+                  {scannedProduct.last_price != null && (
+                    <div className="text-sm text-slate-500">
+                      <span>€ {scannedProduct.last_price.toFixed(2)} / {scannedProduct.unit}</span>
+                      {(parseInt(quantity) || 0) > 0 && (
+                        <span className="ml-2 font-semibold text-slate-700">
+                          = € {((parseInt(quantity) || 0) * scannedProduct.last_price).toFixed(2)}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="flex gap-2">
                 <button onClick={confirmMovement}
@@ -429,9 +443,9 @@ export default function ScanPage({ onAddWithBarcode }: Props) {
             <div className="flex items-center gap-3">
               <div className="flex-1">
                 <p className="text-xs text-slate-500 mb-1">Menge</p>
-                <input type="number" min={1} value={reorderPrompt.qty}
-                  onChange={e => setReorderPrompt(p => p ? { ...p, qty: Math.max(1, parseInt(e.target.value) || 1) } : p)}
-                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500"
+                <input type="text" inputMode="numeric" pattern="[0-9]*" value={reorderPrompt.qty}
+                  onChange={e => setReorderPrompt(p => p ? { ...p, qty: e.target.value } : p)}
+                  className="w-full border border-slate-300 rounded-xl px-3 py-2 font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500"
                 />
               </div>
               <div className="flex gap-2 mt-5">
@@ -441,8 +455,8 @@ export default function ScanPage({ onAddWithBarcode }: Props) {
                   </div>
                 ) : (
                   <button onClick={addReorderToCart} disabled={addingToCart}
-                    className="bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors">
-                    {addingToCart ? '…' : 'In den Warenkorb'}
+                    className="w-10 h-10 flex items-center justify-center bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white rounded-xl transition-colors">
+                    {addingToCart ? <span className="text-sm">…</span> : <ShoppingCart size={18} />}
                   </button>
                 )}
                 <button onClick={() => setReorderPrompt(null)} className="text-slate-400 hover:text-slate-600 px-2 py-2">

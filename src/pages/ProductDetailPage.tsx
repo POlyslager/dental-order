@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Product } from '../lib/types'
 import Drawer from '../components/Drawer'
-import CategorySelect from '../components/CategorySelect'
 import {
   ArrowLeft, Pencil, Trash2, ShoppingCart, Check, ExternalLink,
 } from 'lucide-react'
@@ -12,10 +11,7 @@ const STORAGE_LOCATIONS = [
   'Behandlungsraum 4', 'Behandlungsraum 5',
   'Steri', 'Rezeption', 'Büro', 'Radiologie', 'Keller',
 ]
-const UNITS = [
-  'Stück', 'Packung', 'Box', 'Kartusche', 'Flasche', 'Tube',
-  'Beutel', 'Spritze', 'Set', 'Kit', 'Kanister', 'Dose', 'Ries', 'Paar', 'Rolle',
-]
+const UNITS = ['Stück', 'Packung', 'Flasche', 'Kanister']
 
 function stockStatus(p: Product): 'red' | 'orange' | 'green' {
   if (p.current_stock <= p.min_stock) return 'red'
@@ -36,7 +32,7 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const fallbackQty = Math.max(1, Math.ceil(product.min_stock * 1.5))
-  const [orderQty, setOrderQty] = useState(fallbackQty)
+  const [orderQty, setOrderQty] = useState(String(fallbackQty))
   const [added, setAdded] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [lastScan, setLastScan] = useState<string | null>(null)
@@ -76,28 +72,29 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
         if (!data || data.length === 0) return
         const total = data.reduce((s, m) => s + m.quantity, 0)
         const velocityQty = Math.ceil((total / 60) * 42)
-        setOrderQty(Math.max(velocityQty, fallbackQty))
+        setOrderQty(String(Math.max(velocityQty, fallbackQty)))
       })
   }, [product.id])
 
   async function handleSave() {
     setSaving(true)
+    const parseNum = (v: unknown) => { const n = parseFloat(String(v)); return isNaN(n) ? null : n }
     const { data, error } = await supabase.from('products').update({
       article_number: form.article_number,
       name: form.name,
       description: form.description,
       category: form.category,
-      current_stock: form.current_stock,
-      min_stock: form.min_stock,
+      current_stock: parseNum(form.current_stock) ?? 0,
+      min_stock: parseNum(form.min_stock) ?? 0,
       unit: form.unit,
       storage_location: form.storage_location,
       expiry_date: form.expiry_date || null,
       notes: form.notes,
-      last_price: form.last_price,
+      last_price: parseNum(form.last_price),
       preferred_supplier: form.preferred_supplier,
       supplier_url: form.supplier_url,
       producer_url: form.producer_url,
-      alternative_price: form.alternative_price,
+      alternative_price: parseNum(form.alternative_price),
       alternative_url: form.alternative_url,
       alternative_supplier: form.alternative_supplier,
     }).eq('id', product.id).select().single()
@@ -115,7 +112,7 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
   }
 
   async function handleAddToCart() {
-    await onAddToCart(product.id, orderQty)
+    await onAddToCart(product.id, parseInt(orderQty) || 1)
     setAdded(true)
     setTimeout(() => setAdded(false), 2000)
   }
@@ -151,15 +148,22 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
             {STORAGE_LOCATIONS.map(o => <option key={o} value={o}>{o}</option>)}
           </select>
         ) : type === 'unit' ? (
-          <CategorySelect value={(val as string) ?? ''} onChange={v => setForm(p => ({ ...p, [key]: v }))} categories={UNITS} />
+          <select value={(val as string) ?? ''}
+            onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
+            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500">
+            {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+          </select>
         ) : (
-          <input type={type} step={type === 'number' ? 'any' : undefined}
-            value={(val as string | number) ?? ''}
+          <input
+            type={type === 'number' ? 'text' : type}
+            inputMode={type === 'number' ? 'decimal' : undefined}
+            pattern={type === 'number' ? '[0-9.]*' : undefined}
+            value={String((val as string | number) ?? '')}
             onChange={e => setForm(p => ({
               ...p,
-              [key]: type === 'number' ? (parseFloat(e.target.value) || 0) : e.target.value,
+              [key]: type === 'number' ? (e.target.value as unknown as number) : e.target.value,
             }))}
-            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+            className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500"
           />
         )}
       </div>
@@ -211,7 +215,10 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
                 {field('Meldebestand', 'min_stock', 'number')}
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Einheit</label>
-                  <CategorySelect value={form.unit ?? ''} onChange={v => setForm(p => ({ ...p, unit: v }))} categories={UNITS} />
+                  <select value={form.unit ?? ''} onChange={e => setForm(p => ({ ...p, unit: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500">
+                    {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                  </select>
                 </div>
               </div>
             )}
@@ -226,15 +233,15 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
               <div className="flex items-end gap-3">
                 <div>
                   <p className="text-xs text-slate-500 mb-1.5">Menge</p>
-                  <input type="number" min={1} value={orderQty}
-                    onChange={e => setOrderQty(Math.max(1, parseInt(e.target.value) || 1))}
-                    className="w-20 border border-slate-300 rounded-xl px-3 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  <input type="text" inputMode="numeric" pattern="[0-9]*" value={orderQty}
+                    onChange={e => setOrderQty(e.target.value)}
+                    className="w-20 border border-slate-300 rounded-xl px-3 py-2.5 font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500"
                   />
                 </div>
                 {form.last_price != null && (
                   <div className="flex-1">
-                    <p className="text-xs text-slate-500 mb-1">€ {form.last_price} / {form.unit}</p>
-                    <p className="text-sm font-bold text-slate-800">€ {(orderQty * form.last_price).toFixed(2)}</p>
+                    <p className="text-xs text-slate-500 mb-1">€ {Number(form.last_price).toFixed(2)} / {form.unit}</p>
+                    <p className="text-sm font-bold text-slate-800">€ {((parseInt(orderQty) || 0) * Number(form.last_price)).toFixed(2)}</p>
                   </div>
                 )}
                 <button onClick={handleAddToCart}
