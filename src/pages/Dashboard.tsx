@@ -78,7 +78,7 @@ export default function Dashboard({ user }: Props) {
   const activeIndex = bottomTabs.findIndex(t => t.id === tab)
 
   return (
-    <div className="h-[100dvh] overflow-hidden bg-slate-50 flex flex-col">
+    <div className="fixed top-0 left-0 right-0 h-[100dvh] overflow-hidden bg-slate-50 flex flex-col">
       {/* Header — safe-area-inset-top for notch/Dynamic Island */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-10"
         style={{ paddingTop: 'env(safe-area-inset-top)' }}>
