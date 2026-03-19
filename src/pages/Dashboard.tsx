@@ -92,13 +92,6 @@ export default function Dashboard({ user }: Props) {
     return () => clearInterval(interval)
   }, [tab])
 
-  const PAGE_TITLES: Record<Tab, string> = {
-    overview: 'Übersicht',
-    stock: 'Lager',
-    scan: 'Scannen',
-    orders: 'Bestellungen',
-  }
-
   const bottomTabs: { id: Tab; icon: React.ReactNode; badge?: number }[] = [
     { id: 'stock',  icon: <Package size={26} /> },
     { id: 'scan',   icon: <ScanLine size={26} /> },
@@ -113,8 +106,7 @@ export default function Dashboard({ user }: Props) {
         style={{ paddingTop: 'env(safe-area-inset-top)' }}>
       <div className="px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-xl">🦷</span>
-          <span className="font-semibold text-slate-800">{PAGE_TITLES[tab]}</span>
+          <span className="font-bold text-slate-800 tracking-tight">DentalOrder</span>
           {role === 'admin' && (
             <span className="text-xs bg-sky-100 text-sky-700 px-2 py-0.5 rounded-full font-medium">Admin</span>
           )}
@@ -127,8 +119,8 @@ export default function Dashboard({ user }: Props) {
 
       {/* Page content — inner div carries the bottom padding so iOS includes it in the
            scroll range (padding on the scroll container itself is excluded by iOS Safari) */}
-      <main className={`flex-1 overflow-x-hidden ${menuOpen ? 'overflow-y-hidden' : 'overflow-y-auto'}`}>
-        <div className="pb-20">
+      <main className={`flex-1 ${menuOpen ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+        <div className="pb-20 overflow-x-hidden">
           {showTerms
             ? <TermsPage onBack={() => setShowTerms(false)} />
             : <>

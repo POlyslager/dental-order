@@ -214,7 +214,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
         </button>
         <h2 className="font-semibold text-slate-800">Neuer Artikel</h2>
       </header>
-      <form onSubmit={handleCreate} className="p-4 space-y-4" style={{ paddingBottom: '60vh' }}>
+      <form onSubmit={handleCreate} className="p-4 pb-10 space-y-4">
         <Field label="Name *" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} required/>
 
         <div>
