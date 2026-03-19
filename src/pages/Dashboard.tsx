@@ -108,8 +108,10 @@ export default function Dashboard({ user }: Props) {
 
   return (
     <div className="h-screen overflow-hidden bg-slate-50 flex flex-col">
-      {/* Header */}
-      <header className="bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between sticky top-0 z-10">
+      {/* Header — safe-area-inset-top for notch/Dynamic Island */}
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-10"
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+      <div className="px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-xl">🦷</span>
           <span className="font-semibold text-slate-800">{PAGE_TITLES[tab]}</span>
@@ -120,10 +122,19 @@ export default function Dashboard({ user }: Props) {
         <button onClick={() => setMenuOpen(true)} className="text-slate-500 hover:text-slate-800 p-1 transition-colors">
           <Menu size={22} />
         </button>
+      </div>
       </header>
 
-      {/* Page content */}
-      <main className={`flex-1 pb-20 overflow-x-hidden ${menuOpen ? 'overflow-y-hidden' : 'overflow-y-auto'}`}>
+      {/* Page content — overflow-x:clip prevents slide animation from causing horizontal scroll
+           without breaking sticky positioning (unlike overflow-x:hidden) */}
+      <main
+        className="flex-1"
+        style={{
+          overflowX: 'clip',
+          overflowY: menuOpen ? 'hidden' : 'auto',
+          paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))',
+        }}
+      >
         {showTerms
           ? <TermsPage onBack={() => setShowTerms(false)} />
           : <>
@@ -135,8 +146,9 @@ export default function Dashboard({ user }: Props) {
         }
       </main>
 
-      {/* Bottom nav — sliding circle, icons only */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100">
+      {/* Bottom nav — safe-area-inset-bottom for home indicator */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
         <div className="relative flex max-w-2xl mx-auto">
           {/* Sliding circle — centered on active icon */}
           {activeIndex >= 0 && (

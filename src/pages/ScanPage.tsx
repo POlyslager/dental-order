@@ -435,33 +435,48 @@ export default function ScanPage({ onAddWithBarcode }: Props) {
 
         {/* Reorder prompt (scan_out only) */}
         {reorderPrompt && (
-          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-3 animate-slide-in-up">
-            <div>
-              <p className="text-sm font-semibold text-amber-800">Bestand unter Meldebestand</p>
-              <p className="text-xs text-amber-600 mt-0.5">{reorderPrompt.product.name}</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="flex-1">
-                <p className="text-xs text-slate-500 mb-1">Menge</p>
-                <input type="text" inputMode="numeric" pattern="[0-9]*" value={reorderPrompt.qty}
-                  onChange={e => setReorderPrompt(p => p ? { ...p, qty: e.target.value } : p)}
-                  className="w-full border border-slate-300 rounded-xl px-3 py-2 font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500"
-                />
+          <div className="bg-white rounded-2xl border border-amber-200 overflow-hidden animate-slide-in-up">
+            <div className="px-4 py-3 bg-amber-50 border-b border-amber-200 flex items-start justify-between gap-2">
+              <div>
+                <p className="text-sm font-semibold text-amber-800">Bestand unter Meldebestand</p>
+                <p className="text-xs text-amber-600 mt-0.5">{reorderPrompt.product.name}</p>
               </div>
-              <div className="flex gap-2 mt-5">
-                {addedToCart ? (
-                  <div className="flex items-center gap-1.5 text-emerald-600 text-sm font-medium px-3">
-                    <Check size={16} /> Im Warenkorb
+              <button onClick={() => setReorderPrompt(null)} className="text-amber-400 hover:text-amber-600 p-0.5 shrink-0 mt-0.5">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="px-4 py-4">
+              <p className="text-xs font-semibold text-amber-600 uppercase tracking-wide mb-3">Nachbestellung</p>
+              <div className="flex items-end gap-3">
+                <div>
+                  <p className="text-xs text-slate-500 mb-1.5">Menge</p>
+                  <input type="text" inputMode="numeric" pattern="[0-9]*" value={reorderPrompt.qty}
+                    onChange={e => setReorderPrompt(p => p ? { ...p, qty: e.target.value } : p)}
+                    className="w-20 border border-slate-300 rounded-xl px-3 py-2.5 font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  />
+                </div>
+                {reorderPrompt.product.last_price != null && (
+                  <div className="flex-1">
+                    <p className="text-xs text-slate-500 mb-1">
+                      € {Number(reorderPrompt.product.last_price).toFixed(2)} / {reorderPrompt.product.unit}
+                    </p>
+                    <p className="text-sm font-bold text-slate-800">
+                      € {((parseInt(reorderPrompt.qty) || 0) * Number(reorderPrompt.product.last_price)).toFixed(2)}
+                    </p>
                   </div>
-                ) : (
-                  <button onClick={addReorderToCart} disabled={addingToCart}
-                    className="w-10 h-10 flex items-center justify-center bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white rounded-xl transition-colors">
-                    {addingToCart ? <span className="text-sm">…</span> : <ShoppingCart size={18} />}
-                  </button>
                 )}
-                <button onClick={() => setReorderPrompt(null)} className="text-slate-400 hover:text-slate-600 px-2 py-2">
-                  <X size={16} />
-                </button>
+                <div className="shrink-0">
+                  {addedToCart ? (
+                    <div className="flex items-center gap-1.5 text-emerald-600 text-sm font-medium">
+                      <Check size={16} /> Im Warenkorb
+                    </div>
+                  ) : (
+                    <button onClick={addReorderToCart} disabled={addingToCart}
+                      className="w-11 h-11 flex items-center justify-center bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white rounded-xl transition-colors">
+                      {addingToCart ? <span className="text-sm">…</span> : <ShoppingCart size={18} />}
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           </div>
