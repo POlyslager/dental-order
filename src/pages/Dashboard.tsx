@@ -33,9 +33,6 @@ export default function Dashboard({ user }: Props) {
   const [pendingBarcode, setPendingBarcode] = useState<string | null>(null)
   const [orderBadge, setOrderBadge] = useState(0)
   const [pushPermission, setPushPermission] = useState(() => currentPermission())
-  // Track the visual viewport height so the container always matches the
-  // visible area above the keyboard (body:fixed prevents visualViewport scroll).
-  const [vpHeight, setVpHeight] = useState(() => window.visualViewport?.height ?? window.innerHeight)
 
   function handleAddWithBarcode(barcode: string) {
     setPendingBarcode(barcode)
@@ -56,13 +53,6 @@ export default function Dashboard({ user }: Props) {
     getUserRole().then(setRole)
   }, [])
 
-  useEffect(() => {
-    const vv = window.visualViewport
-    if (!vv) return
-    function update() { setVpHeight(vv!.height) }
-    vv.addEventListener('resize', update)
-    return () => vv.removeEventListener('resize', update)
-  }, [])
 
   // Fetch badge count: cart items + pending approval orders
   useEffect(() => {
@@ -88,7 +78,7 @@ export default function Dashboard({ user }: Props) {
   const activeIndex = bottomTabs.findIndex(t => t.id === tab)
 
   return (
-    <div className="overflow-hidden bg-slate-50 flex flex-col" style={{ height: vpHeight }}>
+    <div className="h-[100dvh] overflow-hidden bg-slate-50 flex flex-col">
       {/* Header — safe-area-inset-top for notch/Dynamic Island */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-10"
         style={{ paddingTop: 'env(safe-area-inset-top)' }}>
