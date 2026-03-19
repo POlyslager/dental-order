@@ -317,7 +317,7 @@ export default function ScanPage({ onAddWithBarcode }: Props) {
             )}
           </div>
           {searchResults.length > 0 && (
-            <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-50 overflow-hidden">
+            <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-50 overflow-y-auto max-h-[40dvh]">
               {searchResults.map(p => (
                 <button key={p.id} onClick={() => selectProductManually(p)}
                   className="w-full px-4 py-2.5 text-left hover:bg-slate-50 active:bg-slate-100 transition-colors">
