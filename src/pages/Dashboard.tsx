@@ -125,24 +125,24 @@ export default function Dashboard({ user }: Props) {
       </div>
       </header>
 
-      {/* Page content — flex-1 ends exactly where the nav starts, no padding needed */}
-      <main
-        className="flex-1"
-        style={{ overflowX: 'clip', overflowY: menuOpen ? 'hidden' : 'auto' }}
-      >
-        {showTerms
-          ? <TermsPage onBack={() => setShowTerms(false)} />
-          : <>
-              {tab === 'overview' && role === 'admin' && <OverviewPage />}
-              {tab === 'stock'    && <StockPage role={role} initialBarcode={pendingBarcode} onBarcodeConsumed={() => setPendingBarcode(null)} />}
-              {tab === 'scan'     && <ScanPage onAddWithBarcode={handleAddWithBarcode} />}
-              {tab === 'orders'   && <OrdersPage role={role} user={user} onBadgeChange={setOrderBadge} />}
-            </>
-        }
+      {/* Page content — inner div carries the bottom padding so iOS includes it in the
+           scroll range (padding on the scroll container itself is excluded by iOS Safari) */}
+      <main className={`flex-1 overflow-x-hidden ${menuOpen ? 'overflow-y-hidden' : 'overflow-y-auto'}`}>
+        <div className="pb-20">
+          {showTerms
+            ? <TermsPage onBack={() => setShowTerms(false)} />
+            : <>
+                {tab === 'overview' && role === 'admin' && <OverviewPage />}
+                {tab === 'stock'    && <StockPage role={role} initialBarcode={pendingBarcode} onBarcodeConsumed={() => setPendingBarcode(null)} />}
+                {tab === 'scan'     && <ScanPage onAddWithBarcode={handleAddWithBarcode} />}
+                {tab === 'orders'   && <OrdersPage role={role} user={user} onBadgeChange={setOrderBadge} />}
+              </>
+          }
+        </div>
       </main>
 
-      {/* Bottom nav — shrink-0 keeps it in the flex flow so <main> never scrolls behind it */}
-      <nav className="shrink-0 bg-white border-t border-slate-100">
+      {/* Bottom nav — fixed so it never moves regardless of page content length */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100">
         <div className="relative flex max-w-2xl mx-auto">
           {/* Sliding circle — centered on active icon */}
           {activeIndex >= 0 && (
