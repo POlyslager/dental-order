@@ -107,7 +107,7 @@ export default function Dashboard({ user }: Props) {
   const activeIndex = bottomTabs.findIndex(t => t.id === tab)
 
   return (
-    <div className="h-screen overflow-hidden bg-slate-50 flex flex-col">
+    <div className="h-[100dvh] overflow-hidden bg-slate-50 flex flex-col">
       {/* Header — safe-area-inset-top for notch/Dynamic Island */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-10"
         style={{ paddingTop: 'env(safe-area-inset-top)' }}>
@@ -125,8 +125,11 @@ export default function Dashboard({ user }: Props) {
       </div>
       </header>
 
-      {/* Page content — flex-1 naturally ends where the nav starts, no padding needed */}
-      <main className={`flex-1 overflow-x-hidden ${menuOpen ? 'overflow-y-hidden' : 'overflow-y-auto'}`}>
+      {/* Page content — flex-1 ends exactly where the nav starts, no padding needed */}
+      <main
+        className="flex-1"
+        style={{ overflowX: 'clip', overflowY: menuOpen ? 'hidden' : 'auto' }}
+      >
         {showTerms
           ? <TermsPage onBack={() => setShowTerms(false)} />
           : <>
