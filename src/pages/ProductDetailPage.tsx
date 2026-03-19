@@ -179,7 +179,7 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
       </div>
 
       <div className="max-w-2xl mx-auto p-4 space-y-4"
-        style={{ paddingBottom: editing ? '60vh' : '6rem' }}>
+        style={{ paddingBottom: editing ? '60vh' : undefined }}>
 
         {/* ── Stock card ── */}
         <div className={`rounded-2xl border overflow-hidden ${styles.border}`}>
@@ -196,11 +196,6 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
               <div className={`absolute left-0 top-0 h-full rounded-full ${styles.bar}`} style={{ width: `${fillPct}%` }} />
               <div className="absolute top-0 h-full w-[3px] bg-slate-500 opacity-40" style={{ left: `${thresholdPct}%` }} />
             </div>
-            {!editing && (
-              <div className="flex gap-4 mt-2">
-                <span className="text-xs text-slate-500">Meldebestand: {form.min_stock} {form.unit}</span>
-              </div>
-            )}
             {editing && (
               <div className="grid grid-cols-3 gap-3 mt-3">
                 {editField('Aktuell', 'current_stock', 'number')}

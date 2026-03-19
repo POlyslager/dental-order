@@ -125,25 +125,21 @@ export default function Dashboard({ user }: Props) {
       </div>
       </header>
 
-      {/* Page content — overflow-x:clip prevents slide animation from causing horizontal scroll
-           without breaking sticky positioning (unlike overflow-x:hidden) */}
-      <main
-        className="flex-1"
-        style={{
-          overflowX: 'clip',
-          overflowY: menuOpen ? 'hidden' : 'auto',
-          paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))',
-        }}
-      >
-        {showTerms
-          ? <TermsPage onBack={() => setShowTerms(false)} />
-          : <>
-              {tab === 'overview' && role === 'admin' && <OverviewPage />}
-              {tab === 'stock'    && <StockPage role={role} initialBarcode={pendingBarcode} onBarcodeConsumed={() => setPendingBarcode(null)} />}
-              {tab === 'scan'     && <ScanPage onAddWithBarcode={handleAddWithBarcode} />}
-              {tab === 'orders'   && <OrdersPage role={role} user={user} onBadgeChange={setOrderBadge} />}
-            </>
-        }
+      {/* Page content — padding must be on an INNER div, not on <main> itself.
+           iOS Safari excludes padding-bottom of scroll containers from the scrollable range,
+           causing content to be hidden behind the nav bar. */}
+      <main className={`flex-1 overflow-x-hidden ${menuOpen ? 'overflow-y-hidden' : 'overflow-y-auto'}`}>
+        <div style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' }}>
+          {showTerms
+            ? <TermsPage onBack={() => setShowTerms(false)} />
+            : <>
+                {tab === 'overview' && role === 'admin' && <OverviewPage />}
+                {tab === 'stock'    && <StockPage role={role} initialBarcode={pendingBarcode} onBarcodeConsumed={() => setPendingBarcode(null)} />}
+                {tab === 'scan'     && <ScanPage onAddWithBarcode={handleAddWithBarcode} />}
+                {tab === 'orders'   && <OrdersPage role={role} user={user} onBadgeChange={setOrderBadge} />}
+              </>
+          }
+        </div>
       </main>
 
       {/* Bottom nav — safe-area-inset-bottom for home indicator */}
