@@ -4,13 +4,19 @@
   box-sizing: border-box;
 }
 
-html, body {
+html {
   height: 100%;
   overflow: hidden;
-  overscroll-behavior: none;
 }
 
 body {
+  /* position:fixed locks the body so iOS cannot scroll the visual viewport
+     when the keyboard opens — this eliminates the "second scroll" bug */
+  position: fixed;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
   margin: 0;
   font-family: system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;

@@ -33,7 +33,9 @@ export default function Dashboard({ user }: Props) {
   const [pendingBarcode, setPendingBarcode] = useState<string | null>(null)
   const [orderBadge, setOrderBadge] = useState(0)
   const [pushPermission, setPushPermission] = useState(() => currentPermission())
-  const [keyboardPad, setKeyboardPad] = useState(0)
+  // Track the visual viewport height so the container always matches the
+  // visible area above the keyboard (body:fixed prevents visualViewport scroll).
+  const [vpHeight, setVpHeight] = useState(() => window.visualViewport?.height ?? window.innerHeight)
 
   function handleAddWithBarcode(barcode: string) {
     setPendingBarcode(barcode)
@@ -54,46 +56,13 @@ export default function Dashboard({ user }: Props) {
     getUserRole().then(setRole)
   }, [])
 
-  // Track keyboard height via visualViewport so the last card is never
-  // hidden behind the iOS input-accessory bar when the keyboard is open.
   useEffect(() => {
     const vv = window.visualViewport
     if (!vv) return
-    function update() {
-      // offsetTop accounts for the visual viewport scrolling up when keyboard opens
-      const hidden = window.innerHeight - vv!.height - vv!.offsetTop
-      setKeyboardPad(hidden > 50 ? hidden : 0)
-    }
+    function update() { setVpHeight(vv!.height) }
     vv.addEventListener('resize', update)
-    vv.addEventListener('scroll', update)
-    return () => {
-      vv.removeEventListener('resize', update)
-      vv.removeEventListener('scroll', update)
-    }
+    return () => vv.removeEventListener('resize', update)
   }, [])
-
-  useEffect(() => {
-    if (menuOpen) {
-      const scrollY = window.scrollY
-      document.body.style.position = 'fixed'
-      document.body.style.top = `-${scrollY}px`
-      document.body.style.width = '100%'
-      document.body.style.overflowY = 'scroll'
-    } else {
-      const top = document.body.style.top
-      document.body.style.position = ''
-      document.body.style.top = ''
-      document.body.style.width = ''
-      document.body.style.overflowY = ''
-      window.scrollTo(0, parseInt(top || '0') * -1)
-    }
-    return () => {
-      document.body.style.position = ''
-      document.body.style.top = ''
-      document.body.style.width = ''
-      document.body.style.overflowY = ''
-    }
-  }, [menuOpen])
 
   // Fetch badge count: cart items + pending approval orders
   useEffect(() => {
@@ -119,7 +88,7 @@ export default function Dashboard({ user }: Props) {
   const activeIndex = bottomTabs.findIndex(t => t.id === tab)
 
   return (
-    <div className="h-[100dvh] overflow-hidden bg-slate-50 flex flex-col">
+    <div className="overflow-hidden bg-slate-50 flex flex-col" style={{ height: vpHeight }}>
       {/* Header — safe-area-inset-top for notch/Dynamic Island */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-10"
         style={{ paddingTop: 'env(safe-area-inset-top)' }}>
@@ -138,8 +107,8 @@ export default function Dashboard({ user }: Props) {
 
       {/* Page content — inner div carries the bottom padding so iOS includes it in the
            scroll range (padding on the scroll container itself is excluded by iOS Safari) */}
-      <main className={`flex-1 ${menuOpen ? 'overflow-hidden' : 'overflow-y-auto'}`}>
-        <div style={{ paddingBottom: keyboardPad > 0 ? keyboardPad + 16 : 80 }}>
+      <main className={`flex-1 ${menuOpen ? 'overflow-hidden' : 'overflow-y-auto'}`} style={{ overscrollBehavior: 'none' }}>
+        <div className="pb-20">
           {showTerms
             ? <TermsPage onBack={() => setShowTerms(false)} />
             : <>
