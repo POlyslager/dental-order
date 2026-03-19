@@ -39,17 +39,28 @@ export default function ScanPage({ onAddWithBarcode }: Props) {
   const [receivedItems, setReceivedItems] = useState<Set<string>>(new Set())
   const [matchedItem, setMatchedItem] = useState<{ orderId: string; itemId: string; expectedQty: number } | null>(null)
 
-  // Manual search (scan_out fallback)
+  // All products for client-side filter
+  const [allProducts, setAllProducts] = useState<Product[]>([])
   const [manualSearch, setManualSearch] = useState('')
-  const [searchResults, setSearchResults] = useState<Product[]>([])
 
   useEffect(() => {
+    supabase.from('products').select('*').order('name').then(({ data }) => {
+      setAllProducts(data ?? [])
+    })
     return () => { stopScanner() }
   }, [])
 
   useEffect(() => {
     if (mode === 'in') fetchOpenOrders()
   }, [mode])
+
+  const filteredProducts = manualSearch.trim()
+    ? allProducts.filter(p =>
+        p.name.toLowerCase().includes(manualSearch.toLowerCase()) ||
+        p.category.toLowerCase().includes(manualSearch.toLowerCase()) ||
+        (p.article_number?.toLowerCase().includes(manualSearch.toLowerCase()) ?? false)
+      )
+    : []
 
   async function fetchOpenOrders() {
     const { data } = await supabase
@@ -60,19 +71,9 @@ export default function ScanPage({ onAddWithBarcode }: Props) {
     setOpenOrders((data as unknown as Order[]) ?? [])
   }
 
-  async function searchProducts(q: string) {
-    setManualSearch(q)
-    if (!q.trim()) { setSearchResults([]); return }
-    const { data } = await supabase.from('products').select('*')
-      .ilike('name', `%${q}%`).order('name').limit(8)
-    setSearchResults(data ?? [])
-  }
-
   function selectProductManually(product: Product) {
-    setSearchResults([])
     setError(null)
 
-    // For scan_in: check if product is in an open order
     if (mode === 'in') {
       for (const order of openOrders) {
         for (const item of order.items ?? []) {
@@ -98,9 +99,7 @@ export default function ScanPage({ onAddWithBarcode }: Props) {
   }
 
   function cleanBarcode(raw: string): string {
-    // Strip AIM identifier (]d2, ]C1, etc.), then remove all non-printable chars
     const code = raw.replace(/^\][A-Za-z][0-9]/, '').replace(/[^\x20-\x7E]/g, '').trim()
-    // GS1 Data Matrix: extract just the GTIN from the (01) application identifier
     const gs1 = code.match(/^01(\d{14})/)
     if (gs1) return gs1[1]
     return code
@@ -155,7 +154,6 @@ export default function ScanPage({ onAddWithBarcode }: Props) {
 
     setScannedProduct(data)
 
-    // For scan_in: find matching unscanned order item
     if (mode === 'in') {
       for (const order of openOrders) {
         for (const item of order.items ?? []) {
@@ -195,6 +193,9 @@ export default function ScanPage({ onAddWithBarcode }: Props) {
       .from('products').update({ current_stock: newStock }).eq('id', scannedProduct.id)
     if (stockErr) { setError(stockErr.message); return }
 
+    // Update local allProducts so the stock count stays accurate
+    setAllProducts(prev => prev.map(p => p.id === scannedProduct.id ? { ...p, current_stock: newStock } : p))
+
     if (mode === 'out') {
       setStatus(`✓ ${scannedProduct.name}: Bestand aktualisiert auf ${newStock} ${scannedProduct.unit}`)
 
@@ -213,7 +214,6 @@ export default function ScanPage({ onAddWithBarcode }: Props) {
         setAddedToCart(false)
       }
     } else {
-      // scan_in: mark item and check if order is complete
       if (matchedItem) {
         const updated = new Set(receivedItems).add(matchedItem.itemId)
         setReceivedItems(updated)
@@ -263,6 +263,8 @@ export default function ScanPage({ onAddWithBarcode }: Props) {
   const pendingItemCount = openOrders.reduce((s, o) =>
     s + (o.items ?? []).filter(i => !receivedItems.has(i.id)).length, 0)
 
+  const showFilteredCards = filteredProducts.length > 0 && !scannedProduct
+
   return (
     <div className="max-w-md mx-auto">
 
@@ -299,38 +301,51 @@ export default function ScanPage({ onAddWithBarcode }: Props) {
           </button>
         )}
 
-        {/* Manual search */}
-        <div className="space-y-2">
-          <div className="relative">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text" value={manualSearch}
-              onChange={e => searchProducts(e.target.value)}
-              placeholder={mode === 'in' ? 'Artikel oder Lieferant suchen…' : 'Artikel manuell suchen…'}
-              className="w-full border border-slate-300 rounded-xl pl-9 pr-9 py-2.5 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white"
-            />
-            {manualSearch && (
-              <button type="button" onClick={() => { setManualSearch(''); setSearchResults([]) }}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                <X size={15} />
-              </button>
-            )}
-          </div>
-          {searchResults.length > 0 && (
-            <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-50 overflow-y-auto max-h-[40dvh]">
-              {searchResults.map(p => (
-                <button key={p.id} onClick={() => selectProductManually(p)}
-                  className="w-full px-4 py-2.5 text-left hover:bg-slate-50 active:bg-slate-100 transition-colors">
-                  <p className="text-sm font-medium text-slate-800">{p.name}</p>
-                  <p className="text-xs text-slate-400 mt-0.5">{p.category} · {p.current_stock} {p.unit}</p>
-                </button>
-              ))}
-            </div>
+        {/* Search — filters all products client-side */}
+        <div className="relative">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text" value={manualSearch}
+            onChange={e => setManualSearch(e.target.value)}
+            placeholder={mode === 'in' ? 'Artikel oder Lieferant suchen…' : 'Artikel manuell suchen…'}
+            className="w-full border border-slate-300 rounded-xl pl-9 pr-9 py-2.5 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white"
+          />
+          {manualSearch && (
+            <button type="button" onClick={() => setManualSearch('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+              <X size={15} />
+            </button>
           )}
         </div>
 
-        {/* ── Lieferung einbuchen: open orders list ── */}
-        {mode === 'in' && !scannedProduct && (
+        {/* Filtered product cards */}
+        {showFilteredCards && (
+          <div className="space-y-2">
+            {filteredProducts.map(p => (
+              <button key={p.id} onClick={() => selectProductManually(p)}
+                className="w-full bg-white rounded-2xl border border-slate-200 px-4 py-3 flex items-center justify-between gap-3 text-left active:bg-slate-50 transition-colors">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-slate-800 truncate">{p.name}</p>
+                  <p className="text-xs text-slate-400 truncate mt-0.5">{p.category}</p>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-xl font-bold text-slate-800 leading-none">{p.current_stock}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">{p.unit}</p>
+                </div>
+              </button>
+            ))}
+            {manualSearch.trim() && filteredProducts.length === 0 && (
+              <p className="text-center text-slate-400 text-sm py-4">Keine Artikel gefunden</p>
+            )}
+          </div>
+        )}
+
+        {manualSearch.trim() && filteredProducts.length === 0 && !scannedProduct && (
+          <p className="text-center text-slate-400 text-sm py-4">Keine Artikel gefunden</p>
+        )}
+
+        {/* Lieferung einbuchen: open orders list (hidden while searching) */}
+        {mode === 'in' && !scannedProduct && !manualSearch.trim() && (
           openOrders.length === 0 ? (
             <div className="text-center py-8">
               <PackageCheck size={32} className="mx-auto text-slate-200 mb-2" />
@@ -341,11 +356,7 @@ export default function ScanPage({ onAddWithBarcode }: Props) {
               <p className="text-xs text-slate-400 font-medium uppercase tracking-wide">
                 {pendingItemCount} Artikel ausstehend
               </p>
-              {openOrders.filter(order =>
-                !manualSearch.trim() ||
-                order.supplier?.toLowerCase().includes(manualSearch.toLowerCase()) ||
-                (order.items ?? []).some(i => i.product?.name.toLowerCase().includes(manualSearch.toLowerCase()))
-              ).map(order => {
+              {openOrders.map(order => {
                 const items = order.items ?? []
                 const allDone = items.every(i => receivedItems.has(i.id))
                 return (
@@ -387,7 +398,6 @@ export default function ScanPage({ onAddWithBarcode }: Props) {
         {/* Scanned product confirmation */}
         {scannedProduct && (
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden animate-slide-in-up">
-            {/* Product name — prominent visual check */}
             <div className="px-4 py-4 border-b border-slate-100">
               <p className="text-xs text-slate-400 mb-0.5">{mode === 'in' ? 'Lieferung einbuchen' : 'Artikel entnehmen'}</p>
               <p className="text-lg font-bold text-slate-800">{scannedProduct.name}</p>
