@@ -4,6 +4,12 @@
   box-sizing: border-box;
 }
 
+html, body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 body {
   margin: 0;
   font-family: system-ui, -apple-system, sans-serif;
@@ -21,7 +27,7 @@ button, a {
 }
 
 #root {
-  min-height: 100svh;
+  height: 100%;
 }
 
 /* ── Micro animations ────────────────────────────────────────── */
