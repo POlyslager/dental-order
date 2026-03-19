@@ -33,6 +33,7 @@ export default function Dashboard({ user }: Props) {
   const [pendingBarcode, setPendingBarcode] = useState<string | null>(null)
   const [orderBadge, setOrderBadge] = useState(0)
   const [pushPermission, setPushPermission] = useState(() => currentPermission())
+  const [keyboardPad, setKeyboardPad] = useState(0)
 
   function handleAddWithBarcode(barcode: string) {
     setPendingBarcode(barcode)
@@ -51,6 +52,24 @@ export default function Dashboard({ user }: Props) {
 
   useEffect(() => {
     getUserRole().then(setRole)
+  }, [])
+
+  // Track keyboard height via visualViewport so the last card is never
+  // hidden behind the iOS input-accessory bar when the keyboard is open.
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    function update() {
+      // offsetTop accounts for the visual viewport scrolling up when keyboard opens
+      const hidden = window.innerHeight - vv!.height - vv!.offsetTop
+      setKeyboardPad(hidden > 50 ? hidden : 0)
+    }
+    vv.addEventListener('resize', update)
+    vv.addEventListener('scroll', update)
+    return () => {
+      vv.removeEventListener('resize', update)
+      vv.removeEventListener('scroll', update)
+    }
   }, [])
 
   useEffect(() => {
@@ -120,7 +139,7 @@ export default function Dashboard({ user }: Props) {
       {/* Page content — inner div carries the bottom padding so iOS includes it in the
            scroll range (padding on the scroll container itself is excluded by iOS Safari) */}
       <main className={`flex-1 ${menuOpen ? 'overflow-hidden' : 'overflow-y-auto'}`}>
-        <div className="pb-20">
+        <div style={{ paddingBottom: keyboardPad > 0 ? keyboardPad + 16 : 80 }}>
           {showTerms
             ? <TermsPage onBack={() => setShowTerms(false)} />
             : <>
