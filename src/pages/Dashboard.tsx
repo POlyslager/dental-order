@@ -125,26 +125,21 @@ export default function Dashboard({ user }: Props) {
       </div>
       </header>
 
-      {/* Page content — padding must be on an INNER div, not on <main> itself.
-           iOS Safari excludes padding-bottom of scroll containers from the scrollable range,
-           causing content to be hidden behind the nav bar. */}
+      {/* Page content — flex-1 naturally ends where the nav starts, no padding needed */}
       <main className={`flex-1 overflow-x-hidden ${menuOpen ? 'overflow-y-hidden' : 'overflow-y-auto'}`}>
-        <div style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' }}>
-          {showTerms
-            ? <TermsPage onBack={() => setShowTerms(false)} />
-            : <>
-                {tab === 'overview' && role === 'admin' && <OverviewPage />}
-                {tab === 'stock'    && <StockPage role={role} initialBarcode={pendingBarcode} onBarcodeConsumed={() => setPendingBarcode(null)} />}
-                {tab === 'scan'     && <ScanPage onAddWithBarcode={handleAddWithBarcode} />}
-                {tab === 'orders'   && <OrdersPage role={role} user={user} onBadgeChange={setOrderBadge} />}
-              </>
-          }
-        </div>
+        {showTerms
+          ? <TermsPage onBack={() => setShowTerms(false)} />
+          : <>
+              {tab === 'overview' && role === 'admin' && <OverviewPage />}
+              {tab === 'stock'    && <StockPage role={role} initialBarcode={pendingBarcode} onBarcodeConsumed={() => setPendingBarcode(null)} />}
+              {tab === 'scan'     && <ScanPage onAddWithBarcode={handleAddWithBarcode} />}
+              {tab === 'orders'   && <OrdersPage role={role} user={user} onBadgeChange={setOrderBadge} />}
+            </>
+        }
       </main>
 
-      {/* Bottom nav — safe-area-inset-bottom for home indicator */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100"
-        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      {/* Bottom nav — shrink-0 keeps it in the flex flow so <main> never scrolls behind it */}
+      <nav className="shrink-0 bg-white border-t border-slate-100">
         <div className="relative flex max-w-2xl mx-auto">
           {/* Sliding circle — centered on active icon */}
           {activeIndex >= 0 && (

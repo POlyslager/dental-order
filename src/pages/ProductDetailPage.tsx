@@ -309,8 +309,7 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
 
       {/* Edit footer */}
       {editing && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 px-4 py-4 flex gap-3 z-20"
-          style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}>
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 px-4 py-4 flex gap-3 z-20">
           <button onClick={() => { setForm(product); setEditing(false) }}
             className="flex-1 border border-slate-300 rounded-xl py-3 text-sm text-slate-600">
             Abbrechen
