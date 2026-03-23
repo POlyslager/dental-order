@@ -46,6 +46,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
   const [, setAddedToCart] = useState<Set<string>>(new Set())
 
   const [scanning, setScanning] = useState(false)
+  const [closingProduct, setClosingProduct] = useState(false)
   const scannerRef = useRef<Html5Qrcode | null>(null)
 
   async function startBarcodeScanner() {
@@ -305,7 +306,6 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
     </div>
   )
 
-  const [closingProduct, setClosingProduct] = useState(false)
   function closeProduct() {
     setClosingProduct(true)
     setTimeout(() => { setSelectedProduct(null); setClosingProduct(false) }, 260)
