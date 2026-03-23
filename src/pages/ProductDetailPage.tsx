@@ -26,10 +26,11 @@ interface Props {
   onUpdated: (p: Product) => void
   onDeleted: (id: string) => void
   onAddToCart: (productId: string, qty: number) => Promise<void>
+  onCartItemAdded?: (name: string) => void
   isModal?: boolean
 }
 
-export default function ProductDetailPage({ product, onBack, onUpdated, onDeleted, onAddToCart, isModal }: Props) {
+export default function ProductDetailPage({ product, onBack, onUpdated, onDeleted, onAddToCart, onCartItemAdded, isModal }: Props) {
   const [form, setForm] = useState(product)
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -116,8 +117,12 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
 
   async function handleAddToCart() {
     await onAddToCart(product.id, parseInt(orderQty) || 1)
-    setAdded(true)
-    setTimeout(() => setAdded(false), 2000)
+    if (onCartItemAdded) {
+      onCartItemAdded(product.name)
+    } else {
+      setAdded(true)
+      setTimeout(() => setAdded(false), 2000)
+    }
   }
 
   const inputCls = 'w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500'

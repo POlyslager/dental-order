@@ -5,7 +5,7 @@ import { supabase, getCurrentUser } from '../lib/supabase'
 import type { Product, Role } from '../lib/types'
 import ProductDetailPage from './ProductDetailPage'
 import CategorySelect from '../components/CategorySelect'
-import { Search, Plus, X, Camera, ChevronLeft, Activity, ChevronUp, ChevronDown, Package, PackageCheck, PackageX, TriangleAlert } from 'lucide-react'
+import { Search, Plus, X, Camera, ChevronLeft, Activity, ChevronUp, ChevronDown, Package, PackageCheck, PackageX, TriangleAlert, Check } from 'lucide-react'
 
 const SCAN_FORMATS = [
   Html5QrcodeSupportedFormats.QR_CODE, Html5QrcodeSupportedFormats.DATA_MATRIX,
@@ -47,6 +47,8 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
 
   const [scanning, setScanning] = useState(false)
   const [closingProduct, setClosingProduct] = useState(false)
+  const [duplicateProduct, setDuplicateProduct] = useState<Product | null>(null)
+  const [cartToast, setCartToast] = useState<string | null>(null)
   const scannerRef = useRef<Html5Qrcode | null>(null)
 
   async function startBarcodeScanner() {
@@ -85,6 +87,13 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
     let notes = ''
     if (lot)    notes += `Charge: ${lot[1]}`
     if (expiry) notes += (notes ? ' · ' : '') + `Ablauf: 20${expiry[1].slice(0,2)}-${expiry[1].slice(2,4)}-${expiry[1].slice(4,6)}`
+
+    // Check if product with this barcode already exists
+    const { data: existing } = await supabase.from('products').select('*').eq('barcode', barcode).maybeSingle()
+    if (existing) {
+      setDuplicateProduct(existing as Product)
+      return
+    }
 
     setForm(f => ({ ...f, barcode, notes: f.notes || notes }))
 
@@ -323,6 +332,10 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
       closeProduct()
     },
     onAddToCart: addToCart,
+    onCartItemAdded: (name: string) => {
+      closeProduct()
+      setCartToast(`${name} wurde zum Warenkorb hinzugefügt`)
+    },
   } : null
 
   return (
@@ -431,7 +444,15 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
 
       {/* Table */}
       <div className="overflow-x-auto">
-        <table className="w-full">
+        <table className="w-full table-fixed">
+          <colgroup>
+            <col className="w-auto" />
+            <col className="hidden md:table-column w-36" />
+            <col className="hidden md:table-column w-32" />
+            <col className="hidden md:table-column w-36" />
+            <col className="w-28" />
+            <col className="w-28" />
+          </colgroup>
           <thead>
             <tr className="border-b border-slate-200 bg-white">
               <Th label="Name"      col="name"               onClick={toggleSort} SortIcon={SortIcon} />
@@ -453,9 +474,9 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
                   <p className="text-sm font-semibold text-slate-800">{p.name}</p>
                   <p className="text-xs text-slate-400 md:hidden mt-0.5">{p.category}</p>
                 </td>
-                <td className="hidden md:table-cell px-4 py-3.5 text-sm text-slate-500">{p.category}</td>
-                <td className="hidden md:table-cell px-4 py-3.5 text-sm text-slate-500">{p.article_number ?? '—'}</td>
-                <td className="hidden md:table-cell px-4 py-3.5 text-sm text-slate-500">{p.preferred_supplier ?? '—'}</td>
+                <td className="hidden md:table-cell px-4 py-3.5 text-sm text-slate-500 truncate">{p.category}</td>
+                <td className="hidden md:table-cell px-4 py-3.5 text-sm text-slate-500 truncate">{p.article_number ?? '—'}</td>
+                <td className="hidden md:table-cell px-4 py-3.5 text-sm text-slate-500 truncate">{p.preferred_supplier ?? '—'}</td>
                 <td className="px-4 py-3.5 text-right">
                   <span className="text-sm font-bold text-slate-800">{p.current_stock}</span>
                   <span className="text-xs text-slate-400 ml-1">{p.unit}</span>
@@ -535,6 +556,35 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
         </div>
       )}
 
+      {/* Cart toast */}
+      {cartToast && <CartToast message={cartToast} onClose={() => setCartToast(null)} />}
+
+      {/* Duplicate barcode modal */}
+      {duplicateProduct && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 animate-slide-in-up">
+            <h3 className="font-semibold text-slate-800 text-lg mb-1">Artikel bereits vorhanden</h3>
+            <p className="text-sm text-slate-500 mb-5">
+              <span className="font-medium text-slate-700">{duplicateProduct.name}</span> ist bereits in deinem Inventar.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDuplicateProduct(null)}
+                className="flex-1 border border-slate-300 rounded-xl py-2.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={() => { setSelectedProduct(duplicateProduct); setDuplicateProduct(null) }}
+                className="flex-1 bg-sky-500 hover:bg-sky-600 text-white rounded-xl py-2.5 text-sm font-medium transition-colors"
+              >
+                Zum Artikel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Product detail — full-screen on mobile, side panel modal on md+ */}
       {(selectedProduct || closingProduct) && productDetailProps && (
         <>
@@ -608,3 +658,25 @@ function Field({ label, value, onChange, type = 'text', required = false, inputM
     </div>
   )
 }
+
+// ── Cart toast ───────────────────────────────────────────────────────────────
+function CartToast({ message, onClose }: { message: string; onClose: () => void }) {
+  useEffect(() => {
+    const t = setTimeout(onClose, 5000)
+    return () => clearTimeout(t)
+  }, [message, onClose])
+  return (
+    <div className="fixed top-4 left-4 right-4 z-[100] flex justify-center pointer-events-none">
+      <div className="pointer-events-auto w-full max-w-md bg-slate-900 text-white rounded-2xl shadow-2xl px-4 py-4 flex items-start gap-3 animate-slide-in-down">
+        <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0 mt-0.5">
+          <Check size={16} className="text-emerald-400" />
+        </div>
+        <p className="flex-1 text-sm font-medium leading-snug">{message}</p>
+        <button onClick={onClose} className="text-white/50 hover:text-white transition-colors shrink-0">
+          <X size={16} />
+        </button>
+      </div>
+    </div>
+  )
+}
+
