@@ -87,8 +87,20 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
     supabase.from('products').select('preferred_supplier').not('preferred_supplier', 'is', null).then(({ data }) => {
       if (data) setSuppliers([...new Set(data.map(p => p.preferred_supplier as string))].filter(Boolean).sort())
     })
-    supabase.from('cart_items').select('id').eq('product_id', product.id).maybeSingle()
-      .then(({ data }) => setInCart(!!data))
+    // Check cart and open orders
+    ;(async () => {
+      const [{ data: cartRow }, { data: orderItems }] = await Promise.all([
+        supabase.from('cart_items').select('id').eq('product_id', product.id).maybeSingle(),
+        supabase.from('order_items').select('order_id').eq('product_id', product.id),
+      ])
+      if (cartRow) { setInCart(true); return }
+      if (orderItems && orderItems.length > 0) {
+        const ids = orderItems.map((r: any) => r.order_id)
+        const { data: open } = await supabase
+          .from('orders').select('id').in('id', ids).in('status', ['pending_approval', 'ordered']).limit(1)
+        setInCart(!!(open && open.length > 0))
+      }
+    })()
   }, [product.id])
 
   async function handleSave() {
@@ -306,7 +318,7 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
                       <ShoppingCart size={14} className="text-sky-500" />
                     </div>
                     <div>
-                      <p className="text-sm text-slate-400">Artikel ist bereits im Warenkorb</p>
+                      <p className="text-sm text-slate-400">Artikel is al in bestelling of winkelwagen</p>
                       {onNavigateToOrders && (
                         <button onClick={onNavigateToOrders} className="text-xs text-sky-500 hover:text-sky-600 transition-colors">
                           Zur Bestellung →
