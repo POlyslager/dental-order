@@ -3,7 +3,25 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).end()
 
-  const { supplierUrl, query } = req.body as { supplierUrl?: string; query?: string }
+  const { supplierUrl, query, upc } = req.body as { supplierUrl?: string; query?: string; upc?: string }
+
+  // ── UPC/GTIN barcode lookup via upcitemdb ─────────────────────────────────
+  if (upc) {
+    try {
+      const r = await fetch(`https://api.upcitemdb.com/prod/trial/lookup?upc=${upc}`)
+      const d = await r.json()
+      const item = d?.items?.[0]
+      if (item) {
+        return res.status(200).json({
+          found: true,
+          name: item.title ?? null,
+          description: item.description ?? null,
+          brand: item.brand ?? null,
+        })
+      }
+    } catch { /* fall through */ }
+    return res.status(200).json({ found: false })
+  }
 
   if (!query && !supplierUrl) return res.status(400).json({ found: false, error: 'query or supplierUrl required' })
 

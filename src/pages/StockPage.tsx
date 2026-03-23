@@ -98,18 +98,21 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
 
     setForm(f => ({ ...f, barcode, notes: f.notes || notes }))
 
-    // Best-effort product lookup via GTIN
+    // Best-effort product lookup via GTIN (proxied to avoid CORS)
     if (barcode.length >= 8) {
       try {
-        const res = await fetch(`https://api.upcitemdb.com/prod/trial/lookup?upc=${barcode}`)
+        const res = await fetch('/api/lookup-product', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ upc: barcode }),
+        })
         const data = await res.json()
-        const item = data?.items?.[0]
-        if (item) {
+        if (data.found) {
           setForm(f => ({
             ...f,
-            name:               f.name               || item.title        || '',
-            description:        f.description        || item.description  || '',
-            preferred_supplier: f.preferred_supplier || item.brand        || '',
+            name:               f.name               || data.name  || '',
+            notes:              f.notes              || data.description || '',
+            preferred_supplier: f.preferred_supplier || data.brand || '',
           }))
         }
       } catch { /* silently ignore — lookup is best-effort */ }
@@ -299,7 +302,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
           <button type="button" onClick={startBarcodeScanner} disabled={scanning}
             className="w-full flex items-center justify-center gap-2 bg-sky-500 hover:bg-sky-600 disabled:opacity-40 text-white font-medium rounded-xl py-3 text-sm transition-colors">
             <Camera size={18} />
-            {form.barcode ? `Barcode: ${form.barcode}` : 'Barcode scannen'}
+            {form.barcode ? 'Barcode gescannt ✓' : 'Barcode scannen'}
           </button>
           <Field label="Name *" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} required />
           <div>
