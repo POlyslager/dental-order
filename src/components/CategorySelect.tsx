@@ -6,9 +6,11 @@ interface Props {
   onChange: (v: string) => void
   categories: string[]
   required?: boolean
+  placeholder?: string
+  newLabel?: string
 }
 
-export default function CategorySelect({ value, onChange, categories, required }: Props) {
+export default function CategorySelect({ value, onChange, categories, required, placeholder = 'Kategorie suchen…', newLabel = 'als neue Kategorie' }: Props) {
   const [search, setSearch] = useState(value)
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -45,7 +47,7 @@ export default function CategorySelect({ value, onChange, categories, required }
           onChange={e => { setSearch(e.target.value); setOpen(true) }}
           onFocus={() => setOpen(true)}
           required={required}
-          placeholder="Kategorie suchen…"
+          placeholder={placeholder}
           className="w-full border border-slate-300 rounded-lg px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
         />
         <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
@@ -75,7 +77,7 @@ export default function CategorySelect({ value, onChange, categories, required }
               className="w-full text-left px-3 py-2.5 text-sm text-sky-600 hover:bg-sky-50 transition-colors flex items-center gap-2 border-t border-slate-100"
             >
               <Plus size={14} />
-              "{search.trim()}" als neue Kategorie
+              "{search.trim()}" {newLabel}
             </button>
           )}
         </div>

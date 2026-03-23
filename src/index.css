@@ -43,6 +43,10 @@ button, a {
   from { transform: translateY(12px); opacity: 0; }
   to   { transform: translateY(0);    opacity: 1; }
 }
+@keyframes slide-in-down {
+  from { transform: translateY(-16px); opacity: 0; }
+  to   { transform: translateY(0);     opacity: 1; }
+}
 @keyframes fade-in {
   from { opacity: 0; }
   to   { opacity: 1; }
@@ -51,4 +55,5 @@ button, a {
 .animate-slide-in-right  { animation: slide-in-right  280ms cubic-bezier(0.32, 0, 0.2, 1) both; }
 .animate-slide-out-right { animation: slide-out-right 260ms cubic-bezier(0.32, 0, 0.2, 1) both; }
 .animate-slide-in-up     { animation: slide-in-up     220ms cubic-bezier(0.32, 0, 0.2, 1) both; }
+.animate-slide-in-down   { animation: slide-in-down   260ms cubic-bezier(0.32, 0, 0.2, 1) both; }
 .animate-fade-in         { animation: fade-in         180ms ease both; }

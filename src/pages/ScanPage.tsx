@@ -339,7 +339,11 @@ export default function ScanPage({ onAddWithBarcode, onSubview }: Props) {
     s + (o.items ?? []).filter(i => !receivedItems.has(i.id)).length, 0)
 
   return (
-    <div className="w-full">
+    <div className="w-full relative">
+      {/* ── Toast ── */}
+      {status && (
+        <ScanToast message={status} onClose={() => setStatus(null)} />
+      )}
 
       {/* Mode toggle */}
       <div className="flex border-b border-slate-200 bg-white sticky top-0 z-10 px-4">
@@ -381,12 +385,6 @@ export default function ScanPage({ onAddWithBarcode, onSubview }: Props) {
             </button>
           </div>
 
-          {status && (
-            <p className="text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-sm animate-slide-in-up">
-              {status}
-            </p>
-          )}
-
           {/* Reorder prompt */}
           {reorderPrompt && <ReorderCard reorderPrompt={reorderPrompt} addedToCart={addedToCart} addingToCart={addingToCart} onAdd={addReorderToCart} onDismiss={() => setReorderPrompt(null)} />}
 
@@ -412,70 +410,82 @@ export default function ScanPage({ onAddWithBarcode, onSubview }: Props) {
       {/* ── SCANNER VIEW ── */}
       {view === 'scanner' && (
         <div>
-          <div className="bg-white border-b border-slate-200 px-4 py-3 sticky top-[49px] z-10">
-            <button onClick={goHome} className="flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-slate-700 p-1 -ml-1">
+          {/* Full-screen camera area */}
+          <div
+            className="relative bg-slate-900 w-full overflow-hidden"
+            style={{ height: 'calc(100dvh - 100px)', minHeight: 320 }}
+          >
+            {/* Back button — overlaid */}
+            <button
+              onClick={goHome}
+              className="absolute top-4 left-4 z-10 flex items-center gap-1.5 bg-black/40 backdrop-blur-sm text-white text-sm font-medium px-3 py-2 rounded-xl"
+            >
               <ChevronLeft size={16} />
               Zurück
             </button>
-          </div>
 
-        <div className="p-4 space-y-4">
-          <div className="relative bg-slate-900 rounded-2xl overflow-hidden" style={{ minHeight: 280 }}>
-            <div id="qr-reader" className="w-full" />
+            {/* Camera output */}
+            <div id="qr-reader" className="w-full h-full" />
+
+            {/* Start button — full-width at bottom */}
             {!scanning && (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <button onClick={startScanner}
-                  className="bg-sky-500 hover:bg-sky-600 text-white px-6 py-3 rounded-xl font-medium text-sm">
+              <div className="absolute inset-0 flex flex-col items-center justify-end p-5">
+                <button
+                  onClick={startScanner}
+                  className="w-full bg-sky-500 hover:bg-sky-600 active:bg-sky-700 text-white py-4 rounded-2xl font-semibold text-base transition-colors"
+                >
                   Kamera starten
+                </button>
+              </div>
+            )}
+
+            {/* Cancel — overlaid at bottom when scanning */}
+            {scanning && (
+              <div className="absolute bottom-5 left-5 right-5">
+                <button
+                  onClick={stopScanner}
+                  className="w-full bg-black/40 backdrop-blur-sm text-white py-3.5 rounded-2xl text-sm font-medium"
+                >
+                  Abbrechen
                 </button>
               </div>
             )}
           </div>
 
-          {scanning && (
-            <button onClick={stopScanner} className="w-full py-2.5 text-sm text-slate-600 border border-slate-300 rounded-xl">
-              Abbrechen
-            </button>
-          )}
-
-          {scannedProduct && (
-            <ProductConfirmCard
-              product={scannedProduct} quantity={quantity} mode={mode} matchedItem={matchedItem}
-              onChange={setQuantity} onConfirm={confirmMovement}
-              onCancel={() => { setScannedProduct(null); setMatchedItem(null) }}
-            />
-          )}
-
-          {status && (
-            <p className="text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-sm animate-slide-in-up">
-              {status}
-            </p>
-          )}
-
-          {error && (
-            <div className="space-y-2">
-              <p className="text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-sm">{error}</p>
-              {rawCode && mode === 'out' && (
-                <button onClick={() => onAddWithBarcode(rawCode)}
-                  className="w-full bg-sky-500 hover:bg-sky-600 text-white rounded-xl py-3 text-sm font-medium flex items-center justify-center gap-2">
-                  <Plus size={16} /> Als neuen Artikel hinzufügen
-                </button>
+          {/* Results below camera */}
+          {(scannedProduct || error || notInOrderPrompt) && (
+            <div className="p-4 space-y-3">
+              {scannedProduct && (
+                <ProductConfirmCard
+                  product={scannedProduct} quantity={quantity} mode={mode} matchedItem={matchedItem}
+                  onChange={setQuantity} onConfirm={confirmMovement}
+                  onCancel={() => { setScannedProduct(null); setMatchedItem(null) }}
+                />
+              )}
+              {error && (
+                <div className="space-y-2">
+                  <p className="text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-sm">{error}</p>
+                  {rawCode && mode === 'out' && (
+                    <button onClick={() => onAddWithBarcode(rawCode)}
+                      className="w-full bg-sky-500 hover:bg-sky-600 text-white rounded-xl py-3 text-sm font-medium flex items-center justify-center gap-2">
+                      <Plus size={16} /> Als neuen Artikel hinzufügen
+                    </button>
+                  )}
+                </div>
+              )}
+              {notInOrderPrompt && (
+                <NotInOrderCard
+                  product={notInOrderPrompt.product}
+                  barcode={notInOrderPrompt.barcode}
+                  onCreateProduct={() => {
+                    if (notInOrderPrompt.barcode) onAddWithBarcode(notInOrderPrompt.barcode)
+                    else { setNotInOrderPrompt(null); goHome() }
+                  }}
+                  onDismiss={() => setNotInOrderPrompt(null)}
+                />
               )}
             </div>
           )}
-
-          {notInOrderPrompt && (
-            <NotInOrderCard
-              product={notInOrderPrompt.product}
-              barcode={notInOrderPrompt.barcode}
-              onCreateProduct={() => {
-                if (notInOrderPrompt.barcode) onAddWithBarcode(notInOrderPrompt.barcode)
-                else { setNotInOrderPrompt(null); goHome() }
-              }}
-              onDismiss={() => setNotInOrderPrompt(null)}
-            />
-          )}
-        </div>
         </div>
       )}
 
@@ -591,12 +601,6 @@ export default function ScanPage({ onAddWithBarcode, onSubview }: Props) {
             />
           )}
 
-          {status && (
-            <p className="text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-sm animate-slide-in-up">
-              {status}
-            </p>
-          )}
-
           {reorderPrompt && <ReorderCard reorderPrompt={reorderPrompt} addedToCart={addedToCart} addingToCart={addingToCart} onAdd={addReorderToCart} onDismiss={() => setReorderPrompt(null)} />}
 
           {rawCode && !scannedProduct && (
@@ -670,51 +674,80 @@ function ScanStockStatus({ product: p }: { product: Product }) {
 
 // ── Sub-components ────────────────────────────────────────────
 
+// Stock level helper for confirm card
+function scanStockLevel(p: Product): { color: string; bg: string; border: string; label: string } {
+  if (p.current_stock <= 0)          return { color: 'text-red-600',     bg: 'bg-red-50',     border: 'border-red-200',     label: 'Kein Bestand' }
+  if (p.current_stock <= p.min_stock) return { color: 'text-red-500',     bg: 'bg-red-50',     border: 'border-red-200',     label: 'Kritisch' }
+  if (p.current_stock <= p.min_stock * 1.5) return { color: 'text-amber-600', bg: 'bg-amber-50',  border: 'border-amber-200',  label: 'Niedrig' }
+  return                                     { color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200', label: 'Verfügbar' }
+}
+
 function ProductConfirmCard({ product, quantity, mode, matchedItem, onChange, onConfirm, onCancel }: {
   product: Product; quantity: string; mode: ScanMode
   matchedItem: { orderId: string; itemId: string; expectedQty: number } | null
   onChange: (v: string) => void; onConfirm: () => void; onCancel: () => void
 }) {
+  const stock = scanStockLevel(product)
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden animate-slide-in-up">
       <div className="px-4 py-4 border-b border-slate-100">
-        <p className="text-xs text-slate-400 mb-0.5">{mode === 'in' ? 'Lieferung einbuchen' : 'Artikel entnehmen'}</p>
-        <p className="text-lg font-bold text-slate-800">{product.name}</p>
-        <p className="text-sm text-slate-400 mt-0.5">
-          Aktuell: {product.current_stock} {product.unit}
-          {matchedItem && <span className="ml-2 text-sky-600">· Bestellung gefunden</span>}
-        </p>
+        <p className="text-lg font-bold text-slate-800 mb-2">{product.name}</p>
+        <div className="flex items-center gap-2">
+          <span className={`text-2xl font-bold ${stock.color}`}>
+            {product.current_stock}
+            <span className="text-sm font-normal text-slate-400 ml-1">{product.unit}</span>
+          </span>
+          <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${stock.bg} ${stock.color} border ${stock.border}`}>
+            {stock.label}
+          </span>
+          {matchedItem && (
+            <span className="text-xs bg-sky-50 text-sky-600 border border-sky-200 px-2.5 py-1 rounded-full font-medium">
+              Bestellung gefunden
+            </span>
+          )}
+        </div>
       </div>
       <div className="px-4 py-3 space-y-3">
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">Menge</label>
-          <div className="flex items-center gap-3">
-            <input type="text" inputMode="numeric" pattern="[0-9]*" value={quantity}
-              onChange={e => onChange(e.target.value)}
-              className="w-24 border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500"
-            />
-            {product.last_price != null && (
-              <div className="text-sm text-slate-500">
-                <span>€ {product.last_price.toFixed(2)} / {product.unit}</span>
-                {(parseInt(quantity) || 0) > 0 && (
-                  <span className="ml-2 font-semibold text-slate-700">
-                    = € {((parseInt(quantity) || 0) * product.last_price).toFixed(2)}
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
+          <label className="block text-xs font-medium text-slate-600 mb-1.5">Menge</label>
+          <input
+            type="text" inputMode="numeric" pattern="[0-9]*" value={quantity}
+            onChange={e => onChange(e.target.value)}
+            className="w-28 border border-slate-300 rounded-lg px-3 py-2.5 text-lg font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500"
+          />
         </div>
         <div className="flex gap-2">
           <button onClick={onConfirm}
-            className="flex-1 bg-sky-500 hover:bg-sky-600 text-white rounded-xl py-2.5 text-sm font-medium">
+            className="flex-1 bg-sky-500 hover:bg-sky-600 text-white rounded-xl py-3 text-sm font-semibold">
             {mode === 'in' ? 'Einbuchen' : 'Entnehmen'}
           </button>
           <button onClick={onCancel}
-            className="px-4 border border-slate-300 rounded-xl text-sm text-slate-600">
+            className="px-4 border border-slate-300 rounded-xl text-sm text-slate-600 hover:bg-slate-50">
             Abbrechen
           </button>
         </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Toast (slides from top) ────────────────────────────────────
+function ScanToast({ message, onClose }: { message: string; onClose: () => void }) {
+  useEffect(() => {
+    const t = setTimeout(onClose, 5000)
+    return () => clearTimeout(t)
+  }, [message, onClose])
+
+  return (
+    <div className="fixed top-4 left-4 right-4 z-[100] flex justify-center pointer-events-none">
+      <div className="pointer-events-auto w-full max-w-md bg-slate-900 text-white rounded-2xl shadow-2xl px-4 py-4 flex items-start gap-3 animate-slide-in-down">
+        <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0 mt-0.5">
+          <Check size={16} className="text-emerald-400" />
+        </div>
+        <p className="flex-1 text-sm font-medium leading-snug">{message}</p>
+        <button onClick={onClose} className="text-white/50 hover:text-white transition-colors shrink-0">
+          <X size={16} />
+        </button>
       </div>
     </div>
   )

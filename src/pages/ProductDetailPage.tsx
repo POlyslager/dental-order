@@ -39,6 +39,7 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [lastScan, setLastScan] = useState<string | null>(null)
   const [categories, setCategories] = useState<string[]>([])
+  const [suppliers, setSuppliers] = useState<string[]>([])
 
   const status = stockStatus(form)
   const needsOrder = status === 'red' || status === 'orange'
@@ -76,6 +77,9 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
 
     supabase.from('products').select('category').then(({ data }) => {
       if (data) setCategories([...new Set(data.map(p => p.category))].sort())
+    })
+    supabase.from('products').select('preferred_supplier').not('preferred_supplier', 'is', null).then(({ data }) => {
+      if (data) setSuppliers([...new Set(data.map(p => p.preferred_supplier as string))].filter(Boolean).sort())
     })
   }, [product.id])
 
@@ -259,7 +263,16 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
               {editField('Beschreibung', 'description', 'textarea')}
               {editField('Notizen', 'notes', 'textarea')}
               <div className="border-t border-slate-100 pt-3 space-y-3">
-                {editField('Lieferant', 'preferred_supplier')}
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Lieferant</label>
+                  <CategorySelect
+                    value={form.preferred_supplier ?? ''}
+                    onChange={v => setForm(p => ({ ...p, preferred_supplier: v }))}
+                    categories={suppliers}
+                    placeholder="Lieferant suchen…"
+                    newLabel="als neuer Lieferant"
+                  />
+                </div>
                 {editField('Bestellwebsite', 'supplier_url', 'url')}
                 {editField('Hersteller-Website', 'producer_url', 'url')}
               </div>
