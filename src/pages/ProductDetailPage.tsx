@@ -39,6 +39,7 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
   const [added, setAdded] = useState(false)
   const [taken, setTaken] = useState(false)
   const [entnehmenQty, setEntnehmenQty] = useState(1)
+  const [inCart, setInCart] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [lastScan, setLastScan] = useState<string | null>(null)
   const [categories, setCategories] = useState<string[]>([])
@@ -83,6 +84,8 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
     supabase.from('products').select('preferred_supplier').not('preferred_supplier', 'is', null).then(({ data }) => {
       if (data) setSuppliers([...new Set(data.map(p => p.preferred_supplier as string))].filter(Boolean).sort())
     })
+    supabase.from('cart_items').select('id').eq('product_id', product.id).maybeSingle()
+      .then(({ data }) => setInCart(!!data))
   }, [product.id])
 
   async function handleSave() {
@@ -128,6 +131,7 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
 
   async function handleAddToCart() {
     await onAddToCart(product.id, parseInt(orderQty) || 1)
+    setInCart(true)
     if (onCartItemAdded) {
       onCartItemAdded(product.name)
     } else {
@@ -277,34 +281,43 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
 
               {/* ── Bestellen ── */}
               <div className="px-4 pt-4 pb-3">
-                <p className={`text-xs font-semibold uppercase tracking-wide mb-3 ${status === 'red' ? 'text-red-600' : status === 'orange' ? 'text-amber-600' : 'text-slate-500'}`}>
+                <p className={`text-xs font-semibold uppercase tracking-wide mb-3 ${inCart ? 'text-slate-300' : status === 'red' ? 'text-red-600' : status === 'orange' ? 'text-amber-600' : 'text-slate-500'}`}>
                   Bestellen
                 </p>
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden shrink-0">
-                    <button onClick={() => setOrderQty(q => String(Math.max(1, (parseInt(q) || 1) - 1)))}
-                      className="w-9 h-10 flex items-center justify-center text-slate-500 hover:bg-slate-50 transition-colors">
-                      <Minus size={14} />
-                    </button>
-                    <span className="w-10 text-center text-sm font-semibold text-slate-800 select-none">{orderQty}</span>
-                    <button onClick={() => setOrderQty(q => String((parseInt(q) || 0) + 1))}
-                      className="w-9 h-10 flex items-center justify-center text-slate-500 hover:bg-slate-50 transition-colors">
-                      <Plus size={14} />
+                {inCart ? (
+                  <div className="flex items-center gap-2 py-2">
+                    <div className="w-8 h-8 rounded-full bg-sky-100 flex items-center justify-center shrink-0">
+                      <ShoppingCart size={14} className="text-sky-500" />
+                    </div>
+                    <p className="text-sm text-slate-400">Artikel ist bereits im Warenkorb</p>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden shrink-0">
+                      <button onClick={() => setOrderQty(q => String(Math.max(1, (parseInt(q) || 1) - 1)))}
+                        className="w-9 h-10 flex items-center justify-center text-slate-500 hover:bg-slate-50 transition-colors">
+                        <Minus size={14} />
+                      </button>
+                      <span className="w-10 text-center text-sm font-semibold text-slate-800 select-none">{orderQty}</span>
+                      <button onClick={() => setOrderQty(q => String((parseInt(q) || 0) + 1))}
+                        className="w-9 h-10 flex items-center justify-center text-slate-500 hover:bg-slate-50 transition-colors">
+                        <Plus size={14} />
+                      </button>
+                    </div>
+                    {form.last_price != null ? (
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-slate-400">€ {Number(form.last_price).toFixed(2)} / {form.unit}</p>
+                        <p className="text-sm font-bold text-slate-800">€ {((parseInt(orderQty) || 0) * Number(form.last_price)).toFixed(2)}</p>
+                      </div>
+                    ) : <div className="flex-1" />}
+                    <button onClick={handleAddToCart}
+                      className={`w-11 h-11 flex items-center justify-center rounded-xl transition-colors shrink-0 ${
+                        added ? 'bg-emerald-100 text-emerald-600' : 'bg-sky-500 hover:bg-sky-600 text-white'
+                      }`}>
+                      {added ? <Check size={20} /> : <ShoppingCart size={20} />}
                     </button>
                   </div>
-                  {form.last_price != null ? (
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-slate-400">€ {Number(form.last_price).toFixed(2)} / {form.unit}</p>
-                      <p className="text-sm font-bold text-slate-800">€ {((parseInt(orderQty) || 0) * Number(form.last_price)).toFixed(2)}</p>
-                    </div>
-                  ) : <div className="flex-1" />}
-                  <button onClick={handleAddToCart}
-                    className={`w-11 h-11 flex items-center justify-center rounded-xl transition-colors shrink-0 ${
-                      added ? 'bg-emerald-100 text-emerald-600' : 'bg-sky-500 hover:bg-sky-600 text-white'
-                    }`}>
-                    {added ? <Check size={20} /> : <ShoppingCart size={20} />}
-                  </button>
-                </div>
+                )}
               </div>
 
               {/* ── Entnehmen (only when in stock) ── */}
