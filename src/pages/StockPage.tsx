@@ -14,7 +14,7 @@ const SCAN_FORMATS = [
   Html5QrcodeSupportedFormats.UPC_A, Html5QrcodeSupportedFormats.UPC_EAN_EXTENSION,
 ]
 
-interface Props { role: Role | null; initialBarcode?: string | null; onBarcodeConsumed?: () => void }
+interface Props { role: Role | null; initialBarcode?: string | null; onBarcodeConsumed?: () => void; onNavigateToOrders?: () => void }
 
 const EMPTY_FORM = {
   article_number: '', name: '', description: '', category: '', barcode: '',
@@ -28,7 +28,7 @@ const STORAGE_LOCATIONS = [
 ]
 const UNITS = ['Stück', 'Packung', 'Flasche', 'Kanister']
 
-export default function StockPage({ role: _role, initialBarcode, onBarcodeConsumed }: Props) {
+export default function StockPage({ role: _role, initialBarcode, onBarcodeConsumed, onNavigateToOrders }: Props) {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -50,6 +50,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
   const [closingProduct, setClosingProduct] = useState(false)
   const [duplicateProduct, setDuplicateProduct] = useState<Product | null>(null)
   const [cartToast, setCartToast] = useState<string | null>(null)
+  const [cartToastAction, setCartToastAction] = useState<(() => void) | null>(null)
   const [suppliers, setSuppliers] = useState<string[]>([])
   const scannerRef = useRef<Html5Qrcode | null>(null)
 
@@ -218,6 +219,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
     setShowForm(false)
     setSaving(false)
     fetchProducts()
+    setCartToastAction(null)
     setCartToast(`${addedName} wurde zum Inventar hinzugefügt`)
   }
 
@@ -433,12 +435,14 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
       setProducts(prev => prev.filter(p => p.id !== id))
       fetchProducts()
       closeProduct()
+      setCartToastAction(null)
       setCartToast(`${name} wurde gelöscht`)
     },
     onAddToCart: addToCart,
     onCartItemAdded: (name: string) => {
       closeProduct()
       setCartToast(`${name} wurde zum Warenkorb hinzugefügt`)
+      setCartToastAction(onNavigateToOrders ? () => onNavigateToOrders() : null)
     },
   } : null
 
@@ -657,7 +661,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
       )}
 
       {/* Cart toast */}
-      {cartToast && <CartToast message={cartToast} onClose={() => setCartToast(null)} />}
+      {cartToast && <CartToast message={cartToast} onClose={() => setCartToast(null)} onNavigate={cartToastAction ?? undefined} />}
 
       {/* Duplicate barcode modal */}
       {duplicateProduct && (
@@ -827,7 +831,7 @@ function SearchableSelect({ value, onChange, options, allLabel }: {
 }
 
 // ── Cart toast ───────────────────────────────────────────────────────────────
-function CartToast({ message, onClose }: { message: string; onClose: () => void }) {
+function CartToast({ message, onClose, onNavigate }: { message: string; onClose: () => void; onNavigate?: () => void }) {
   useEffect(() => {
     const t = setTimeout(onClose, 5000)
     return () => clearTimeout(t)
@@ -839,6 +843,12 @@ function CartToast({ message, onClose }: { message: string; onClose: () => void 
           <Check size={16} className="text-emerald-400" />
         </div>
         <p className="flex-1 text-sm font-medium leading-snug">{message}</p>
+        {onNavigate && (
+          <button onClick={() => { onNavigate(); onClose() }}
+            className="text-sky-400 hover:text-sky-300 text-xs font-medium whitespace-nowrap transition-colors shrink-0">
+            Zur Bestellung →
+          </button>
+        )}
         <button onClick={onClose} className="text-white/50 hover:text-white transition-colors shrink-0">
           <X size={16} />
         </button>

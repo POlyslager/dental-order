@@ -290,7 +290,7 @@ export default function Dashboard({ user }: Props) {
               ? <TermsPage onBack={() => setShowTerms(false)} />
               : <>
                   {tab === 'overview' && <OverviewPage />}
-                  {tab === 'stock'    && <StockPage role={role} initialBarcode={pendingBarcode} onBarcodeConsumed={() => setPendingBarcode(null)} />}
+                  {tab === 'stock'    && <StockPage role={role} initialBarcode={pendingBarcode} onBarcodeConsumed={() => setPendingBarcode(null)} onNavigateToOrders={() => setTab('orders')} />}
                   {tab === 'scan'     && <ScanPage onAddWithBarcode={handleAddWithBarcode} onSubview={() => {}} />}
                   {tab === 'orders'   && <OrdersPage role={role} user={user} onBadgeChange={setOrderBadge} />}
                 </>

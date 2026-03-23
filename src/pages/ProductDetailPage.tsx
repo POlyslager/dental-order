@@ -37,6 +37,8 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
   const [orderQty, setOrderQty] = useState(String(fallbackQty))
   const [added, setAdded] = useState(false)
   const [taken, setTaken] = useState(false)
+  const [takeModal, setTakeModal] = useState(false)
+  const [takeQty, setTakeQty] = useState('1')
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [lastScan, setLastScan] = useState<string | null>(null)
   const [categories, setCategories] = useState<string[]>([])
@@ -135,7 +137,9 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
   }
 
   async function handleTake() {
-    const qty = parseInt(orderQty) || 1
+    const qty = Math.min(parseInt(takeQty) || 1, Number(form.current_stock))
+    if (qty <= 0) return
+    setTakeModal(false)
     const { data: fresh } = await supabase.from('products').select('current_stock').eq('id', product.id).single()
     const newStock = Math.max(0, (fresh?.current_stock ?? Number(form.current_stock)) - qty)
     await supabase.from('products').update({ current_stock: newStock }).eq('id', product.id)
@@ -286,7 +290,7 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
                     <p className="text-sm font-bold text-slate-800">€ {((parseInt(orderQty) || 0) * Number(form.last_price)).toFixed(2)}</p>
                   </div>
                 )}
-                <button onClick={handleTake}
+                <button onClick={() => { setTakeQty('1'); setTakeModal(true) }}
                   title="Entnehmen"
                   className={`w-11 h-11 flex items-center justify-center rounded-xl transition-colors shrink-0 ${
                     taken ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
@@ -407,6 +411,41 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
             className="flex-1 bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white rounded-xl py-3 text-sm font-medium">
             {saving ? 'Speichern…' : 'Speichern'}
           </button>
+        </div>
+      )}
+
+      {/* Entnehmen modal */}
+      {takeModal && (
+        <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-xs w-full p-6 animate-slide-in-up">
+            <h3 className="font-semibold text-slate-800 text-lg mb-1">Entnehmen</h3>
+            <p className="text-sm text-slate-500 mb-4">
+              Verfügbar: <span className="font-medium text-slate-700">{form.current_stock} {form.unit}</span>
+            </p>
+            <input
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={takeQty}
+              onChange={e => {
+                const v = e.target.value.replace(/\D/g, '')
+                const n = parseInt(v) || 0
+                setTakeQty(String(Math.min(n, Number(form.current_stock)) || v === '' ? v : String(Math.min(n, Number(form.current_stock)))))
+              }}
+              className="w-full border border-slate-300 rounded-xl px-4 py-3 text-2xl font-bold text-center focus:outline-none focus:ring-2 focus:ring-sky-500 mb-4"
+              autoFocus
+            />
+            <div className="flex gap-3">
+              <button onClick={() => setTakeModal(false)}
+                className="flex-1 border border-slate-300 rounded-xl py-3 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
+                Abbrechen
+              </button>
+              <button onClick={handleTake} disabled={!parseInt(takeQty) || parseInt(takeQty) > Number(form.current_stock)}
+                className="flex-1 bg-slate-700 hover:bg-slate-800 disabled:opacity-40 text-white rounded-xl py-3 text-sm font-medium transition-colors">
+                Entnehmen
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
