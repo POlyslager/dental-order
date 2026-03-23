@@ -142,6 +142,10 @@ export default function OrdersPage({ role, user, onBadgeChange }: Props) {
     }).catch(() => null)
 
     setPlacingItem(null)
+    showToast(needsApproval
+      ? `${item.product?.name ?? 'Artikel'} zur Genehmigung eingereicht`
+      : `${item.product?.name ?? 'Artikel'} als bestellt markiert`
+    )
     await Promise.all([fetchCart(), fetchOrders()])
   }
 
