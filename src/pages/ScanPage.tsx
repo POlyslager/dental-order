@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
 import { supabase, getCurrentUser } from '../lib/supabase'
 import type { Order, Product } from '../lib/types'
-import { Plus, Check, X, PackageCheck, ScanLine, Search, ShoppingCart, ChevronLeft } from 'lucide-react'
+import { Plus, Check, X, PackageCheck, ScanLine, Search, ShoppingCart, ChevronLeft, ChevronRight } from 'lucide-react'
 
 type ScanMode = 'in' | 'out'
 type View = 'home' | 'scanner' | 'search'
