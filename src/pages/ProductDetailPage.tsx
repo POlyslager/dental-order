@@ -34,7 +34,7 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
   const [form, setForm] = useState(product)
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
-  const fallbackQty = Math.max(1, Math.ceil(product.min_stock * 1.5))
+  const fallbackQty = Math.max(1, (product.min_stock ?? 0) - (product.current_stock ?? 0))
   const [orderQty, setOrderQty] = useState(String(fallbackQty))
   const [added, setAdded] = useState(false)
   const [taken, setTaken] = useState(false)
