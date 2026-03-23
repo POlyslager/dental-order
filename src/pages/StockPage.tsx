@@ -172,8 +172,18 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
   }
 
   async function fetchCartProductIds() {
-    const { data } = await supabase.from('cart_items').select('product_id')
-    setCartProductIds(new Set((data ?? []).map(i => i.product_id)))
+    const [{ data: cartData }, { data: openOrders }] = await Promise.all([
+      supabase.from('cart_items').select('product_id'),
+      supabase.from('orders').select('id').in('status', ['pending_approval', 'ordered']),
+    ])
+    const ids = new Set((cartData ?? []).map(i => i.product_id))
+    const openOrderIds = (openOrders ?? []).map(o => o.id)
+    if (openOrderIds.length > 0) {
+      const { data: orderItems } = await supabase
+        .from('order_items').select('product_id').in('order_id', openOrderIds)
+      ;(orderItems ?? []).forEach(i => ids.add(i.product_id))
+    }
+    setCartProductIds(ids)
   }
 
   useEffect(() => { fetchProducts(); fetchSuppliers(); fetchCartProductIds() }, [])
