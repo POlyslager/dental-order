@@ -444,6 +444,12 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
       setCartToast(`${name} wurde zum Warenkorb hinzugefügt`)
       setCartToastAction(onNavigateToOrders ? () => onNavigateToOrders() : null)
     },
+    onItemTaken: (name: string) => {
+      closeProduct()
+      setCartToastAction(null)
+      setCartToast(`${name} wurde entnommen`)
+      fetchProducts()
+    },
   } : null
 
   return (

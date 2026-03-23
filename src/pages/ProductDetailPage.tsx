@@ -26,10 +26,11 @@ interface Props {
   onDeleted: (id: string) => void
   onAddToCart: (productId: string, qty: number) => Promise<void>
   onCartItemAdded?: (name: string) => void
+  onItemTaken?: (name: string) => void
   isModal?: boolean
 }
 
-export default function ProductDetailPage({ product, onBack, onUpdated, onDeleted, onAddToCart, onCartItemAdded, isModal }: Props) {
+export default function ProductDetailPage({ product, onBack, onUpdated, onDeleted, onAddToCart, onCartItemAdded, onItemTaken, isModal }: Props) {
   const [form, setForm] = useState(product)
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -149,10 +150,14 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
       scanned_by: user?.id ?? '',
       notes: 'Entnommen über Artikeldetails',
     })
-    setForm(f => ({ ...f, current_stock: newStock }))
-    setEntnehmenQty(1)
-    setTaken(true)
-    setTimeout(() => setTaken(false), 2000)
+    if (onItemTaken) {
+      onItemTaken(product.name)
+    } else {
+      setForm(f => ({ ...f, current_stock: newStock }))
+      setEntnehmenQty(1)
+      setTaken(true)
+      setTimeout(() => setTaken(false), 2000)
+    }
   }
 
   const inputCls = 'w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500'
