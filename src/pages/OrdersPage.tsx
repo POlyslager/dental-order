@@ -286,16 +286,21 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
           Offen
         </TabButton>
         {tab === 'open' && (
-          <button
-            onClick={handleToggleScan}
-            className={`ml-auto flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors shrink-0 ${
-              scanToggle
-                ? 'bg-emerald-500 hover:bg-emerald-600 text-white'
-                : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
-            }`}
-          >
-            <ScanLine size={13} /> {scanToggle ? 'Scan aktiv' : 'Scannen'}
-          </button>
+          <div className="ml-auto flex items-center gap-2 shrink-0">
+            <ScanLine size={14} className={scanToggle ? 'text-emerald-500' : 'text-slate-400'} />
+            <button
+              role="switch"
+              aria-checked={scanToggle}
+              onClick={handleToggleScan}
+              className={`relative w-10 h-6 rounded-full transition-colors duration-200 focus:outline-none ${
+                scanToggle ? 'bg-emerald-500' : 'bg-slate-200'
+              }`}
+            >
+              <span className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${
+                scanToggle ? 'translate-x-4' : 'translate-x-0'
+              }`} />
+            </button>
+          </div>
         )}
       </div>
 
