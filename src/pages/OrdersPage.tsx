@@ -34,6 +34,7 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
   const [receiving, setReceiving] = useState<string | null>(null)
   const einbuchenScannerRef = useRef<Html5Qrcode | null>(null)
   const scanToggleRef = useRef(false)
+  const prevTabRef = useRef<'cart' | 'open'>('cart')
   const EINBUCHEN_SCAN_DIV = 'einbuchen-scanner-div'
   const [dragPos, setDragPos] = useState(() => ({
     x: typeof window !== 'undefined' ? Math.max(16, Math.floor(window.innerWidth / 2) - 160) : 16,
@@ -58,13 +59,14 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
     }
   }, [forceScanMode])
 
-  // Stop scanner when switching away from open tab
+  // Stop scanner only when tab changes away FROM 'open' (not on initial mount)
   useEffect(() => {
-    if (tab !== 'open' && scanToggleRef.current) {
+    if (prevTabRef.current === 'open' && tab !== 'open' && scanToggleRef.current) {
       stopInlineScanner()
       setScanToggle(false)
       scanToggleRef.current = false
     }
+    prevTabRef.current = tab
   }, [tab])
 
   async function fetchCart() {
