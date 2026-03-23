@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import type { Product } from '../lib/types'
 import CategorySelect from '../components/CategorySelect'
 import {
-  ChevronLeft, Pencil, Trash2, ShoppingCart, Check, ExternalLink, X,
+  ChevronLeft, Pencil, Trash2, ShoppingCart, Check, ExternalLink, X, Minus,
 } from 'lucide-react'
 
 const STORAGE_LOCATIONS = [
@@ -36,6 +36,7 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
   const fallbackQty = Math.max(1, Math.ceil(product.min_stock * 1.5))
   const [orderQty, setOrderQty] = useState(String(fallbackQty))
   const [added, setAdded] = useState(false)
+  const [taken, setTaken] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [lastScan, setLastScan] = useState<string | null>(null)
   const [categories, setCategories] = useState<string[]>([])
@@ -103,6 +104,9 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
     }).eq('id', product.id).select().single()
     setSaving(false)
     if (!error && data) {
+      if (form.preferred_supplier) {
+        await supabase.from('suppliers').upsert({ name: form.preferred_supplier }, { onConflict: 'name' })
+      }
       onUpdated(data as Product)
       setEditing(false)
     }
@@ -128,6 +132,24 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
       setAdded(true)
       setTimeout(() => setAdded(false), 2000)
     }
+  }
+
+  async function handleTake() {
+    const qty = parseInt(orderQty) || 1
+    const { data: fresh } = await supabase.from('products').select('current_stock').eq('id', product.id).single()
+    const newStock = Math.max(0, (fresh?.current_stock ?? Number(form.current_stock)) - qty)
+    await supabase.from('products').update({ current_stock: newStock }).eq('id', product.id)
+    const { data: { user } } = await supabase.auth.getUser()
+    await supabase.from('stock_movements').insert({
+      product_id: product.id,
+      type: 'scan_out',
+      quantity: qty,
+      scanned_by: user?.id ?? '',
+      notes: 'Entnommen über Artikeldetails',
+    })
+    setForm(f => ({ ...f, current_stock: newStock }))
+    setTaken(true)
+    setTimeout(() => setTaken(false), 2000)
   }
 
   const inputCls = 'w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500'
@@ -264,7 +286,15 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
                     <p className="text-sm font-bold text-slate-800">€ {((parseInt(orderQty) || 0) * Number(form.last_price)).toFixed(2)}</p>
                   </div>
                 )}
+                <button onClick={handleTake}
+                  title="Entnehmen"
+                  className={`w-11 h-11 flex items-center justify-center rounded-xl transition-colors shrink-0 ${
+                    taken ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                  }`}>
+                  {taken ? <Check size={20} /> : <Minus size={20} />}
+                </button>
                 <button onClick={handleAddToCart}
+                  title="In den Warenkorb"
                   className={`w-11 h-11 flex items-center justify-center rounded-xl transition-colors shrink-0 ${
                     added ? 'bg-emerald-100 text-emerald-600' : 'bg-sky-500 hover:bg-sky-600 text-white'
                   }`}>

@@ -50,6 +50,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
   const [closingProduct, setClosingProduct] = useState(false)
   const [duplicateProduct, setDuplicateProduct] = useState<Product | null>(null)
   const [cartToast, setCartToast] = useState<string | null>(null)
+  const [suppliers, setSuppliers] = useState<string[]>([])
   const scannerRef = useRef<Html5Qrcode | null>(null)
 
   async function startBarcodeScanner() {
@@ -166,7 +167,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
     setTimeout(() => setAddedToCart(prev => { const s = new Set(prev); s.delete(productId); return s }), 2000)
   }
 
-  useEffect(() => { fetchProducts() }, [])
+  useEffect(() => { fetchProducts(); fetchSuppliers() }, [])
   useEffect(() => {
     if (initialBarcode) {
       setForm(f => ({ ...f, barcode: initialBarcode }))
@@ -179,6 +180,16 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
     const { data } = await supabase.from('products').select('*').order('name')
     setProducts(data ?? [])
     setLoading(false)
+  }
+
+  async function fetchSuppliers() {
+    const { data } = await supabase.from('suppliers').select('name').order('name')
+    if (data) setSuppliers(data.map(r => r.name))
+  }
+
+  async function upsertSupplier(name: string) {
+    if (!name) return
+    await supabase.from('suppliers').upsert({ name }, { onConflict: 'name' })
   }
 
   async function handleCreate(e: React.FormEvent) {
@@ -199,6 +210,10 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
       notes: form.notes || null,
     })
     const addedName = form.name
+    if (form.preferred_supplier) {
+      await upsertSupplier(form.preferred_supplier)
+      fetchSuppliers()
+    }
     setForm(EMPTY_FORM)
     setShowForm(false)
     setSaving(false)
@@ -207,7 +222,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
   }
 
   const categories = ['all', ...Array.from(new Set(products.map(p => p.category))).sort()]
-  const brands = Array.from(new Set(products.map(p => p.preferred_supplier).filter((s): s is string => !!s))).sort()
+  const brands = suppliers
 
   const stockHealth = {
     green:  products.filter(p => p.current_stock > p.min_stock * 1.5).length,
