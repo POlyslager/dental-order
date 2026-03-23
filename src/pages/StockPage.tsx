@@ -195,10 +195,12 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
       description: form.description || null,
       notes: form.notes || null,
     })
+    const addedName = form.name
     setForm(EMPTY_FORM)
     setShowForm(false)
     setSaving(false)
     fetchProducts()
+    setCartToast(`${addedName} wurde zum Inventar hinzugefügt`)
   }
 
   const categories = ['all', ...Array.from(new Set(products.map(p => p.category))).sort()]
@@ -409,8 +411,10 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
       setSelectedProduct(updated)
     },
     onDeleted: (id: string) => {
+      const name = selectedProduct.name
       setProducts(prev => prev.filter(p => p.id !== id))
       closeProduct()
+      setCartToast(`${name} wurde gelöscht`)
     },
     onAddToCart: addToCart,
     onCartItemAdded: (name: string) => {

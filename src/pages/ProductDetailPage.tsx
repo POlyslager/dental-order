@@ -109,9 +109,9 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
   }
 
   async function handleDelete() {
-    // Remove dependent records first to avoid FK constraint failures
     await supabase.from('stock_movements').delete().eq('product_id', product.id)
     await supabase.from('cart_items').delete().eq('product_id', product.id)
+    await supabase.from('order_items').delete().eq('product_id', product.id)
     const { error } = await supabase.from('products').delete().eq('id', product.id)
     if (!error) {
       onDeleted(product.id)
