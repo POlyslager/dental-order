@@ -557,7 +557,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
             <col style={{ width: '10%' }} />
             <col style={{ width: '9%' }} />
           </colgroup>
-          <thead>
+          <thead className="sticky top-0 z-10">
             <tr className="border-b border-slate-200 bg-white">
               <Th label="Name"      col="name"               onClick={toggleSort} SortIcon={SortIcon} />
               <Th label="Kategorie" col="category"           onClick={toggleSort} SortIcon={SortIcon} className="hidden md:table-cell" />
