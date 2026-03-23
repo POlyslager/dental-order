@@ -362,11 +362,8 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
           </div>
         </form>
       )}
-    </div>
-  )
 
-
-      {/* Duplicate barcode modal — rendered here so it works inside the early return */}
+      {/* Duplicate barcode modal */}
       {duplicateProduct && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 animate-fade-in">
           <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 animate-slide-in-up">
