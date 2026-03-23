@@ -301,17 +301,6 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
                   {added ? <Check size={20} /> : <ShoppingCart size={20} />}
                 </button>
               </div>
-              {/* Direct order link */}
-              {(form.supplier_url || form.producer_url) && (
-                <a
-                  href={(form.supplier_url || form.producer_url)!}
-                  target="_blank" rel="noopener noreferrer"
-                  className="mt-3 flex items-center gap-1.5 text-xs text-sky-600 hover:text-sky-700"
-                >
-                  <ExternalLink size={12} />
-                  {form.supplier_url ? 'Direkt bei Lieferant bestellen' : 'Hersteller-Website öffnen'}
-                </a>
-              )}
             </div>
           )}
         </div>
