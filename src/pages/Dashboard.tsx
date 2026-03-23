@@ -285,7 +285,7 @@ export default function Dashboard({ user }: Props) {
           className={`flex-1 ${menuOpen ? 'overflow-hidden' : 'overflow-y-auto'}`}
           style={{ overscrollBehavior: 'none' }}
         >
-          <div className="pb-20 md:pb-6">
+          <div className="pb-20 md:pb-0">
             {showTerms
               ? <TermsPage onBack={() => setShowTerms(false)} />
               : <>
