@@ -51,6 +51,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
   const [duplicateProduct, setDuplicateProduct] = useState<Product | null>(null)
   const [cartToast, setCartToast] = useState<string | null>(null)
   const [cartToastAction, setCartToastAction] = useState<(() => void) | null>(null)
+  const [cartToastUndo, setCartToastUndo] = useState<(() => void) | null>(null)
   const [suppliers, setSuppliers] = useState<string[]>([])
   const scannerRef = useRef<Html5Qrcode | null>(null)
 
@@ -220,6 +221,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
     setSaving(false)
     fetchProducts()
     setCartToastAction(null)
+    setCartToastUndo(null)
     setCartToast(`${addedName} wurde zum Inventar hinzugefügt`)
   }
 
@@ -431,22 +433,31 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
       setSelectedProduct(updated)
     },
     onDeleted: (id: string) => {
-      const name = selectedProduct.name
+      const deleted = { ...selectedProduct }
       setProducts(prev => prev.filter(p => p.id !== id))
       fetchProducts()
       closeProduct()
       setCartToastAction(null)
-      setCartToast(`${name} wurde gelöscht`)
+      setCartToastUndo(() => async () => {
+        const { created_at, updated_at, ...fields } = deleted as any
+        await supabase.from('products').insert(fields)
+        fetchProducts()
+        setCartToast(null)
+        setCartToastUndo(null)
+      })
+      setCartToast(`${deleted.name} wurde gelöscht`)
     },
     onAddToCart: addToCart,
     onCartItemAdded: (name: string) => {
       closeProduct()
+      setCartToastUndo(null)
       setCartToast(`${name} wurde zum Warenkorb hinzugefügt`)
       setCartToastAction(onNavigateToOrders ? () => onNavigateToOrders() : null)
     },
     onItemTaken: (name: string) => {
       closeProduct()
       setCartToastAction(null)
+      setCartToastUndo(null)
       setCartToast(`${name} wurde entnommen`)
       fetchProducts()
     },
@@ -665,7 +676,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
       )}
 
       {/* Cart toast */}
-      {cartToast && <CartToast message={cartToast} onClose={() => setCartToast(null)} onNavigate={cartToastAction ?? undefined} />}
+      {cartToast && <CartToast message={cartToast} onClose={() => { setCartToast(null); setCartToastUndo(null) }} onNavigate={cartToastAction ?? undefined} onUndo={cartToastUndo ?? undefined} />}
 
       {/* Duplicate barcode modal */}
       {duplicateProduct && (
@@ -835,7 +846,7 @@ function SearchableSelect({ value, onChange, options, allLabel }: {
 }
 
 // ── Cart toast ───────────────────────────────────────────────────────────────
-function CartToast({ message, onClose, onNavigate }: { message: string; onClose: () => void; onNavigate?: () => void }) {
+function CartToast({ message, onClose, onNavigate, onUndo }: { message: string; onClose: () => void; onNavigate?: () => void; onUndo?: () => void }) {
   useEffect(() => {
     const t = setTimeout(onClose, 5000)
     return () => clearTimeout(t)
@@ -847,6 +858,12 @@ function CartToast({ message, onClose, onNavigate }: { message: string; onClose:
           <Check size={16} className="text-emerald-400" />
         </div>
         <p className="flex-1 text-sm font-medium leading-snug">{message}</p>
+        {onUndo && (
+          <button onClick={() => { onUndo(); onClose() }}
+            className="text-sky-400 hover:text-sky-300 text-xs font-medium whitespace-nowrap transition-colors shrink-0">
+            Rückgängig
+          </button>
+        )}
         {onNavigate && (
           <button onClick={() => { onNavigate(); onClose() }}
             className="text-sky-400 hover:text-sky-300 text-xs font-medium whitespace-nowrap transition-colors shrink-0">
