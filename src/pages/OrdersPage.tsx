@@ -163,65 +163,49 @@ export default function OrdersPage({ role, user, onBadgeChange }: Props) {
             </div>
           ) : (
             <div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50">
-                      <th className="text-left px-4 py-2.5 text-xs font-medium text-slate-400">Artikel</th>
-                      <th className="text-center px-3 py-2.5 text-xs font-medium text-slate-400 whitespace-nowrap">Menge</th>
-                      <th className="text-right px-3 py-2.5 text-xs font-medium text-slate-400 whitespace-nowrap hidden sm:table-cell">Preis/Einheit</th>
-                      <th className="text-right px-3 py-2.5 text-xs font-medium text-slate-400 whitespace-nowrap">Gesamt</th>
-                      <th className="px-2 py-2.5 w-8"></th>
-                      <th className="px-3 py-2.5 text-xs font-medium text-slate-400 whitespace-nowrap text-right">Aktion</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Object.entries(cartByDomain).map(([domain, items]) => {
-                      const domainTotal = items.reduce((s, i) => s + (i.quantity * (i.product?.last_price ?? 0)), 0)
-                      const websiteUrl = items[0]?.product?.supplier_url ?? null
-                      return (
-                        <>
-                          {/* Domain section header row */}
-                          <tr key={`header-${domain}`} className="border-t border-slate-200 bg-slate-50/80">
-                            <td colSpan={6} className="px-4 py-2">
-                              <div className="flex items-center justify-between gap-3">
-                                <p className="font-semibold text-slate-700 text-sm">{domain}</p>
-                                <div className="flex items-center gap-3">
-                                  <span className="text-xs text-slate-400 hidden sm:inline">
-                                    Gesamt: <span className="font-semibold text-slate-700">€ {domainTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                                  </span>
-                                  {websiteUrl && (
-                                    <a
-                                      href={websiteUrl}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="flex items-center gap-1.5 text-xs text-sky-600 hover:text-sky-700 bg-sky-50 hover:bg-sky-100 px-2.5 py-1 rounded-lg transition-colors shrink-0"
-                                    >
-                                      <ExternalLink size={12} />
-                                      Website öffnen
-                                    </a>
-                                  )}
-                                </div>
-                              </div>
-                            </td>
-                          </tr>
-                          {/* Item rows */}
-                          {items.map(item => (
-                            <CartItemRow
-                              key={item.id}
-                              item={item}
-                              placing={placingItem === item.id}
-                              onUpdateQuantity={updateQuantity}
-                              onRemove={removeItem}
-                              onPlaceOrder={placeOrderForItem}
-                            />
-                          ))}
-                        </>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
+              <table className="w-full text-sm">
+                <tbody>
+                  {Object.entries(cartByDomain).map(([domain, items]) => {
+                    const domainTotal = items.reduce((s, i) => s + (i.quantity * (i.product?.last_price ?? 0)), 0)
+                    return (
+                      <>
+                        {/* Domain title row */}
+                        <tr key={`header-${domain}`} className="border-t border-slate-200 bg-slate-50">
+                          <td colSpan={7} className="px-4 py-2.5">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="font-semibold text-slate-800 text-sm">{domain}</p>
+                              <span className="text-xs text-slate-500 hidden sm:inline">
+                                Gesamt: <span className="font-semibold text-slate-700">€ {domainTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                        {/* Column headers row */}
+                        <tr key={`cols-${domain}`} className="border-b border-slate-100">
+                          <th className="text-left px-4 py-2 text-xs font-medium text-slate-400">Artikel</th>
+                          <th className="text-center px-3 py-2 text-xs font-medium text-slate-400 whitespace-nowrap">Menge</th>
+                          <th className="text-right px-3 py-2 text-xs font-medium text-slate-400 whitespace-nowrap hidden sm:table-cell">Preis/Einheit</th>
+                          <th className="text-right px-3 py-2 text-xs font-medium text-slate-400 whitespace-nowrap">Gesamt</th>
+                          <th className="px-2 py-2 w-8"></th>
+                          <th className="px-3 py-2 text-xs font-medium text-slate-400 whitespace-nowrap hidden sm:table-cell">Website</th>
+                          <th className="px-3 py-2 text-xs font-medium text-slate-400 whitespace-nowrap text-right">Aktion</th>
+                        </tr>
+                        {/* Item rows */}
+                        {items.map(item => (
+                          <CartItemRow
+                            key={item.id}
+                            item={item}
+                            placing={placingItem === item.id}
+                            onUpdateQuantity={updateQuantity}
+                            onRemove={removeItem}
+                            onPlaceOrder={placeOrderForItem}
+                          />
+                        ))}
+                      </>
+                    )
+                  })}
+                </tbody>
+              </table>
 
               {/* Grand total — only when multiple domains */}
               {Object.keys(cartByDomain).length > 1 && (
@@ -382,6 +366,23 @@ function CartItemRow({ item, placing, onUpdateQuantity, onRemove, onPlaceOrder }
           >
             <Trash2 size={14} />
           </button>
+        )}
+      </td>
+      {/* Website link */}
+      <td className="px-3 py-3 hidden sm:table-cell">
+        {item.product?.supplier_url ? (
+          <a
+            href={item.product.supplier_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={e => e.stopPropagation()}
+            className="flex items-center gap-1.5 text-xs text-sky-600 hover:text-sky-700 whitespace-nowrap"
+          >
+            <ExternalLink size={12} />
+            Website öffnen
+          </a>
+        ) : (
+          <span className="text-slate-200 text-xs">—</span>
         )}
       </td>
       {/* Per-row order action */}
