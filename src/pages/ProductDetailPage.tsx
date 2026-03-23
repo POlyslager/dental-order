@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Product } from '../lib/types'
 import CategorySelect from '../components/CategorySelect'
@@ -42,6 +42,9 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
   const [entnehmenQty, setEntnehmenQty] = useState(1)
   const [inCart, setInCart] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [showDeleteSpinner, setShowDeleteSpinner] = useState(false)
+  const deleteSpinnerTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [lastScan, setLastScan] = useState<string | null>(null)
   const [categories, setCategories] = useState<string[]>([])
   const [suppliers, setSuppliers] = useState<string[]>([])
@@ -119,14 +122,23 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
   }
 
   async function handleDelete() {
-    const res = await fetch('/api/delete-product', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: product.id }),
-    })
-    if (res.ok) {
-      onDeleted(product.id)
-      onBack()
+    setDeleting(true)
+    setConfirmDelete(false)
+    deleteSpinnerTimer.current = setTimeout(() => setShowDeleteSpinner(true), 5000)
+    try {
+      const res = await fetch('/api/delete-product', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: product.id }),
+      })
+      if (res.ok) {
+        onDeleted(product.id)
+        onBack()
+      }
+    } finally {
+      if (deleteSpinnerTimer.current) clearTimeout(deleteSpinnerTimer.current)
+      setDeleting(false)
+      setShowDeleteSpinner(false)
     }
   }
 
@@ -205,6 +217,12 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
 
   return (
     <div className="min-h-full bg-slate-50 overflow-x-hidden">
+      {/* Slow operation spinner */}
+      {showDeleteSpinner && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30">
+          <div className="w-14 h-14 border-4 border-sky-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      )}
       {/* Sub-header */}
       <div className="bg-white border-b border-slate-200 px-4 py-3 flex items-center gap-2 sticky top-0 z-10">
         {/* Back button — non-modal only */}

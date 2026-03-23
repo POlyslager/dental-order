@@ -23,6 +23,8 @@ export default function EntnehmenScanModal({ onClose, onSuccess }: Props) {
   const [selected, setSelected] = useState<Product | null>(null)
   const [qty, setQty] = useState(1)
   const [taking, setTaking] = useState(false)
+  const [showSlowSpinner, setShowSlowSpinner] = useState(false)
+  const slowTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [scanActive, setScanActive] = useState(false)
   const scannerRef = useRef<Html5Qrcode | null>(null)
 
@@ -81,6 +83,7 @@ export default function EntnehmenScanModal({ onClose, onSuccess }: Props) {
   async function handleEntnehmen() {
     if (!selected) return
     setTaking(true)
+    slowTimer.current = setTimeout(() => setShowSlowSpinner(true), 5000)
     try {
       const res = await fetch('/api/take-item', {
         method: 'POST',
@@ -88,11 +91,20 @@ export default function EntnehmenScanModal({ onClose, onSuccess }: Props) {
         body: JSON.stringify({ productId: selected.id, quantity: qty }),
       })
       if (res.ok) { onSuccess(selected.name); onClose() }
-    } finally { setTaking(false) }
+    } finally {
+      if (slowTimer.current) clearTimeout(slowTimer.current)
+      setTaking(false)
+      setShowSlowSpinner(false)
+    }
   }
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40" onClick={onClose}>
+      {showSlowSpinner && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30">
+          <div className="w-14 h-14 border-4 border-sky-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      )}
       <div className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-4 border-b border-slate-100 shrink-0">

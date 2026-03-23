@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import type { CartItem, Order, OrderItem, Role } from '../lib/types'
-import { ShoppingCart, Package, Plus, Minus, CheckCircle, AlertCircle, ExternalLink, Check, Trash2, Undo2, ScanLine } from 'lucide-react'
+import { ShoppingCart, Package, Plus, Minus, CheckCircle, AlertCircle, ExternalLink, Check, Trash2, Undo2, ScanLine, X } from 'lucide-react'
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
 
 const APPROVAL_THRESHOLD = 2000
@@ -35,6 +35,12 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
   const einbuchenScannerRef = useRef<Html5Qrcode | null>(null)
   const scanToggleRef = useRef(false)
   const EINBUCHEN_SCAN_DIV = 'einbuchen-scanner-div'
+  const [dragPos, setDragPos] = useState(() => ({
+    x: typeof window !== 'undefined' ? Math.max(16, Math.floor(window.innerWidth / 2) - 160) : 16,
+    y: 90,
+  }))
+  const isDragging = useRef(false)
+  const dragOrigin = useRef({ mouseX: 0, mouseY: 0, posX: 0, posY: 0 })
 
   useEffect(() => {
     Promise.all([fetchCart(), fetchOrders()])
@@ -284,6 +290,39 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
     if (!next) stopInlineScanner()
   }
 
+  // Global drag handlers
+  useEffect(() => {
+    function onMove(e: MouseEvent | TouchEvent) {
+      if (!isDragging.current) return
+      e.preventDefault()
+      const point = 'touches' in e ? (e as TouchEvent).touches[0] : e as MouseEvent
+      const dx = point.clientX - dragOrigin.current.mouseX
+      const dy = point.clientY - dragOrigin.current.mouseY
+      setDragPos({
+        x: Math.max(0, Math.min(window.innerWidth - 320, dragOrigin.current.posX + dx)),
+        y: Math.max(0, Math.min(window.innerHeight - 80, dragOrigin.current.posY + dy)),
+      })
+    }
+    function onEnd() { isDragging.current = false }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('touchmove', onMove, { passive: false })
+    window.addEventListener('mouseup', onEnd)
+    window.addEventListener('touchend', onEnd)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('touchmove', onMove)
+      window.removeEventListener('mouseup', onEnd)
+      window.removeEventListener('touchend', onEnd)
+    }
+  }, [])
+
+  function onDragStart(e: React.MouseEvent | React.TouchEvent) {
+    e.preventDefault()
+    const point = 'touches' in e ? e.touches[0] : e
+    isDragging.current = true
+    dragOrigin.current = { mouseX: point.clientX, mouseY: point.clientY, posX: dragPos.x, posY: dragPos.y }
+  }
+
   // Start scanner when toggle turns on (and no confirm showing)
   useEffect(() => {
     if (scanToggle && !scanConfirm) startInlineScanner()
@@ -403,13 +442,6 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
         {/* ── Open orders tab ── */}
         {tab === 'open' && (
           <>
-          {/* Inline scanner */}
-          {scanToggle && (
-            <div className="bg-slate-900 px-4 pt-3 pb-4">
-              <div id={EINBUCHEN_SCAN_DIV} className="w-full rounded-xl overflow-hidden" style={{ minHeight: 220 }} />
-              <p className="text-center text-xs text-slate-400 mt-2">Halte einen Barcode vor die Kamera</p>
-            </div>
-          )}
           {loading ? (
             <div className="flex justify-center py-16 px-4">
               <div className="w-6 h-6 border-4 border-sky-500 border-t-transparent rounded-full animate-spin" />
@@ -482,35 +514,66 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
         </div></div>
       )}
 
-      {/* ── Scan confirm modal ── */}
-      {scanConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => setScanConfirm(null)}>
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
-            <h3 className="font-semibold text-slate-800 text-base mb-1">Artikel gefunden</h3>
-            <p className="text-sm text-slate-500 mb-1">Juist artikel gescand?</p>
-            <div className="bg-slate-50 rounded-xl px-4 py-3 mb-5">
-              <p className="font-semibold text-slate-800">{scanConfirm.item.product?.name ?? '—'}</p>
-              <p className="text-xs text-slate-400 mt-0.5">
-                {scanConfirm.order.supplier ?? 'Lieferant'} · al gescand: {scannedCounts[scanConfirm.item.id] ?? 0}/{scanConfirm.item.quantity}
-              </p>
+      {/* ── Draggable scan modal ── */}
+      {scanToggle && (
+        <div
+          className="fixed z-50 bg-white rounded-2xl shadow-2xl overflow-hidden select-none"
+          style={{ left: dragPos.x, top: dragPos.y, width: 320 }}
+        >
+          {/* Drag handle */}
+          <div
+            className="flex items-center justify-between px-4 py-3 bg-slate-800 cursor-grab active:cursor-grabbing touch-none"
+            onMouseDown={onDragStart}
+            onTouchStart={onDragStart}
+          >
+            <div className="flex items-center gap-2">
+              <ScanLine size={15} className="text-slate-400" />
+              <span className="text-white text-sm font-medium">Scannen</span>
             </div>
-            <div className="flex gap-3">
-              <button onClick={() => setScanConfirm(null)}
-                className="flex-1 px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors">
-                Abbrechen
-              </button>
-              <button
-                onClick={async () => {
-                  const { item, order } = scanConfirm
-                  setScanConfirm(null)
-                  await scanReceiveUnit(item, order)
-                }}
-                className="flex-1 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium transition-colors"
-              >
-                Bevestigen (+1)
-              </button>
-            </div>
+            <button
+              onMouseDown={e => e.stopPropagation()}
+              onTouchStart={e => e.stopPropagation()}
+              onClick={handleToggleScan}
+              className="text-slate-400 hover:text-white transition-colors p-1 rounded"
+            >
+              <X size={16} />
+            </button>
           </div>
+
+          {/* Camera */}
+          <div id={EINBUCHEN_SCAN_DIV} className="w-full bg-slate-900" style={{ minHeight: 220 }} />
+          {!scanConfirm && (
+            <p className="text-center text-xs text-slate-400 py-2 bg-slate-900">Halte barcode voor de camera</p>
+          )}
+
+          {/* Confirm panel */}
+          {scanConfirm && (
+            <div className="p-4 border-t border-slate-100">
+              <p className="text-xs text-slate-500 mb-1.5">Juist artikel gescand?</p>
+              <p className="font-semibold text-slate-800 text-sm leading-snug">{scanConfirm.item.product?.name ?? '—'}</p>
+              <p className="text-xs text-slate-400 mt-0.5 mb-4">
+                {scanConfirm.order.supplier ?? 'Lieferant'} · gescand: {scannedCounts[scanConfirm.item.id] ?? 0}/{scanConfirm.item.quantity}
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setScanConfirm(null)}
+                  className="flex-1 px-3 py-2 rounded-xl border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors"
+                >
+                  Niet juist
+                </button>
+                <button
+                  onClick={async () => {
+                    const { item, order } = scanConfirm
+                    setScanConfirm(null)
+                    await scanReceiveUnit(item, order)
+                  }}
+                  className="flex-1 px-3 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium transition-colors"
+                >
+                  +1 bevestigen
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
