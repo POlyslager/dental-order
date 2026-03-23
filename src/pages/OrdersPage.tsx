@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
-import type { CartItem, Order, Role } from '../lib/types'
-import { ShoppingCart, Package, Plus, Minus, ChevronRight, CheckCircle, AlertCircle, ExternalLink } from 'lucide-react'
+import type { CartItem, Order, OrderItem, Role } from '../lib/types'
+import { ShoppingCart, Package, Plus, Minus, CheckCircle, AlertCircle, ExternalLink, Check } from 'lucide-react'
 
 const APPROVAL_THRESHOLD = 2000
 
@@ -120,26 +120,6 @@ export default function OrdersPage({ role, user, onBadgeChange }: Props) {
     fetchOrders()
   }
 
-  async function markReceived(order: Order) {
-    for (const item of order.items ?? []) {
-      if (!item.product_id) continue
-      // Re-fetch current stock to avoid stale data
-      const { data: fresh } = await supabase
-        .from('products').select('current_stock').eq('id', item.product_id).single()
-      const currentStock = fresh?.current_stock ?? 0
-      await supabase.from('products')
-        .update({ current_stock: currentStock + item.quantity })
-        .eq('id', item.product_id)
-      await supabase.from('stock_movements').insert({
-        product_id: item.product_id,
-        type: 'manual_in',
-        quantity: item.quantity,
-        scanned_by: user.id,
-      })
-    }
-    await supabase.from('orders').update({ status: 'received' }).eq('id', order.id)
-    fetchOrders()
-  }
 
   const openCount = orders.length
   const cartCount = cartItems.length
@@ -235,30 +215,17 @@ export default function OrdersPage({ role, user, onBadgeChange }: Props) {
               <p className="text-slate-400 text-sm">Keine offenen Bestellungen</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-white">
-                    <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide px-4 py-3">Lieferant</th>
-                    <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 hidden sm:table-cell">Datum</th>
-                    <th className="text-center text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 hidden md:table-cell">Artikel</th>
-                    <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3">Gesamt</th>
-                    <th className="text-center text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3">Status</th>
-                    <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3">Aktion</th>
-                  </tr>
-                </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {orders.map(order => (
-                      <OpenOrderRow
-                        key={order.id}
-                        order={order}
-                        role={role}
-                        onApprove={() => approveOrder(order.id)}
-                        onReceive={() => markReceived(order)}
-                      />
-                    ))}
-                  </tbody>
-                </table>
+            <div className="divide-y divide-slate-200">
+              {orders.map(order => (
+                <OpenOrderSection
+                  key={order.id}
+                  order={order}
+                  role={role}
+                  userId={user.id}
+                  onApprove={() => approveOrder(order.id)}
+                  onOrderReceived={fetchOrders}
+                />
+              ))}
             </div>
           )
         )}
@@ -404,91 +371,106 @@ function TabButton({ active, onClick, badge, children }: {
   )
 }
 
-// ── Open order row ─────────────────────────────────────────────────────────
-function OpenOrderRow({ order, role, onApprove, onReceive }: {
-  order: Order; role: Role | null; onApprove: () => void; onReceive: () => Promise<void>
+// ── Open order section ─────────────────────────────────────────────────────
+function OpenOrderSection({ order, role, userId, onApprove, onOrderReceived }: {
+  order: Order; role: Role | null; userId: string
+  onApprove: () => void; onOrderReceived: () => void
 }) {
-  const [expanded, setExpanded] = useState(false)
-  const [receiving, setReceiving] = useState(false)
-  const isPending = order.status === 'pending_approval'
+  const [receivedIds, setReceivedIds] = useState<Set<string>>(new Set())
+  const [receivingId, setReceivingId] = useState<string | null>(null)
 
-  async function handleReceive() {
-    setReceiving(true)
-    await onReceive()
-    setReceiving(false)
+  const isPending = order.status === 'pending_approval'
+  const items = order.items ?? []
+  const domain = getDomain(items[0]?.product?.supplier_url) ?? order.supplier ?? 'Unbekannter Lieferant'
+
+  async function receiveItem(item: OrderItem) {
+    if (!item.product_id) return
+    setReceivingId(item.id)
+    const { data: fresh } = await supabase.from('products').select('current_stock').eq('id', item.product_id).single()
+    const currentStock = fresh?.current_stock ?? 0
+    await supabase.from('products').update({ current_stock: currentStock + item.quantity }).eq('id', item.product_id)
+    await supabase.from('stock_movements').insert({ product_id: item.product_id, type: 'manual_in', quantity: item.quantity, scanned_by: userId })
+    const newSet = new Set([...receivedIds, item.id])
+    setReceivedIds(newSet)
+    setReceivingId(null)
+    if (newSet.size === items.length) {
+      await supabase.from('orders').update({ status: 'received' }).eq('id', order.id)
+      onOrderReceived()
+    }
   }
 
   return (
-    <>
-      <tr className={`bg-white hover:bg-slate-50 transition-colors ${isPending ? 'bg-amber-50/30 hover:bg-amber-50/50' : ''}`}>
-        <td className="px-4 py-3.5">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setExpanded(e => !e)}
-              className="text-slate-300 hover:text-slate-500 transition-colors shrink-0"
-            >
-              <ChevronRight size={14} className={`transition-transform ${expanded ? 'rotate-90' : ''}`} />
-            </button>
-            <span className="font-medium text-slate-800">{order.supplier ?? 'Unbekannter Lieferant'}</span>
-          </div>
-        </td>
-        <td className="px-3 py-3 text-slate-500 whitespace-nowrap hidden sm:table-cell">
-          {new Date(order.created_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-        </td>
-        <td className="px-3 py-3 text-center text-slate-500 hidden md:table-cell">
-          {order.items?.length ?? 0}
-        </td>
-        <td className="px-3 py-3 text-right font-semibold text-slate-800 whitespace-nowrap">
-          {order.total_estimate != null
-            ? `€ ${order.total_estimate.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-            : '—'
-          }
-        </td>
-        <td className="px-3 py-3 text-center">
-          <span className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ${
+    <div className="px-4 pt-4 pb-5">
+      {/* Order header */}
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <p className="font-semibold text-slate-800">{domain}</p>
+          <span className="text-sm text-slate-400">
+            {new Date(order.created_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+          </span>
+          <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${
             isPending ? 'bg-amber-100 text-amber-700' : 'bg-sky-100 text-sky-700'
           }`}>
             {isPending ? 'Ausstehend' : 'Bestellt'}
           </span>
-        </td>
-        <td className="px-3 py-3">
-          <div className="flex items-center justify-end gap-2">
-            {isPending && role === 'admin' && (
-              <button
-                onClick={onApprove}
-                className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
-              >
-                <CheckCircle size={13} /> Genehmigen
-              </button>
-            )}
-            {order.status === 'ordered' && (
-              <button
-                onClick={handleReceive}
-                disabled={receiving}
-                className="flex items-center gap-1.5 bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
-              >
-                <Package size={13} /> {receiving ? 'Wird verarbeitet…' : 'Lieferung erhalten'}
-              </button>
-            )}
-          </div>
-        </td>
-      </tr>
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          {order.total_estimate != null && (
+            <span className="font-semibold text-slate-800 whitespace-nowrap">
+              € {order.total_estimate.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+          )}
+          {isPending && role === 'admin' && (
+            <button onClick={onApprove}
+              className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap">
+              <CheckCircle size={12} /> Genehmigen
+            </button>
+          )}
+        </div>
+      </div>
 
-      {/* Expanded items */}
-      {expanded && (
-        <tr className={isPending ? 'bg-amber-50/20' : 'bg-slate-50/50'}>
-          <td colSpan={6} className="px-4 pb-3 pt-0">
-            <div className="ml-6 space-y-1">
-              {order.items?.map(item => (
-                <div key={item.id} className="flex items-center justify-between text-sm py-0.5">
-                  <span className="text-slate-600">{item.product?.name ?? '—'}</span>
-                  <span className="text-slate-400 shrink-0 ml-4">{item.quantity}×</span>
-                </div>
-              ))}
-            </div>
-          </td>
-        </tr>
-      )}
-    </>
+      {/* Products table */}
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-slate-200 bg-white">
+            <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide px-4 py-2.5">Produkt</th>
+            <th className="text-center text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-2.5">Menge</th>
+            <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-2.5">Aktion</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {items.map(item => {
+            const done = receivedIds.has(item.id)
+            return (
+              <tr key={item.id} className={`transition-colors ${done ? 'bg-emerald-50/50' : 'bg-white hover:bg-slate-50'}`}>
+                <td className="px-4 py-3">
+                  <p className={`font-medium ${done ? 'text-slate-400' : 'text-slate-800'}`}>{item.product?.name ?? '—'}</p>
+                </td>
+                <td className="px-3 py-3 text-center text-slate-500">{item.quantity}×</td>
+                <td className="px-3 py-3 text-right">
+                  {done ? (
+                    <span className="flex items-center justify-end gap-1.5 text-xs text-emerald-600 font-medium">
+                      <Check size={13} /> Erhalten
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => receiveItem(item)}
+                      disabled={receivingId === item.id || isPending}
+                      className="flex items-center gap-1.5 bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap ml-auto"
+                    >
+                      {receivingId === item.id
+                        ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" />
+                        : <Package size={12} />
+                      }
+                      Lieferung erhalten
+                    </button>
+                  )}
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
   )
 }
