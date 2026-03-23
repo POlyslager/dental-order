@@ -301,7 +301,7 @@ export default function OrdersPage({ role, user, onBadgeChange }: Props) {
 
       {/* Toast */}
       {toast && (
-        <div className="fixed top-4 left-4 right-4 z-50 flex justify-center pointer-events-none"><div className="pointer-events-auto flex items-center gap-3 bg-slate-800 text-white text-sm font-medium px-4 py-3 rounded-2xl shadow-lg w-full max-w-md">
+        <div className="fixed top-4 left-4 right-4 z-50 flex justify-center pointer-events-none"><div className="pointer-events-auto flex items-center gap-3 bg-slate-800 text-white text-sm font-medium px-4 py-3 rounded-2xl shadow-lg max-w-[calc(100vw-2rem)]">
           <span>{toast.message}</span>
           {toast.onUndo && (
             <button
