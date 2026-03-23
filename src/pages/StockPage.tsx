@@ -5,7 +5,7 @@ import { supabase, getCurrentUser } from '../lib/supabase'
 import type { Product, Role } from '../lib/types'
 import ProductDetailPage from './ProductDetailPage'
 import CategorySelect from '../components/CategorySelect'
-import { Search, Plus, X, Camera, ChevronLeft, Activity, ChevronUp, ChevronDown, Package, PackageCheck, PackageX, TriangleAlert, Check } from 'lucide-react'
+import { Search, Plus, X, Camera, ChevronLeft, Activity, ChevronUp, ChevronDown, Package, PackageCheck, PackageX, TriangleAlert, Check, ShoppingCart } from 'lucide-react'
 
 const SCAN_FORMATS = [
   Html5QrcodeSupportedFormats.QR_CODE, Html5QrcodeSupportedFormats.DATA_MATRIX,
@@ -44,6 +44,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
   const [, setAddedToCart] = useState<Set<string>>(new Set())
+  const [cartProductIds, setCartProductIds] = useState<Set<string>>(new Set())
 
   const [scanning, setScanning] = useState(false)
   const [looking, setLooking] = useState(false)
@@ -167,9 +168,15 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
     }
     setAddedToCart(prev => new Set(prev).add(productId))
     setTimeout(() => setAddedToCart(prev => { const s = new Set(prev); s.delete(productId); return s }), 2000)
+    setCartProductIds(prev => new Set(prev).add(productId))
   }
 
-  useEffect(() => { fetchProducts(); fetchSuppliers() }, [])
+  async function fetchCartProductIds() {
+    const { data } = await supabase.from('cart_items').select('product_id')
+    setCartProductIds(new Set((data ?? []).map(i => i.product_id)))
+  }
+
+  useEffect(() => { fetchProducts(); fetchSuppliers(); fetchCartProductIds() }, [])
   useEffect(() => {
     if (initialBarcode) {
       setForm(f => ({ ...f, barcode: initialBarcode }))
@@ -592,7 +599,14 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
                 className={`bg-white hover:bg-slate-50 cursor-pointer transition-colors ${selectedProduct?.id === p.id ? 'bg-sky-50' : ''}`}
               >
                 <td className="px-4 py-3.5">
-                  <p className="text-sm font-semibold text-slate-800">{p.name}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-slate-800">{p.name}</p>
+                    {cartProductIds.has(p.id) && (
+                      <span className="hidden sm:inline-flex items-center gap-1 text-xs font-medium bg-sky-50 text-sky-600 px-2 py-0.5 rounded-full shrink-0">
+                        <ShoppingCart size={10} /> In Bestellung
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-slate-400 md:hidden mt-0.5">{p.category}</p>
                 </td>
                 <td className="hidden md:table-cell px-4 py-3.5 text-sm text-slate-500 truncate">{p.category}</td>

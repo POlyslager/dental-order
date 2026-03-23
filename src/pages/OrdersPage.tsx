@@ -301,7 +301,7 @@ export default function OrdersPage({ role, user, onBadgeChange }: Props) {
 
       {/* Toast */}
       {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-slate-800 text-white text-sm font-medium px-4 py-3 rounded-2xl shadow-lg">
+        <div className="fixed top-4 left-4 right-4 z-50 flex justify-center pointer-events-none"><div className="pointer-events-auto flex items-center gap-3 bg-slate-800 text-white text-sm font-medium px-4 py-3 rounded-2xl shadow-lg w-full max-w-md">
           <span>{toast.message}</span>
           {toast.onUndo && (
             <button
@@ -311,7 +311,7 @@ export default function OrdersPage({ role, user, onBadgeChange }: Props) {
               <Undo2 size={13} /> Rückgängig
             </button>
           )}
-        </div>
+        </div></div>
       )}
     </div>
   )
