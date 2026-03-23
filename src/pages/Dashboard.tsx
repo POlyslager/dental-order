@@ -97,7 +97,6 @@ export default function Dashboard({ user }: Props) {
 
   const bottomTabs: { id: Tab; icon: React.ReactNode; badge?: number }[] = [
     { id: 'stock',  icon: <Package size={26} /> },
-    { id: 'scan',   icon: <ScanLine size={26} /> },
     { id: 'orders', icon: <ShoppingCart size={26} />, badge: orderBadge },
   ]
   const activeIndex = bottomTabs.findIndex(t => t.id === tab)
@@ -302,7 +301,7 @@ export default function Dashboard({ user }: Props) {
               : <>
                   {tab === 'overview' && <OverviewPage />}
                   {tab === 'stock'    && <StockPage role={role} initialBarcode={pendingBarcode} onBarcodeConsumed={() => setPendingBarcode(null)} onNavigateToOrders={() => setTab('orders')} />}
-                  {tab === 'scan'     && <ScanPage onAddWithBarcode={handleAddWithBarcode} onSubview={() => {}} />}
+
                   {tab === 'orders'   && <OrdersPage role={role} user={user} onBadgeChange={setOrderBadge} forceOpenTab={forceOrdersOpenTab} />}
                 </>
             }

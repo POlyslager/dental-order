@@ -57,7 +57,7 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab }: 
       .select('*, items:order_items(*, product:products(*))')
       .in('status', ['pending_approval', 'ordered'])
       .order('created_at', { ascending: false })
-    setOrders((data as unknown as Order[]) ?? [])
+    setOrders(((data as unknown as Order[]) ?? []).filter(o => (o.items ?? []).length > 0))
     setLoading(false)
   }
 
@@ -583,6 +583,8 @@ function OpenOrderSection({ order, role, isFirst, receivedIds, receiving, onRece
   const isPending = order.status === 'pending_approval'
   const items = order.items ?? []
   const domain = getDomain(items[0]?.product?.supplier_url) ?? order.supplier ?? 'Unbekannter Lieferant'
+  const receivedCount = items.filter(i => receivedIds.has(i.id)).length
+  const progressPct = items.length > 0 ? (receivedCount / items.length) * 100 : 0
 
   return (
     <>
@@ -598,11 +600,12 @@ function OpenOrderSection({ order, role, isFirst, receivedIds, receiving, onRece
               <span className="text-sm text-slate-400">
                 {new Date(order.created_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}
               </span>
-              <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${
-                isPending ? 'bg-amber-100 text-amber-700' : 'bg-sky-100 text-sky-700'
-              }`}>
-                {isPending ? 'Ausstehend' : 'Bestellt'}
-              </span>
+              {isPending && role === 'admin' && (
+                <button onClick={onApprove}
+                  className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap">
+                  <CheckCircle size={12} /> Genehmigen
+                </button>
+              )}
             </div>
             <div className="flex items-center gap-3 shrink-0">
               {order.total_estimate != null && (
@@ -610,12 +613,12 @@ function OpenOrderSection({ order, role, isFirst, receivedIds, receiving, onRece
                   Gesamt: <span className="font-semibold text-slate-700">€ {order.total_estimate.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </span>
               )}
-              {isPending && role === 'admin' && (
-                <button onClick={onApprove}
-                  className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap">
-                  <CheckCircle size={12} /> Genehmigen
-                </button>
-              )}
+              <div className="flex items-center gap-2">
+                <div className="w-20 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                  <div className="h-full bg-emerald-500 rounded-full transition-all duration-300" style={{ width: `${progressPct}%` }} />
+                </div>
+                <span className="text-xs text-slate-500 whitespace-nowrap">{receivedCount}/{items.length}</span>
+              </div>
             </div>
           </div>
         </td>
