@@ -412,7 +412,7 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
                 ))}
               </tbody>
             </table>
-          )
+          )}
           </>
         )}
       </div>
