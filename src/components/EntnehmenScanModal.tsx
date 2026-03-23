@@ -105,7 +105,7 @@ export default function EntnehmenScanModal({ onClose, onSuccess }: Props) {
           <div className="w-14 h-14 border-4 border-sky-500 border-t-transparent rounded-full animate-spin" />
         </div>
       )}
-      <div className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+      <div className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl shadow-2xl overflow-hidden h-[500px] flex flex-col" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-4 border-b border-slate-100 shrink-0">
           {selected
@@ -115,52 +115,53 @@ export default function EntnehmenScanModal({ onClose, onSuccess }: Props) {
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors"><X size={20} /></button>
         </div>
 
-        <div className="overflow-y-auto">
-          {selected ? (
-            /* ── Product + qty ── */
-            <div className="px-4 py-5">
-              <p className="font-semibold text-slate-800 text-base mb-0.5">{selected.name}</p>
-              <p className="text-sm text-slate-400 mb-5">
-                {selected.preferred_supplier && <span>{selected.preferred_supplier} · </span>}
-                Bestand: <span className="font-medium text-slate-600">{selected.current_stock} {selected.unit}</span>
-              </p>
-              {selected.current_stock <= 0 ? (
-                <p className="text-sm text-red-500 text-center py-4">Kein Bestand verfügbar</p>
-              ) : (
-                <>
-                  <div className="flex items-center justify-between mb-5">
-                    <span className="text-sm font-medium text-slate-700">Menge</span>
-                    <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden">
-                      <button onClick={() => setQty(q => Math.max(1, q - 1))} disabled={qty <= 1}
-                        className="w-10 h-10 flex items-center justify-center text-slate-500 hover:bg-slate-50 disabled:opacity-30 transition-colors"><Minus size={14} /></button>
-                      <span className="w-12 text-center font-semibold text-slate-800 select-none">{qty}</span>
-                      <button onClick={() => setQty(q => Math.min(selected.current_stock, q + 1))} disabled={qty >= selected.current_stock}
-                        className="w-10 h-10 flex items-center justify-center text-slate-500 hover:bg-slate-50 disabled:opacity-30 transition-colors"><Plus size={14} /></button>
-                    </div>
+        {selected ? (
+          /* ── Product + qty ── */
+          <div className="flex-1 overflow-y-auto px-4 py-5">
+            <p className="font-semibold text-slate-800 text-base mb-0.5">{selected.name}</p>
+            <p className="text-sm text-slate-400 mb-5">
+              {selected.preferred_supplier && <span>{selected.preferred_supplier} · </span>}
+              Bestand: <span className="font-medium text-slate-600">{selected.current_stock} {selected.unit}</span>
+            </p>
+            {selected.current_stock <= 0 ? (
+              <p className="text-sm text-red-500 text-center py-4">Kein Bestand verfügbar</p>
+            ) : (
+              <>
+                <div className="flex items-center justify-between mb-5">
+                  <span className="text-sm font-medium text-slate-700">Menge</span>
+                  <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden">
+                    <button onClick={() => setQty(q => Math.max(1, q - 1))} disabled={qty <= 1}
+                      className="w-10 h-10 flex items-center justify-center text-slate-500 hover:bg-slate-50 disabled:opacity-30 transition-colors"><Minus size={14} /></button>
+                    <span className="w-12 text-center font-semibold text-slate-800 select-none">{qty}</span>
+                    <button onClick={() => setQty(q => Math.min(selected.current_stock, q + 1))} disabled={qty >= selected.current_stock}
+                      className="w-10 h-10 flex items-center justify-center text-slate-500 hover:bg-slate-50 disabled:opacity-30 transition-colors"><Plus size={14} /></button>
                   </div>
-                  <button onClick={handleEntnehmen} disabled={taking}
-                    className="w-full bg-sky-500 hover:bg-sky-600 text-white font-semibold py-3 rounded-xl transition-colors disabled:opacity-50">
-                    {taking ? 'Wird gebucht…' : `${qty}× entnehmen`}
-                  </button>
-                </>
-              )}
+                </div>
+                <button onClick={handleEntnehmen} disabled={taking}
+                  className="w-full bg-sky-500 hover:bg-sky-600 text-white font-semibold py-3 rounded-xl transition-colors disabled:opacity-50">
+                  {taking ? 'Wird gebucht…' : `${qty}× entnehmen`}
+                </button>
+              </>
+            )}
+          </div>
+        ) : (
+          <>
+            {/* Tabs */}
+            <div className="flex border-b border-slate-100 shrink-0">
+              <button onClick={() => switchMode('search')}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-sm font-medium border-b-2 transition-colors ${mode === 'search' ? 'border-sky-500 text-sky-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+                <Search size={14} /> Suchen
+              </button>
+              <button onClick={() => switchMode('scan')}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-sm font-medium border-b-2 transition-colors ${mode === 'scan' ? 'border-sky-500 text-sky-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+                <Camera size={14} /> Scannen
+              </button>
             </div>
-          ) : (
-            /* ── Search / scan ── */
-            <div className="p-4">
-              <div className="flex gap-2 mb-4">
-                <button onClick={() => switchMode('search')}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-medium transition-colors ${mode === 'search' ? 'bg-sky-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
-                  <Search size={14} /> Suchen
-                </button>
-                <button onClick={() => switchMode('scan')}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-medium transition-colors ${mode === 'scan' ? 'bg-sky-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
-                  <Camera size={14} /> Barcode scannen
-                </button>
-              </div>
 
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto">
               {mode === 'search' ? (
-                <>
+                <div className="p-4">
                   <input type="text" value={query} onChange={e => setQuery(e.target.value)}
                     placeholder="Artikel suchen…" autoFocus
                     className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
@@ -178,13 +179,13 @@ export default function EntnehmenScanModal({ onClose, onSuccess }: Props) {
                   {query.trim() && results.length === 0 && (
                     <p className="text-sm text-slate-400 text-center py-6">Keine Artikel gefunden</p>
                   )}
-                </>
+                </div>
               ) : (
-                <div id={SCAN_DIV} className="w-full rounded-xl overflow-hidden" style={{ minHeight: 220 }} />
+                <div id={SCAN_DIV} className="w-full h-full bg-slate-900" />
               )}
             </div>
-          )}
-        </div>
+          </>
+        )}
       </div>
     </div>
   )
