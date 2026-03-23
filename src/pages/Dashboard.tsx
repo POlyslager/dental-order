@@ -5,7 +5,6 @@ import { subscribeToPush, currentPermission, isPushSupported } from '../lib/push
 import type { Role } from '../lib/types'
 import StockPage from './StockPage'
 import OrdersPage from './OrdersPage'
-import ScanPage from './ScanPage'
 import OverviewPage from './OverviewPage'
 import TermsPage from './TermsPage'
 import {
@@ -64,10 +63,6 @@ export default function Dashboard({ user }: Props) {
     dashToastTimer.current = setTimeout(() => setDashToast(null), 5000)
   }
 
-  function handleAddWithBarcode(barcode: string) {
-    setPendingBarcode(barcode)
-    setTab('stock')
-  }
 
   function navigate(t: Tab) {
     setTab(t)
