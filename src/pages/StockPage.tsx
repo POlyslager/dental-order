@@ -589,18 +589,16 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
       {/* Table */}
       <table className="w-full table-fixed">
           <colgroup>
-            <col style={{ width: '30%' }} />
-            <col className="hidden md:table-column" style={{ width: '17%' }} />
-            <col className="hidden md:table-column" style={{ width: '17%' }} />
-            <col className="hidden md:table-column" style={{ width: '17%' }} />
-            <col style={{ width: '10%' }} />
-            <col style={{ width: '9%' }} />
+            <col style={{ width: '20%' }} />
+            <col className="hidden md:table-column" style={{ width: '20%' }} />
+            <col className="hidden md:table-column" style={{ width: '20%' }} />
+            <col style={{ width: '20%' }} />
+            <col style={{ width: '20%' }} />
           </colgroup>
           <thead className="sticky top-0 z-10">
             <tr className="border-b border-slate-200 bg-white">
               <Th label="Name"      col="name"               onClick={toggleSort} SortIcon={SortIcon} />
               <Th label="Kategorie" col="category"           onClick={toggleSort} SortIcon={SortIcon} className="hidden md:table-cell" />
-              <Th label="Artikelnr." col="article_number"    onClick={toggleSort} SortIcon={SortIcon} className="hidden md:table-cell" />
               <Th label="Lieferant" col="preferred_supplier" onClick={toggleSort} SortIcon={SortIcon} className="hidden md:table-cell" />
               <Th label="Bestand"   col="current_stock"      onClick={toggleSort} SortIcon={SortIcon} align="right" />
               <Th label="Status"    col="status"             onClick={toggleSort} SortIcon={SortIcon} />
@@ -625,7 +623,6 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
                   <p className="text-xs text-slate-400 md:hidden mt-0.5">{p.category}</p>
                 </td>
                 <td className="hidden md:table-cell px-4 py-3.5 text-sm text-slate-500 truncate">{p.category}</td>
-                <td className="hidden md:table-cell px-4 py-3.5 text-sm text-slate-500 truncate">{p.article_number ?? '—'}</td>
                 <td className="hidden md:table-cell px-4 py-3.5 text-sm text-slate-500 truncate">{p.preferred_supplier ?? '—'}</td>
                 <td className="px-4 py-3.5 text-right">
                   <span className="text-sm font-bold text-slate-800">{p.current_stock}</span>
