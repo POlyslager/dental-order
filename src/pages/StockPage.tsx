@@ -524,17 +524,13 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
           ))}
         </select>
 
-        {/* Supplier filter */}
-        <select
+        {/* Supplier filter — searchable */}
+        <SearchableSelect
           value={selectedBrand}
-          onChange={e => { setSelectedBrand(e.target.value); setPage(1) }}
-          className="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500 shrink-0"
-        >
-          <option value="all">Alle Lieferanten</option>
-          {brands.map(b => (
-            <option key={b} value={b}>{b}</option>
-          ))}
-        </select>
+          onChange={v => { setSelectedBrand(v); setPage(1) }}
+          options={brands}
+          allLabel="Alle Lieferanten"
+        />
 
         {/* Add button — pushed to end */}
         <button
@@ -759,6 +755,73 @@ function Field({ label, value, onChange, type = 'text', required = false, inputM
             className={cls}
           />
       }
+    </div>
+  )
+}
+
+// ── Searchable select dropdown ────────────────────────────────────────────────
+function SearchableSelect({ value, onChange, options, allLabel }: {
+  value: string
+  onChange: (v: string) => void
+  options: string[]
+  allLabel: string
+}) {
+  const [open, setOpen] = useState(false)
+  const [q, setQ] = useState('')
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  const filtered = options.filter(o => o.toLowerCase().includes(q.toLowerCase()))
+  const label = value === 'all' ? allLabel : value
+
+  return (
+    <div ref={ref} className="relative shrink-0">
+      <button
+        type="button"
+        onClick={() => { setOpen(o => !o); setQ('') }}
+        className="border border-slate-200 rounded-xl pl-3 pr-2.5 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500 flex items-center gap-2 min-w-[140px] justify-between"
+      >
+        <span className="truncate">{label}</span>
+        <ChevronDown size={13} className="text-slate-400 shrink-0" />
+      </button>
+      {open && (
+        <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-30 w-56 animate-slide-in-up">
+          <div className="p-2 border-b border-slate-100">
+            <input
+              autoFocus
+              type="text"
+              value={q}
+              onChange={e => setQ(e.target.value)}
+              placeholder="Suchen…"
+              className="w-full text-sm px-2 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500"
+            />
+          </div>
+          <ul className="max-h-52 overflow-y-auto py-1">
+            <li>
+              <button type="button" onClick={() => { onChange('all'); setOpen(false) }}
+                className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-50 ${value === 'all' ? 'font-semibold text-sky-600' : 'text-slate-700'}`}>
+                {allLabel}
+              </button>
+            </li>
+            {filtered.map(o => (
+              <li key={o}>
+                <button type="button" onClick={() => { onChange(o); setOpen(false) }}
+                  className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-50 ${value === o ? 'font-semibold text-sky-600' : 'text-slate-700'}`}>
+                  {o}
+                </button>
+              </li>
+            ))}
+            {filtered.length === 0 && <li className="px-3 py-2 text-sm text-slate-400">Keine Ergebnisse</li>}
+          </ul>
+        </div>
+      )}
     </div>
   )
 }
