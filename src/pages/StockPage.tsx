@@ -468,7 +468,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
 
       {/* Pagination (md+) */}
       {totalPages > 1 && (
-        <div className="hidden md:flex items-center justify-between px-4 py-3 border-t border-slate-100 bg-white">
+        <div className="hidden md:flex items-center justify-center gap-4 px-4 py-3 border-t border-slate-100 bg-white">
           <p className="text-xs text-slate-400">
             {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, sorted.length)} von {sorted.length} Artikeln
           </p>

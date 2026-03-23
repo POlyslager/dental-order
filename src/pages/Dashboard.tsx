@@ -33,6 +33,7 @@ export default function Dashboard({ user }: Props) {
   const [menuClosing, setMenuClosing] = useState(false)
   const [showTerms, setShowTerms] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const swipeStartX = useRef<number | null>(null)
   const swipeDeltaX = useRef(0)
   const menuRef = useRef<HTMLDivElement | null>(null)
@@ -142,23 +143,24 @@ export default function Dashboard({ user }: Props) {
               )}
             </button>
           ))}
-          {/* Settings (disabled) */}
+          {/* Settings — collapsible */}
           <button
-            disabled
-            className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 rounded-xl ${sidebarCollapsed ? 'justify-center' : ''}`}
-            title="Bald verfügbar"
+            onClick={() => !sidebarCollapsed && setSettingsOpen(o => !o)}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl transition-colors ${
+              settingsOpen && !sidebarCollapsed ? 'bg-slate-50 text-slate-800' : 'text-slate-600 hover:bg-slate-50'
+            } ${sidebarCollapsed ? 'justify-center' : ''}`}
           >
             <Settings size={20} className="shrink-0" />
             {!sidebarCollapsed && (
               <>
                 <span className="truncate font-medium">Einstellungen</span>
-                <span className="ml-auto text-xs text-slate-300 shrink-0">Bald</span>
+                <ChevronRight size={14} className={`ml-auto shrink-0 text-slate-400 transition-transform ${settingsOpen ? 'rotate-90' : ''}`} />
               </>
             )}
           </button>
 
-          {/* Notifications — submenu under Einstellungen */}
-          {!sidebarCollapsed && isPushSupported() && pushPermission !== 'granted' && (
+          {/* Notifications — submenu, only when settings expanded */}
+          {settingsOpen && !sidebarCollapsed && isPushSupported() && pushPermission !== 'granted' && (
             <button
               onClick={enableNotifications}
               className="w-full flex items-center gap-3 pl-9 pr-3 py-2 text-sm text-slate-600 hover:bg-slate-50 rounded-xl transition-colors"
@@ -167,7 +169,7 @@ export default function Dashboard({ user }: Props) {
               <span className="truncate text-sm">Benachrichtigungen</span>
             </button>
           )}
-          {!sidebarCollapsed && pushPermission === 'granted' && (
+          {settingsOpen && !sidebarCollapsed && pushPermission === 'granted' && (
             <div className="w-full flex items-center gap-3 pl-9 pr-3 py-2 text-sm text-emerald-600 bg-emerald-50 rounded-xl">
               <BellOff size={16} className="shrink-0" />
               <span className="truncate text-sm">Benachrichtigungen aktiv</span>
@@ -365,9 +367,14 @@ export default function Dashboard({ user }: Props) {
                 active={tab === 'orders'} onClick={() => navigate('orders')} />
               <MenuItem icon={<LayoutDashboard size={18} />} label="Dashboard"
                 active={tab === 'overview'} onClick={() => navigate('overview')} />
-              <MenuItem icon={<Settings size={18} />} label="Einstellungen"
-                onClick={closeMenu} disabled />
-              {isPushSupported() && pushPermission !== 'granted' && (
+              <MenuItem
+                icon={<Settings size={18} />}
+                label="Einstellungen"
+                onClick={() => setSettingsOpen(o => !o)}
+                chevron
+                expanded={settingsOpen}
+              />
+              {settingsOpen && isPushSupported() && pushPermission !== 'granted' && (
                 <MenuItem
                   icon={<Bell size={16} />}
                   label="Benachrichtigungen"
@@ -375,7 +382,7 @@ export default function Dashboard({ user }: Props) {
                   indent
                 />
               )}
-              {pushPermission === 'granted' && (
+              {settingsOpen && pushPermission === 'granted' && (
                 <MenuItem
                   icon={<BellOff size={16} className="text-emerald-500" />}
                   label="Benachrichtigungen aktiv"
@@ -411,8 +418,9 @@ export default function Dashboard({ user }: Props) {
   )
 }
 
-function MenuItem({ icon, label, onClick, disabled = false, active = false, indent = false }: {
-  icon: React.ReactNode; label: string; onClick: () => void; disabled?: boolean; active?: boolean; indent?: boolean
+function MenuItem({ icon, label, onClick, disabled = false, active = false, indent = false, chevron = false, expanded = false }: {
+  icon: React.ReactNode; label: string; onClick: () => void
+  disabled?: boolean; active?: boolean; indent?: boolean; chevron?: boolean; expanded?: boolean
 }) {
   return (
     <button onClick={onClick} disabled={disabled}
@@ -423,8 +431,8 @@ function MenuItem({ icon, label, onClick, disabled = false, active = false, inde
       }`}
     >
       {icon}
-      {label}
-      {disabled && <span className="ml-auto text-xs text-slate-300">Bald</span>}
+      <span className="flex-1">{label}</span>
+      {chevron && <ChevronRight size={14} className={`text-slate-400 transition-transform ${expanded ? 'rotate-90' : ''}`} />}
     </button>
   )
 }

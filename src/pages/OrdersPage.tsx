@@ -1,19 +1,29 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import type { CartItem, Order, Role } from '../lib/types'
-import { ShoppingCart, Package, Plus, Minus, Trash2, ChevronRight, CheckCircle, AlertCircle, ExternalLink } from 'lucide-react'
+import { ShoppingCart, Package, Plus, Minus, Trash2, ChevronRight, CheckCircle, AlertCircle, ExternalLink, X } from 'lucide-react'
 
 const APPROVAL_THRESHOLD = 2000
 
 interface Props { role: Role | null; user: User; onBadgeChange: (n: number) => void }
+
+// Extract domain from a URL, e.g. "https://www.dental-shop.de/..." → "dental-shop.de"
+function getDomain(url: string | null | undefined): string | null {
+  if (!url) return null
+  try {
+    return new URL(url).hostname.replace(/^www\./, '')
+  } catch {
+    return null
+  }
+}
 
 export default function OrdersPage({ role, user, onBadgeChange }: Props) {
   const [tab, setTab] = useState<'cart' | 'open'>('cart')
   const [cartItems, setCartItems] = useState<CartItem[]>([])
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
-  const [placing, setPlacing] = useState<string | null>(null)
+  const [placingItem, setPlacingItem] = useState<string | null>(null)
 
   useEffect(() => {
     Promise.all([fetchCart(), fetchOrders()])
@@ -42,11 +52,11 @@ export default function OrdersPage({ role, user, onBadgeChange }: Props) {
     onBadgeChange(cart.length + pending)
   }
 
-  // Group cart by supplier
-  const cartBySupplier = cartItems.reduce<Record<string, CartItem[]>>((acc, item) => {
-    const supplier = item.product?.preferred_supplier ?? 'Kein Lieferant'
-    if (!acc[supplier]) acc[supplier] = []
-    acc[supplier].push(item)
+  // Group cart items by website domain (from supplier_url), fallback to supplier name
+  const cartByDomain = cartItems.reduce<Record<string, CartItem[]>>((acc, item) => {
+    const domain = getDomain(item.product?.supplier_url) ?? item.product?.preferred_supplier ?? 'Kein Lieferant'
+    if (!acc[domain]) acc[domain] = []
+    acc[domain].push(item)
     return acc
   }, {})
 
@@ -67,10 +77,11 @@ export default function OrdersPage({ role, user, onBadgeChange }: Props) {
     updateBadge(updated, orders)
   }
 
-  async function placeOrder(supplier: string, items: CartItem[]) {
-    setPlacing(supplier)
-    const total = items.reduce((s, i) => s + (i.quantity * (i.product?.last_price ?? 0)), 0)
+  async function placeOrderForItem(item: CartItem) {
+    setPlacingItem(item.id)
+    const total = item.quantity * (item.product?.last_price ?? 0)
     const needsApproval = total >= APPROVAL_THRESHOLD
+    const supplier = item.product?.preferred_supplier ?? 'Kein Lieferant'
 
     const { data: order, error } = await supabase
       .from('orders')
@@ -83,18 +94,16 @@ export default function OrdersPage({ role, user, onBadgeChange }: Props) {
       .select()
       .single()
 
-    if (error || !order) { setPlacing(null); return }
+    if (error || !order) { setPlacingItem(null); return }
 
-    await supabase.from('order_items').insert(
-      items.map(i => ({
-        order_id: order.id,
-        product_id: i.product_id,
-        quantity: i.quantity,
-        estimated_price: i.product?.last_price ?? null,
-      }))
-    )
+    await supabase.from('order_items').insert({
+      order_id: order.id,
+      product_id: item.product_id,
+      quantity: item.quantity,
+      estimated_price: item.product?.last_price ?? null,
+    })
 
-    await supabase.from('cart_items').delete().in('id', items.map(i => i.id))
+    await supabase.from('cart_items').delete().eq('id', item.id)
 
     fetch('/api/send-push', {
       method: 'POST',
@@ -102,9 +111,8 @@ export default function OrdersPage({ role, user, onBadgeChange }: Props) {
       body: JSON.stringify({ total, supplier, needs_approval: needsApproval }),
     }).catch(() => null)
 
-    setPlacing(null)
+    setPlacingItem(null)
     await Promise.all([fetchCart(), fetchOrders()])
-    setTab('open')
   }
 
   async function approveOrder(orderId: string) {
@@ -155,32 +163,23 @@ export default function OrdersPage({ role, user, onBadgeChange }: Props) {
             </div>
           ) : (
             <div className="space-y-6">
-              {Object.entries(cartBySupplier).map(([supplier, items]) => {
-                const supplierTotal = items.reduce((s, i) => s + (i.quantity * (i.product?.last_price ?? 0)), 0)
-                const needsApproval = supplierTotal >= APPROVAL_THRESHOLD
-                const supplierUrl = items[0]?.product?.supplier_url
+              {Object.entries(cartByDomain).map(([domain, items]) => {
+                const domainTotal = items.reduce((s, i) => s + (i.quantity * (i.product?.last_price ?? 0)), 0)
+                const websiteUrl = items[0]?.product?.supplier_url ?? null
                 return (
-                  <div key={supplier} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                    {/* Supplier header */}
+                  <div key={domain} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    {/* Domain header */}
                     <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <p className="font-semibold text-slate-800 text-sm">{supplier}</p>
-                        {needsApproval && (
-                          <span className="flex items-center gap-1 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full shrink-0">
-                            <AlertCircle size={11} /> Genehmigung nötig
-                          </span>
-                        )}
-                      </div>
-                      {supplierUrl && (
+                      <p className="font-semibold text-slate-800 text-sm">{domain}</p>
+                      {websiteUrl && (
                         <a
-                          href={supplierUrl}
+                          href={websiteUrl}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="flex items-center gap-1.5 text-xs text-sky-600 hover:text-sky-700 bg-sky-50 hover:bg-sky-100 px-2.5 py-1.5 rounded-lg transition-colors shrink-0"
                         >
                           <ExternalLink size={12} />
-                          <span className="hidden sm:inline">Website öffnen</span>
-                          <span className="sm:hidden">Bestellen</span>
+                          Website öffnen
                         </a>
                       )}
                     </div>
@@ -189,96 +188,46 @@ export default function OrdersPage({ role, user, onBadgeChange }: Props) {
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
-                          <tr className="border-b border-slate-100">
-                            <th className="text-left px-4 py-2 text-xs font-medium text-slate-400 w-full">Artikel</th>
-                            <th className="text-center px-3 py-2 text-xs font-medium text-slate-400 whitespace-nowrap">Menge</th>
-                            <th className="text-right px-3 py-2 text-xs font-medium text-slate-400 whitespace-nowrap hidden sm:table-cell">Preis/Einheit</th>
-                            <th className="text-right px-3 py-2 text-xs font-medium text-slate-400 whitespace-nowrap">Gesamt</th>
-                            <th className="px-3 py-2 w-8"></th>
+                          <tr className="border-b border-slate-100 bg-slate-50/50">
+                            <th className="text-left px-4 py-2.5 text-xs font-medium text-slate-400">Artikel</th>
+                            <th className="text-center px-3 py-2.5 text-xs font-medium text-slate-400 whitespace-nowrap">Menge</th>
+                            <th className="text-right px-3 py-2.5 text-xs font-medium text-slate-400 whitespace-nowrap hidden sm:table-cell">Preis/Einheit</th>
+                            <th className="text-right px-3 py-2.5 text-xs font-medium text-slate-400 whitespace-nowrap">Gesamt</th>
+                            <th className="px-2 py-2.5 w-8"></th>
+                            <th className="px-3 py-2.5 text-xs font-medium text-slate-400 whitespace-nowrap text-right">Aktion</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-50">
-                          {items.map(item => {
-                            const rowTotal = item.quantity * (item.product?.last_price ?? 0)
-                            return (
-                              <tr key={item.id} className="hover:bg-slate-50/50">
-                                <td className="px-4 py-3">
-                                  <p className="font-medium text-slate-800 truncate max-w-[200px] md:max-w-xs">{item.product?.name}</p>
-                                  {item.product?.alternative_price != null &&
-                                   item.product?.last_price != null &&
-                                   item.product.alternative_price < item.product.last_price && (
-                                    <a href={item.product.alternative_url ?? undefined}
-                                      target="_blank" rel="noopener noreferrer"
-                                      onClick={e => e.stopPropagation()}
-                                      className="flex items-center gap-1 text-xs text-emerald-600 mt-0.5">
-                                      <ExternalLink size={10} />
-                                      Günstiger: € {item.product.alternative_price} bei {item.product.alternative_supplier ?? 'Alternativlieferant'}
-                                    </a>
-                                  )}
-                                </td>
-                                <td className="px-3 py-3">
-                                  <div className="flex items-center gap-1 justify-center">
-                                    <button
-                                      onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                                      className="w-6 h-6 flex items-center justify-center rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
-                                    >
-                                      <Minus size={11} />
-                                    </button>
-                                    <span className="w-7 text-center font-semibold text-slate-800">{item.quantity}</span>
-                                    <button
-                                      onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                                      className="w-6 h-6 flex items-center justify-center rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
-                                    >
-                                      <Plus size={11} />
-                                    </button>
-                                  </div>
-                                </td>
-                                <td className="px-3 py-3 text-right text-slate-500 whitespace-nowrap hidden sm:table-cell">
-                                  {item.product?.last_price != null
-                                    ? `€ ${item.product.last_price.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                                    : '—'
-                                  }
-                                </td>
-                                <td className="px-3 py-3 text-right font-medium text-slate-800 whitespace-nowrap">
-                                  € {rowTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                </td>
-                                <td className="px-3 py-3">
-                                  <button
-                                    onClick={() => removeItem(item.id)}
-                                    className="text-slate-300 hover:text-red-400 transition-colors"
-                                  >
-                                    <Trash2 size={14} />
-                                  </button>
-                                </td>
-                              </tr>
-                            )
-                          })}
+                        <tbody className="divide-y divide-slate-100">
+                          {items.map(item => (
+                            <CartItemRow
+                              key={item.id}
+                              item={item}
+                              placing={placingItem === item.id}
+                              onUpdateQuantity={updateQuantity}
+                              onRemove={removeItem}
+                              onPlaceOrder={placeOrderForItem}
+                            />
+                          ))}
                         </tbody>
+                        {/* Domain total row */}
+                        <tfoot>
+                          <tr className="border-t border-slate-200 bg-slate-50">
+                            <td colSpan={3} className="px-4 py-2.5 text-xs text-slate-400 hidden sm:table-cell">
+                              {items.length} {items.length === 1 ? 'Artikel' : 'Artikel'}
+                            </td>
+                            <td colSpan={3} className="px-4 py-2.5 sm:px-3 text-right font-bold text-slate-800">
+                              € {domainTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                          </tr>
+                        </tfoot>
                       </table>
-                    </div>
-
-                    {/* Supplier footer: total + action */}
-                    <div className="px-4 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-xs text-slate-400">Lieferant gesamt</p>
-                        <p className="text-base font-bold text-slate-800">
-                          € {supplierTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => placeOrder(supplier, items)}
-                        disabled={placing === supplier}
-                        className="bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition-colors shrink-0"
-                      >
-                        {placing === supplier ? 'Wird gespeichert…' : needsApproval ? 'Zur Genehmigung' : 'Als bestellt markieren'}
-                      </button>
                     </div>
                   </div>
                 )
               })}
 
-              {/* Grand total */}
-              {Object.keys(cartBySupplier).length > 1 && (
+              {/* Grand total — only when multiple domains */}
+              {Object.keys(cartByDomain).length > 1 && (
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm px-4 py-3 flex items-center justify-between">
                   <p className="text-sm font-medium text-slate-600">Gesamtsumme Warenkorb</p>
                   <p className="text-lg font-bold text-slate-800">
@@ -306,13 +255,13 @@ export default function OrdersPage({ role, user, onBadgeChange }: Props) {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-slate-100">
-                      <th className="text-left px-4 py-3 text-xs font-medium text-slate-400">Lieferant</th>
-                      <th className="text-left px-3 py-3 text-xs font-medium text-slate-400 hidden sm:table-cell">Datum</th>
-                      <th className="text-center px-3 py-3 text-xs font-medium text-slate-400 hidden md:table-cell">Artikel</th>
-                      <th className="text-right px-3 py-3 text-xs font-medium text-slate-400">Gesamt</th>
-                      <th className="text-center px-3 py-3 text-xs font-medium text-slate-400">Status</th>
-                      <th className="px-3 py-3 text-xs font-medium text-slate-400 text-right">Aktion</th>
+                    <tr className="border-b border-slate-100 bg-slate-50/50">
+                      <th className="text-left px-4 py-2.5 text-xs font-medium text-slate-400">Lieferant</th>
+                      <th className="text-left px-3 py-2.5 text-xs font-medium text-slate-400 hidden sm:table-cell">Datum</th>
+                      <th className="text-center px-3 py-2.5 text-xs font-medium text-slate-400 hidden md:table-cell">Artikel</th>
+                      <th className="text-right px-3 py-2.5 text-xs font-medium text-slate-400">Gesamt</th>
+                      <th className="text-center px-3 py-2.5 text-xs font-medium text-slate-400">Status</th>
+                      <th className="px-3 py-2.5 text-xs font-medium text-slate-400 text-right">Aktion</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -333,6 +282,130 @@ export default function OrdersPage({ role, user, onBadgeChange }: Props) {
         )}
       </div>
     </div>
+  )
+}
+
+// ── Cart item row ───────────────────────────────────────────────────────────
+function CartItemRow({ item, placing, onUpdateQuantity, onRemove, onPlaceOrder }: {
+  item: CartItem
+  placing: boolean
+  onUpdateQuantity: (id: string, qty: number) => void
+  onRemove: (id: string) => void
+  onPlaceOrder: (item: CartItem) => void
+}) {
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const confirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const rowTotal = item.quantity * (item.product?.last_price ?? 0)
+  const needsApproval = rowTotal >= APPROVAL_THRESHOLD
+
+  function handleDeleteClick() {
+    if (confirmDelete) {
+      if (confirmTimer.current) clearTimeout(confirmTimer.current)
+      onRemove(item.id)
+    } else {
+      setConfirmDelete(true)
+      confirmTimer.current = setTimeout(() => setConfirmDelete(false), 3000)
+    }
+  }
+
+  function cancelDelete() {
+    if (confirmTimer.current) clearTimeout(confirmTimer.current)
+    setConfirmDelete(false)
+  }
+
+  return (
+    <tr className={`transition-colors ${confirmDelete ? 'bg-red-50' : 'hover:bg-slate-50/50'}`}>
+      <td className="px-4 py-3">
+        <p className={`font-medium truncate max-w-[180px] md:max-w-xs ${confirmDelete ? 'text-red-400 line-through' : 'text-slate-800'}`}>
+          {item.product?.name}
+        </p>
+        {item.product?.preferred_supplier && (
+          <p className="text-xs text-slate-400 mt-0.5">{item.product.preferred_supplier}</p>
+        )}
+        {item.product?.alternative_price != null &&
+         item.product?.last_price != null &&
+         item.product.alternative_price < item.product.last_price && (
+          <a href={item.product.alternative_url ?? undefined}
+            target="_blank" rel="noopener noreferrer"
+            onClick={e => e.stopPropagation()}
+            className="flex items-center gap-1 text-xs text-emerald-600 mt-0.5">
+            <ExternalLink size={10} />
+            Günstiger: € {item.product.alternative_price} bei {item.product.alternative_supplier ?? 'Alternativlieferant'}
+          </a>
+        )}
+      </td>
+      <td className="px-3 py-3">
+        <div className="flex items-center gap-1 justify-center">
+          <button
+            onClick={() => onUpdateQuantity(item.id, item.quantity - 1)}
+            className="w-6 h-6 flex items-center justify-center rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+          >
+            <Minus size={11} />
+          </button>
+          <span className="w-7 text-center font-semibold text-slate-800">{item.quantity}</span>
+          <button
+            onClick={() => onUpdateQuantity(item.id, item.quantity + 1)}
+            className="w-6 h-6 flex items-center justify-center rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+          >
+            <Plus size={11} />
+          </button>
+        </div>
+      </td>
+      <td className="px-3 py-3 text-right text-slate-500 whitespace-nowrap hidden sm:table-cell">
+        {item.product?.last_price != null
+          ? `€ ${item.product.last_price.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+          : '—'
+        }
+      </td>
+      <td className="px-3 py-3 text-right font-medium text-slate-800 whitespace-nowrap">
+        € {rowTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+      </td>
+      {/* Two-step delete */}
+      <td className="px-2 py-3">
+        {confirmDelete ? (
+          <div className="flex items-center gap-1">
+            <button
+              onClick={handleDeleteClick}
+              className="w-6 h-6 flex items-center justify-center rounded-md bg-red-100 text-red-500 hover:bg-red-200 transition-colors"
+              title="Löschen bestätigen"
+            >
+              <Trash2 size={12} />
+            </button>
+            <button
+              onClick={cancelDelete}
+              className="w-6 h-6 flex items-center justify-center rounded-md bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors"
+              title="Abbrechen"
+            >
+              <X size={12} />
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={handleDeleteClick}
+            className="text-slate-300 hover:text-red-400 transition-colors"
+            title="Entfernen"
+          >
+            <Trash2 size={14} />
+          </button>
+        )}
+      </td>
+      {/* Per-row order action */}
+      <td className="px-3 py-3 text-right">
+        <button
+          onClick={() => onPlaceOrder(item)}
+          disabled={placing}
+          className="flex items-center gap-1.5 bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap ml-auto"
+        >
+          {placing ? (
+            <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" />
+          ) : needsApproval ? (
+            <><AlertCircle size={12} /> Zur Genehmigung</>
+          ) : (
+            <><CheckCircle size={12} /> Als bestellt markieren</>
+          )}
+        </button>
+      </td>
+    </tr>
   )
 }
 
@@ -428,7 +501,7 @@ function OpenOrderRow({ order, role, onApprove, onReceive }: {
         </td>
       </tr>
 
-      {/* Expanded items row */}
+      {/* Expanded items */}
       {expanded && (
         <tr className={isPending ? 'bg-amber-50/20' : 'bg-slate-50/50'}>
           <td colSpan={6} className="px-4 pb-3 pt-0">
