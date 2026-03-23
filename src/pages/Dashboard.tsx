@@ -54,6 +54,7 @@ export default function Dashboard({ user }: Props) {
   const [pushPermission, setPushPermission] = useState(() => currentPermission())
   const [scanMode, setScanMode] = useState<null | 'choice' | 'entnehmen'>(null)
   const [forceOrdersOpenTab, setForceOrdersOpenTab] = useState(0)
+  const [forceOrdersScanMode, setForceOrdersScanMode] = useState(0)
   const [dashToast, setDashToast] = useState<string | null>(null)
   const dashToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -302,7 +303,7 @@ export default function Dashboard({ user }: Props) {
                   {tab === 'overview' && <OverviewPage />}
                   {tab === 'stock'    && <StockPage role={role} initialBarcode={pendingBarcode} onBarcodeConsumed={() => setPendingBarcode(null)} onNavigateToOrders={() => setTab('orders')} />}
 
-                  {tab === 'orders'   && <OrdersPage role={role} user={user} onBadgeChange={setOrderBadge} forceOpenTab={forceOrdersOpenTab} />}
+                  {tab === 'orders'   && <OrdersPage role={role} user={user} onBadgeChange={setOrderBadge} forceOpenTab={forceOrdersOpenTab} forceScanMode={forceOrdersScanMode} />}
                 </>
             }
           </div>
@@ -366,6 +367,7 @@ export default function Dashboard({ user }: Props) {
                   setScanMode(null)
                   setTab('orders')
                   setForceOrdersOpenTab(c => c + 1)
+                  setForceOrdersScanMode(c => c + 1)
                 }}
                 className="flex-1 flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-slate-200 hover:border-emerald-400 hover:bg-emerald-50 transition-colors"
               >

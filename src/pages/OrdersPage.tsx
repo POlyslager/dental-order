@@ -2,12 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import type { CartItem, Order, OrderItem, Role } from '../lib/types'
-import { ShoppingCart, Package, Plus, Minus, CheckCircle, AlertCircle, ExternalLink, Check, Trash2, Undo2, ScanLine, X } from 'lucide-react'
+import { ShoppingCart, Package, Plus, Minus, CheckCircle, AlertCircle, ExternalLink, Check, Trash2, Undo2, ScanLine } from 'lucide-react'
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
 
 const APPROVAL_THRESHOLD = 2000
 
-interface Props { role: Role | null; user: User; onBadgeChange: (n: number) => void; forceOpenTab?: number }
+interface Props { role: Role | null; user: User; onBadgeChange: (n: number) => void; forceOpenTab?: number; forceScanMode?: number }
 
 // Extract domain from a URL, e.g. "https://www.dental-shop.de/..." → "dental-shop.de"
 function getDomain(url: string | null | undefined): string | null {
@@ -19,7 +19,7 @@ function getDomain(url: string | null | undefined): string | null {
   }
 }
 
-export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab }: Props) {
+export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, forceScanMode }: Props) {
   const [tab, setTab] = useState<'cart' | 'open'>('cart')
   const [cartItems, setCartItems] = useState<CartItem[]>([])
   const [orders, setOrders] = useState<Order[]>([])
@@ -29,10 +29,11 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab }: 
   const [toast, setToast] = useState<{ message: string; onUndo?: () => void } | null>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [receivedIds, setReceivedIds] = useState<Set<string>>(new Set())
-  const [scanReceiving, setScanReceiving] = useState(false)
+  const [scanToggle, setScanToggle] = useState(false)
   const [scanConfirm, setScanConfirm] = useState<{ item: OrderItem; order: Order } | null>(null)
   const [receiving, setReceiving] = useState<string | null>(null)
   const einbuchenScannerRef = useRef<Html5Qrcode | null>(null)
+  const scanToggleRef = useRef(false)
   const EINBUCHEN_SCAN_DIV = 'einbuchen-scanner-div'
 
   useEffect(() => {
@@ -42,6 +43,23 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab }: 
   useEffect(() => {
     if (forceOpenTab) setTab('open')
   }, [forceOpenTab])
+
+  useEffect(() => {
+    if (forceScanMode) {
+      setTab('open')
+      setScanToggle(true)
+      scanToggleRef.current = true
+    }
+  }, [forceScanMode])
+
+  // Stop scanner when switching away from open tab
+  useEffect(() => {
+    if (tab !== 'open' && scanToggleRef.current) {
+      stopInlineScanner()
+      setScanToggle(false)
+      scanToggleRef.current = false
+    }
+  }, [tab])
 
   async function fetchCart() {
     const { data } = await supabase
@@ -185,9 +203,10 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab }: 
     }
   }
 
-  async function startEinbuchenScanner() {
-    setScanReceiving(true)
+  async function startInlineScanner() {
+    if (einbuchenScannerRef.current) return // already running
     await new Promise(r => setTimeout(r, 150))
+    if (!scanToggleRef.current) return // toggle was turned off while waiting
     try {
       const formats = [
         Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8,
@@ -202,7 +221,6 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab }: 
         async (raw) => {
           await s.stop()
           einbuchenScannerRef.current = null
-          setScanReceiving(false)
           const clean = raw.replace(/^\][A-Za-z][0-9]/, '').replace(/[^\x20-\x7E]/g, '').trim()
           const gtin = clean.match(/^01(\d{14})/)
           const barcode = gtin ? gtin[1] : clean
@@ -214,19 +232,45 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab }: 
               return
             }
           }
-          // Not found
+          // Not found — show toast and restart scanner after short pause
           showToast('Artikel nicht in offenen Bestellungen gefunden')
+          if (scanToggleRef.current) {
+            await new Promise(r => setTimeout(r, 800))
+            startInlineScanner()
+          }
         },
         () => {}
       )
-    } catch { setScanReceiving(false) }
+    } catch {
+      // Camera error — turn off toggle
+      setScanToggle(false)
+      scanToggleRef.current = false
+    }
   }
 
-  function stopEinbuchenScanner() {
+  function stopInlineScanner() {
     einbuchenScannerRef.current?.stop().catch(() => {})
     einbuchenScannerRef.current = null
-    setScanReceiving(false)
   }
+
+  function handleToggleScan() {
+    const next = !scanToggle
+    scanToggleRef.current = next
+    setScanToggle(next)
+    if (!next) stopInlineScanner()
+  }
+
+  // Start scanner when toggle turns on (and no confirm showing)
+  useEffect(() => {
+    if (scanToggle && !scanConfirm) startInlineScanner()
+  }, [scanToggle])
+
+  // Restart scanner after confirm modal is dismissed (if toggle still on)
+  useEffect(() => {
+    if (!scanConfirm && scanToggleRef.current) {
+      startInlineScanner()
+    }
+  }, [scanConfirm])
 
   const openCount = orders.length
   const cartCount = cartItems.length
@@ -243,10 +287,14 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab }: 
         </TabButton>
         {tab === 'open' && (
           <button
-            onClick={startEinbuchenScanner}
-            className="ml-auto flex items-center gap-1.5 text-xs font-medium bg-sky-500 hover:bg-sky-600 text-white px-3 py-1.5 rounded-lg transition-colors shrink-0"
+            onClick={handleToggleScan}
+            className={`ml-auto flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors shrink-0 ${
+              scanToggle
+                ? 'bg-emerald-500 hover:bg-emerald-600 text-white'
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+            }`}
           >
-            <ScanLine size={13} /> Barcode scannen
+            <ScanLine size={13} /> {scanToggle ? 'Scan aktiv' : 'Scannen'}
           </button>
         )}
       </div>
@@ -325,7 +373,15 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab }: 
 
         {/* ── Open orders tab ── */}
         {tab === 'open' && (
-          loading ? (
+          <>
+          {/* Inline scanner */}
+          {scanToggle && (
+            <div className="bg-slate-900 px-4 pt-3 pb-4">
+              <div id={EINBUCHEN_SCAN_DIV} className="w-full rounded-xl overflow-hidden" style={{ minHeight: 220 }} />
+              <p className="text-center text-xs text-slate-400 mt-2">Halte einen Barcode vor die Kamera</p>
+            </div>
+          )}
+          {loading ? (
             <div className="flex justify-center py-16 px-4">
               <div className="w-6 h-6 border-4 border-sky-500 border-t-transparent rounded-full animate-spin" />
             </div>
@@ -352,6 +408,7 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab }: 
               </tbody>
             </table>
           )
+          </>
         )}
       </div>
 
@@ -394,23 +451,6 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab }: 
             </button>
           )}
         </div></div>
-      )}
-
-      {/* ── Einbuchen scanner modal ── */}
-      {scanReceiving && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40">
-          <div className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-4 py-4 border-b border-slate-100">
-              <h2 className="font-semibold text-slate-800">Einbuchen — Barcode scannen</h2>
-              <button onClick={stopEinbuchenScanner} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors">
-                <X size={20} />
-              </button>
-            </div>
-            <div className="p-4">
-              <div id={EINBUCHEN_SCAN_DIV} className="w-full rounded-xl overflow-hidden" style={{ minHeight: 240 }} />
-            </div>
-          </div>
-        </div>
       )}
 
       {/* ── Scan confirm modal ── */}
@@ -642,7 +682,7 @@ function OpenOrderSection({ order, role, isFirst, receivedIds, receiving, onRece
             <td className="px-4 py-3.5">
               <p className={`text-sm font-semibold truncate max-w-[180px] md:max-w-xs ${done ? 'text-slate-400' : 'text-slate-800'}`}>{item.product?.name ?? '—'}</p>
             </td>
-            <td className="px-3 py-3.5 text-center text-slate-500">{item.quantity}×</td>
+            <td className="px-3 py-3.5 text-center text-slate-500">{item.quantity}</td>
             <td className="px-3 py-3.5 text-right text-slate-500 whitespace-nowrap hidden sm:table-cell">
               {item.estimated_price != null
                 ? `€ ${item.estimated_price.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
