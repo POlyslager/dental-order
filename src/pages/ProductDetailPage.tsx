@@ -27,10 +27,11 @@ interface Props {
   onAddToCart: (productId: string, qty: number) => Promise<void>
   onCartItemAdded?: (name: string) => void
   onItemTaken?: (name: string) => void
+  onNavigateToOrders?: () => void
   isModal?: boolean
 }
 
-export default function ProductDetailPage({ product, onBack, onUpdated, onDeleted, onAddToCart, onCartItemAdded, onItemTaken, isModal }: Props) {
+export default function ProductDetailPage({ product, onBack, onUpdated, onDeleted, onAddToCart, onCartItemAdded, onItemTaken, onNavigateToOrders, isModal }: Props) {
   const [form, setForm] = useState(product)
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -289,7 +290,14 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
                     <div className="w-8 h-8 rounded-full bg-sky-100 flex items-center justify-center shrink-0">
                       <ShoppingCart size={14} className="text-sky-500" />
                     </div>
-                    <p className="text-sm text-slate-400">Artikel ist bereits im Warenkorb</p>
+                    <div>
+                      <p className="text-sm text-slate-400">Artikel ist bereits im Warenkorb</p>
+                      {onNavigateToOrders && (
+                        <button onClick={onNavigateToOrders} className="text-xs text-sky-500 hover:text-sky-600 transition-colors">
+                          Zur Bestellung →
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ) : (
                   <div className="flex items-center gap-3">

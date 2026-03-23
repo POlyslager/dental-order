@@ -461,6 +461,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
       setCartToast(`${name} wurde entnommen`)
       fetchProducts()
     },
+    onNavigateToOrders: onNavigateToOrders ?? undefined,
   } : null
 
   return (
