@@ -139,17 +139,14 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
   async function handleTake() {
     const qty = Math.min(entnehmenQty, Number(form.current_stock))
     if (qty <= 0) return
-    const { data: fresh } = await supabase.from('products').select('current_stock').eq('id', product.id).single()
-    const newStock = Math.max(0, (fresh?.current_stock ?? Number(form.current_stock)) - qty)
-    await supabase.from('products').update({ current_stock: newStock }).eq('id', product.id)
     const { data: { user } } = await supabase.auth.getUser()
-    await supabase.from('stock_movements').insert({
-      product_id: product.id,
-      type: 'scan_out',
-      quantity: qty,
-      scanned_by: user?.id ?? '',
-      notes: 'Entnommen über Artikeldetails',
+    const res = await fetch('/api/take-item', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ productId: product.id, quantity: qty, userId: user?.id }),
     })
+    if (!res.ok) return
+    const { newStock } = await res.json()
     if (onItemTaken) {
       onItemTaken(product.name)
     } else {
