@@ -110,7 +110,7 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
 
   async function handleDelete() {
     const res = await fetch('/api/delete-product', {
-      method: 'DELETE',
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: product.id }),
     })

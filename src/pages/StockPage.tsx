@@ -753,8 +753,8 @@ function CartToast({ message, onClose }: { message: string; onClose: () => void 
   }, [message, onClose])
   return (
     <div className="fixed top-4 left-4 right-4 z-[100] flex justify-center pointer-events-none">
-      <div className="pointer-events-auto w-full max-w-md bg-slate-900 text-white rounded-2xl shadow-2xl px-4 py-4 flex items-start gap-3 animate-slide-in-down">
-        <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0 mt-0.5">
+      <div className="pointer-events-auto w-full max-w-md bg-slate-900 text-white rounded-2xl shadow-2xl px-4 py-4 flex items-center gap-3 animate-slide-in-down">
+        <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
           <Check size={16} className="text-emerald-400" />
         </div>
         <p className="flex-1 text-sm font-medium leading-snug">{message}</p>
