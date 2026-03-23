@@ -70,7 +70,7 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
   async function fetchCart() {
     const { data } = await supabase
       .from('cart_items')
-      .select('*, product:products(*)')
+      .select('id, product_id, quantity, created_at, product:products(id, name, current_stock, unit, last_price, alternative_price, alternative_url, alternative_supplier, supplier_url, preferred_supplier)')
       .order('created_at')
     setCartItems((data as unknown as CartItem[]) ?? [])
   }
@@ -78,7 +78,7 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
   async function fetchOrders() {
     const { data } = await supabase
       .from('orders')
-      .select('*, items:order_items(*, product:products(*))')
+      .select('id, status, supplier, total_estimate, created_at, items:order_items(id, order_id, product_id, quantity, estimated_price, product:products(id, name, barcode, preferred_supplier, supplier_url))')
       .in('status', ['pending_approval', 'ordered'])
       .order('created_at', { ascending: false })
     setOrders(((data as unknown as Order[]) ?? []).filter(o => (o.items ?? []).length > 0))
