@@ -42,7 +42,6 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
   const [entnehmenQty, setEntnehmenQty] = useState(1)
   const [inCart, setInCart] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const [deleting, setDeleting] = useState(false)
   const [showDeleteSpinner, setShowDeleteSpinner] = useState(false)
   const deleteSpinnerTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [lastScan, setLastScan] = useState<string | null>(null)
@@ -122,7 +121,6 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
   }
 
   async function handleDelete() {
-    setDeleting(true)
     setConfirmDelete(false)
     deleteSpinnerTimer.current = setTimeout(() => setShowDeleteSpinner(true), 5000)
     try {
@@ -137,7 +135,6 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
       }
     } finally {
       if (deleteSpinnerTimer.current) clearTimeout(deleteSpinnerTimer.current)
-      setDeleting(false)
       setShowDeleteSpinner(false)
     }
   }
