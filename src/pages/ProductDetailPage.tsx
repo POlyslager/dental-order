@@ -4,7 +4,7 @@ import type { Product } from '../lib/types'
 import Drawer from '../components/Drawer'
 import CategorySelect from '../components/CategorySelect'
 import {
-  ChevronLeft, Pencil, Trash2, ShoppingCart, Check, ExternalLink,
+  ChevronLeft, Pencil, Trash2, ShoppingCart, Check, ExternalLink, X,
 } from 'lucide-react'
 
 const STORAGE_LOCATIONS = [
@@ -166,13 +166,21 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
     <div className="min-h-full bg-slate-50 overflow-x-hidden">
       {/* Sub-header */}
       <div className="bg-white border-b border-slate-200 px-4 py-3 flex items-center gap-2 sticky top-0 z-10">
-        <button onClick={editing ? () => { setForm(product); setEditing(false) } : onBack}
-          className="flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-slate-700 p-1 -ml-1 shrink-0">
-          <ChevronLeft size={16} />
-          Zurück
-        </button>
+        {/* Back button — non-modal only */}
+        {!isModal && (
+          <button
+            onClick={editing ? () => { setForm(product); setEditing(false) } : onBack}
+            className="flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-slate-700 p-1 -ml-1 shrink-0"
+          >
+            <ChevronLeft size={16} />
+            Zurück
+          </button>
+        )}
+
         <h1 className="font-semibold text-slate-800 truncate flex-1">{form.name}</h1>
-        {!editing && (
+
+        {/* Edit/delete in header — non-modal only */}
+        {!editing && !isModal && (
           <>
             <button onClick={() => setEditing(true)} className="text-slate-400 hover:text-sky-600 p-1.5 shrink-0">
               <Pencil size={16} />
@@ -181,6 +189,16 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
               <Trash2 size={16} />
             </button>
           </>
+        )}
+
+        {/* Close button — modal only */}
+        {isModal && (
+          <button
+            onClick={onBack}
+            className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 transition-colors shrink-0"
+          >
+            <X size={18} />
+          </button>
         )}
       </div>
 
@@ -217,11 +235,11 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
             )}
           </div>
 
-          {/* Order action — only when low or critical, not editing */}
-          {needsOrder && !editing && (
+          {/* Order action — always visible when not editing */}
+          {!editing && (
             <div className={`border-t px-4 py-4 ${styles.border} bg-white`}>
-              <p className={`text-xs font-semibold uppercase tracking-wide mb-3 ${status === 'red' ? 'text-red-600' : 'text-amber-600'}`}>
-                Nachbestellung
+              <p className={`text-xs font-semibold uppercase tracking-wide mb-3 ${status === 'red' ? 'text-red-600' : status === 'orange' ? 'text-amber-600' : 'text-slate-500'}`}>
+                Bestellen
               </p>
               <div className="flex items-end gap-3">
                 <div>
@@ -319,6 +337,26 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
             </div>
           )}
         </div>
+
+        {/* Edit / Delete buttons — modal only, shown below details when not editing */}
+        {isModal && !editing && (
+          <div className="flex gap-3 pt-2">
+            <button
+              onClick={() => setEditing(true)}
+              className="flex-1 flex items-center justify-center gap-2 border border-slate-300 rounded-xl py-3 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+            >
+              <Pencil size={15} />
+              Bearbeiten
+            </button>
+            <button
+              onClick={() => setConfirmDelete(true)}
+              className="flex items-center justify-center gap-2 border border-red-200 rounded-xl px-4 py-3 text-sm font-medium text-red-500 hover:bg-red-50 transition-colors"
+            >
+              <Trash2 size={15} />
+              Löschen
+            </button>
+          </div>
+        )}
 
       </div>
 

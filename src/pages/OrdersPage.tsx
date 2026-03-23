@@ -152,18 +152,18 @@ export default function OrdersPage({ role, user, onBadgeChange }: Props) {
         </TabButton>
       </div>
 
-      <div className="p-4">
+      <div>
         {/* ── Cart tab ── */}
         {tab === 'cart' && (
           cartItems.length === 0 ? (
-            <div className="text-center py-16">
+            <div className="text-center py-16 px-4">
               <ShoppingCart size={36} className="mx-auto text-slate-200 mb-3" />
               <p className="text-slate-400 text-sm">Warenkorb ist leer</p>
               <p className="text-xs text-slate-300 mt-1">Artikel über das Lager hinzufügen</p>
             </div>
           ) : (
             <div>
-              <div className="overflow-x-auto bg-white rounded-2xl border border-slate-200 shadow-sm">
+              <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50">
@@ -225,7 +225,7 @@ export default function OrdersPage({ role, user, onBadgeChange }: Props) {
 
               {/* Grand total — only when multiple domains */}
               {Object.keys(cartByDomain).length > 1 && (
-                <div className="mt-3 px-4 py-3 flex items-center justify-between border-t border-slate-200">
+                <div className="px-4 py-3 flex items-center justify-between border-t border-slate-200">
                   <p className="text-sm font-medium text-slate-600">Gesamtsumme Warenkorb</p>
                   <p className="text-lg font-bold text-slate-800">
                     € {grandTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -239,11 +239,11 @@ export default function OrdersPage({ role, user, onBadgeChange }: Props) {
         {/* ── Open orders tab ── */}
         {tab === 'open' && (
           loading ? (
-            <div className="flex justify-center py-16">
+            <div className="flex justify-center py-16 px-4">
               <div className="w-6 h-6 border-4 border-sky-500 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : orders.length === 0 ? (
-            <div className="text-center py-16">
+            <div className="text-center py-16 px-4">
               <Package size={36} className="mx-auto text-slate-200 mb-3" />
               <p className="text-slate-400 text-sm">Keine offenen Bestellungen</p>
             </div>
