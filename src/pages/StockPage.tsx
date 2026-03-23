@@ -46,6 +46,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
   const [, setAddedToCart] = useState<Set<string>>(new Set())
 
   const [scanning, setScanning] = useState(false)
+  const [looking, setLooking] = useState(false)
   const [closingProduct, setClosingProduct] = useState(false)
   const [duplicateProduct, setDuplicateProduct] = useState<Product | null>(null)
   const [cartToast, setCartToast] = useState<string | null>(null)
@@ -119,6 +120,33 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
     if (scannerRef.current?.isScanning) scannerRef.current.stop()
     scannerRef.current = null
     setScanning(false)
+  }
+
+  async function lookupProduct() {
+    setLooking(true)
+    try {
+      const res = await fetch('/api/lookup-product', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          supplierUrl: form.supplier_url,
+          query: form.article_number || form.name,
+        }),
+      })
+      const data = await res.json()
+      if (data.found) {
+        setForm(f => ({
+          ...f,
+          name:               f.name               || data.name        || '',
+          notes:              f.notes              || data.description  || '',
+          preferred_supplier: f.preferred_supplier || data.brand        || '',
+          article_number:     f.article_number     || data.sku          || '',
+          last_price:         f.last_price         || (data.price != null ? String(data.price) : ''),
+          supplier_url:       f.supplier_url       || data.productUrl   || '',
+        }))
+      }
+    } catch { /* silently ignore */ }
+    setLooking(false)
   }
 
   async function addToCart(productId: string, quantity: number) {
@@ -240,72 +268,103 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
   function closeForm() { stopBarcodeScanner(); setShowForm(false); setForm(EMPTY_FORM) }
 
   if (showForm && !selectedProduct) return (
-    <div className="max-w-2xl mx-auto animate-slide-in-right">
+    <div className="w-full animate-slide-in-right">
+      {/* Header */}
       <header className="bg-white border-b border-slate-200 px-4 py-3 flex items-center gap-3 sticky top-0 z-10">
         <button onClick={closeForm} className="flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-slate-700 p-1 -ml-1">
           <ChevronLeft size={16} />
           Zurück
         </button>
-        <h2 className="font-semibold text-slate-800">Neuer Artikel</h2>
+        <h2 className="font-semibold text-slate-800 flex-1">Neuer Artikel</h2>
+        {/* Scan button in header */}
+        <button type="button" onClick={startBarcodeScanner} disabled={scanning}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-300 text-sm text-slate-600 hover:bg-sky-50 hover:border-sky-300 hover:text-sky-600 disabled:opacity-40 transition-colors">
+          <Camera size={16} />
+          {form.barcode ? 'Barcode: ' + form.barcode : 'Barcode scannen'}
+        </button>
       </header>
-      <form onSubmit={handleCreate} className="p-4 pb-10 space-y-4">
-        <Field label="Name *" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} required/>
 
-        <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">Barcode / QR-Code *</label>
-          <div className="flex gap-2">
-            <input type="text" value={form.barcode} required
-              onChange={e => setForm(f => ({ ...f, barcode: e.target.value }))}
-              className="flex-1 border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
-            <button type="button" onClick={startBarcodeScanner} disabled={scanning}
-              className="px-3 rounded-lg border border-slate-300 text-slate-500 hover:bg-sky-50 hover:border-sky-300 hover:text-sky-600 disabled:opacity-40 transition-colors">
-              <Camera size={16} />
-            </button>
-          </div>
-          <div className={`relative bg-slate-900 rounded-xl overflow-hidden mt-2 ${scanning ? '' : 'h-0 mt-0 overflow-hidden'}`} style={{ minHeight: scanning ? 280 : 0 }}>
-            <div id="barcode-scanner" className="w-full" />
-            {scanning && (
-              <button type="button" onClick={stopBarcodeScanner}
-                className="absolute top-2 right-2 bg-black/40 text-white rounded-full p-1 z-10">
-                <X size={14} />
-              </button>
-            )}
-          </div>
+      {/* Scanner view */}
+      {scanning && (
+        <div className="relative bg-slate-900" style={{ height: 'calc(100dvh - 57px)' }}>
+          <div id="barcode-scanner" className="w-full h-full" />
+          <button type="button" onClick={stopBarcodeScanner}
+            className="absolute top-4 left-4 bg-black/40 backdrop-blur-sm text-white rounded-full px-4 py-2 text-sm flex items-center gap-2 z-10">
+            <X size={14} /> Abbrechen
+          </button>
         </div>
-        <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">Kategorie *</label>
-          <CategorySelect value={form.category} onChange={v => setForm(f => ({ ...f, category: v }))} categories={categories.filter(c => c !== 'all')} required />
-        </div>
-        <div className="grid grid-cols-3 gap-3">
-          <Field label="Bestand *" inputMode="numeric" value={form.current_stock} onChange={v => setForm(f => ({ ...f, current_stock: v }))} required />
-          <Field label="Meldebestand *" inputMode="numeric" value={form.min_stock} onChange={v => setForm(f => ({ ...f, min_stock: v }))} required />
+      )}
+
+      {/* Form */}
+      {!scanning && (
+        <form onSubmit={handleCreate} className="p-4 pb-10 space-y-4 max-w-2xl">
+          <Field label="Name *" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} required />
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Einheit</label>
-            <select value={form.unit} onChange={e => setForm(f => ({ ...f, unit: e.target.value }))}
+            <label className="block text-xs font-medium text-slate-600 mb-1">Kategorie *</label>
+            <CategorySelect value={form.category} onChange={v => setForm(f => ({ ...f, category: v }))} categories={categories.filter(c => c !== 'all')} required />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Meldebestand *" inputMode="numeric" value={form.min_stock} onChange={v => setForm(f => ({ ...f, min_stock: v }))} required />
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Einheit</label>
+              <select value={form.unit} onChange={e => setForm(f => ({ ...f, unit: e.target.value }))}
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500">
+                {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+              </select>
+            </div>
+          </div>
+          <Field label="Stückpreis (€)" inputMode="decimal" value={form.last_price} onChange={v => setForm(f => ({ ...f, last_price: v }))} />
+          <Field label="Beschreibung" value={form.description} onChange={v => setForm(f => ({ ...f, description: v }))} />
+          <Field label="Artikelnummer" value={form.article_number} onChange={v => setForm(f => ({ ...f, article_number: v }))} />
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Lagerort</label>
+            <select value={form.storage_location} onChange={e => setForm(f => ({ ...f, storage_location: e.target.value }))}
               className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500">
-              {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+              <option value="">— Kein Lagerort —</option>
+              {STORAGE_LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}
             </select>
           </div>
-        </div>
-        <Field label="Stückpreis (€)" inputMode="decimal" value={form.last_price} onChange={v => setForm(f => ({ ...f, last_price: v }))} />
-        <Field label="Beschreibung" value={form.description} onChange={v => setForm(f => ({ ...f, description: v }))} />
-        <Field label="Artikelnummer" value={form.article_number} onChange={v => setForm(f => ({ ...f, article_number: v }))} />
-        <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">Lagerort</label>
-          <select value={form.storage_location} onChange={e => setForm(f => ({ ...f, storage_location: e.target.value }))}
-            className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500">
-            <option value="">— Kein Lagerort —</option>
-            {STORAGE_LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}
-          </select>
-        </div>
-        <Field label="Lieferant / Hersteller" value={form.preferred_supplier} onChange={v => setForm(f => ({ ...f, preferred_supplier: v }))} />
-        <Field label="Bestell-Website" type="url" value={form.supplier_url} onChange={v => setForm(f => ({ ...f, supplier_url: v }))} />
-        <Field label="Notizen" value={form.notes} onChange={v => setForm(f => ({ ...f, notes: v }))} rows={3} />
-        <button type="submit" disabled={saving}
-          className="w-full bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white font-medium rounded-xl py-3 text-sm">
-          {saving ? 'Speichern…' : 'Artikel hinzufügen'}
-        </button>
-      </form>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Lieferant / Hersteller</label>
+            <CategorySelect
+              value={form.preferred_supplier}
+              onChange={v => setForm(f => ({ ...f, preferred_supplier: v }))}
+              categories={brands}
+              placeholder="Lieferant suchen…"
+              newLabel="als neuer Lieferant"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Bestell-Website</label>
+            <div className="flex gap-2">
+              <input type="url" value={form.supplier_url}
+                onChange={e => setForm(f => ({ ...f, supplier_url: e.target.value }))}
+                placeholder="https://…"
+                className="flex-1 border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
+              {(form.supplier_url || form.preferred_supplier) && (form.name || form.article_number) && (
+                <button type="button" onClick={lookupProduct} disabled={looking}
+                  className="px-3 py-2 rounded-lg border border-sky-300 text-sky-600 hover:bg-sky-50 disabled:opacity-40 text-xs font-medium whitespace-nowrap transition-colors">
+                  {looking ? '…' : '↗ Nachschlagen'}
+                </button>
+              )}
+            </div>
+          </div>
+          <Field label="Beschreibung" value={form.notes} onChange={v => setForm(f => ({ ...f, notes: v }))} rows={3} />
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={closeForm}
+              className="flex-1 border border-slate-300 rounded-xl py-3 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
+              Abbrechen
+            </button>
+            <button type="submit" disabled={saving}
+              className="flex-1 bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white font-medium rounded-xl py-3 text-sm">
+              {saving ? 'Speichern…' : 'Hinzufügen'}
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
+  )
+
 
       {/* Duplicate barcode modal — rendered here so it works inside the early return */}
       {duplicateProduct && (
@@ -468,12 +527,12 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
       <div className="overflow-x-auto">
         <table className="w-full table-fixed">
           <colgroup>
-            <col className="w-auto" />
-            <col className="hidden md:table-column w-36" />
-            <col className="hidden md:table-column w-32" />
-            <col className="hidden md:table-column w-36" />
-            <col className="w-28" />
-            <col className="w-28" />
+            <col style={{ width: '30%' }} />
+            <col className="hidden md:table-column" style={{ width: '18%' }} />
+            <col className="hidden md:table-column" style={{ width: '12%' }} />
+            <col className="hidden md:table-column" style={{ width: '18%' }} />
+            <col style={{ width: '12%' }} />
+            <col style={{ width: '10%' }} />
           </colgroup>
           <thead>
             <tr className="border-b border-slate-200 bg-white">

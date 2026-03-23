@@ -266,6 +266,17 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
                   {added ? <Check size={20} /> : <ShoppingCart size={20} />}
                 </button>
               </div>
+              {/* Direct order link */}
+              {(form.supplier_url || form.producer_url) && (
+                <a
+                  href={(form.supplier_url || form.producer_url)!}
+                  target="_blank" rel="noopener noreferrer"
+                  className="mt-3 flex items-center gap-1.5 text-xs text-sky-600 hover:text-sky-700"
+                >
+                  <ExternalLink size={12} />
+                  {form.supplier_url ? 'Direkt bei Lieferant bestellen' : 'Hersteller-Website öffnen'}
+                </a>
+              )}
             </div>
           )}
         </div>
@@ -282,8 +293,7 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
               {editField('Artikelnummer', 'article_number')}
               {editField('Stückpreis (€)', 'last_price', 'number')}
               {editField('Lagerort', 'storage_location', 'select')}
-              {editField('Beschreibung', 'description', 'textarea')}
-              {editField('Notizen', 'notes', 'textarea')}
+              {editField('Beschreibung', 'notes', 'textarea')}
               <div className="border-t border-slate-100 pt-3 space-y-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Lieferant</label>
@@ -308,12 +318,10 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
                 {form.article_number ? <Info label="Artikelnummer" value={form.article_number} /> : null}
                 {form.last_price != null ? <Info label="Stückpreis" value={`€ ${Number(form.last_price).toFixed(2)}`} /> : null}
                 {form.storage_location ? <Info label="Lagerort" value={form.storage_location} /> : null}
-                {form.barcode ? <Info label="Barcode" value={form.barcode} /> : null}
                 {lastScan ? <Info label="Zuletzt geprüft" value={new Date(lastScan).toLocaleDateString('de-DE')} /> : null}
               </div>
 
-              {form.description ? <Info label="Beschreibung" value={form.description} /> : null}
-              {form.notes ? <Info label="Notizen" value={form.notes} /> : null}
+              {(form.notes || form.description) ? <Info label="Beschreibung" value={(form.notes || form.description)!} /> : null}
 
               {(form.preferred_supplier || form.supplier_url || form.producer_url) && (
                 <div className="border-t border-slate-100 pt-4 space-y-3">
