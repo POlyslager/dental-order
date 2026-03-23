@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import type { CartItem, Order, OrderItem, Role } from '../lib/types'
-import { ShoppingCart, Package, Plus, Minus, CheckCircle, AlertCircle, ExternalLink, Check, Trash2 } from 'lucide-react'
+import { ShoppingCart, Package, Plus, Minus, CheckCircle, AlertCircle, ExternalLink, Check, Trash2, Undo2 } from 'lucide-react'
 
 const APPROVAL_THRESHOLD = 2000
 
@@ -24,6 +24,9 @@ export default function OrdersPage({ role, user, onBadgeChange }: Props) {
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [placingItem, setPlacingItem] = useState<string | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState<CartItem | null>(null)
+  const [toast, setToast] = useState<{ message: string; onUndo?: () => void } | null>(null)
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     Promise.all([fetchCart(), fetchOrders()])
@@ -77,6 +80,33 @@ export default function OrdersPage({ role, user, onBadgeChange }: Props) {
     updateBadge(updated, orders)
   }
 
+  function showToast(message: string, onUndo?: () => void) {
+    if (toastTimer.current) clearTimeout(toastTimer.current)
+    setToast({ message, onUndo })
+    toastTimer.current = setTimeout(() => setToast(null), 5000)
+  }
+
+  async function confirmDelete(item: CartItem) {
+    setDeleteConfirm(null)
+    await removeItem(item.id)
+    showToast(`${item.product?.name ?? 'Artikel'} aus dem Warenkorb entfernt`, async () => {
+      // Undo: re-insert the cart item
+      const { data: restored } = await supabase
+        .from('cart_items')
+        .insert({ product_id: item.product_id, quantity: item.quantity })
+        .select('*, product:products(*)')
+        .single()
+      if (restored) {
+        const updated = [...cartItems.filter(i => i.id !== item.id), restored as unknown as CartItem]
+        setCartItems(updated)
+        updateBadge(updated, orders)
+      } else {
+        await fetchCart()
+      }
+      setToast(null)
+    })
+  }
+
   async function placeOrderForItem(item: CartItem) {
     setPlacingItem(item.id)
     const total = item.quantity * (item.product?.last_price ?? 0)
@@ -125,7 +155,7 @@ export default function OrdersPage({ role, user, onBadgeChange }: Props) {
   const cartCount = cartItems.length
 
   return (
-    <div className="w-full">
+    <div className="w-full relative">
       {/* Tab switcher */}
       <div className="flex border-b border-slate-200 bg-white sticky top-0 z-10 px-4">
         <TabButton active={tab === 'cart'} onClick={() => setTab('cart')} badge={cartCount}>
@@ -161,7 +191,7 @@ export default function OrdersPage({ role, user, onBadgeChange }: Props) {
                         <tr key={`domain-${domain}`} className="border-t border-slate-200 bg-slate-50">
                           <td colSpan={7} className="px-4 py-2.5">
                             <div className="flex items-center justify-between gap-3">
-                              <p className="font-semibold text-slate-800 text-sm">{domain}</p>
+                              <p className="font-semibold text-slate-800 text-base">{domain}</p>
                               <span className="text-xs text-slate-500 hidden sm:inline">
                                 Gesamt: <span className="font-semibold text-slate-700">€ {domainTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                               </span>
@@ -186,7 +216,7 @@ export default function OrdersPage({ role, user, onBadgeChange }: Props) {
                             placing={placingItem === item.id}
                             onUpdateQuantity={updateQuantity}
                             onPlaceOrder={placeOrderForItem}
-                            onRemove={removeItem}
+                            onRemoveRequest={setDeleteConfirm}
                           />
                         ))}
                       </>
@@ -235,17 +265,58 @@ export default function OrdersPage({ role, user, onBadgeChange }: Props) {
           )
         )}
       </div>
+
+      {/* Delete confirmation modal */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => setDeleteConfirm(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="font-semibold text-slate-800 text-base mb-1">Aus Warenkorb entfernen?</h3>
+            <p className="text-sm text-slate-500 mb-5">
+              <span className="font-medium text-slate-700">{deleteConfirm.product?.name}</span> wird aus dem Warenkorb gelöscht.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                className="flex-1 px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={() => confirmDelete(deleteConfirm)}
+                className="flex-1 px-4 py-2 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-medium transition-colors"
+              >
+                Entfernen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast */}
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-slate-800 text-white text-sm font-medium px-4 py-3 rounded-2xl shadow-lg">
+          <span>{toast.message}</span>
+          {toast.onUndo && (
+            <button
+              onClick={toast.onUndo}
+              className="flex items-center gap-1 text-sky-300 hover:text-sky-200 transition-colors whitespace-nowrap"
+            >
+              <Undo2 size={13} /> Rückgängig
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }
 
 // ── Cart item row ───────────────────────────────────────────────────────────
-function CartItemRow({ item, placing, onUpdateQuantity, onPlaceOrder, onRemove }: {
+function CartItemRow({ item, placing, onUpdateQuantity, onPlaceOrder, onRemoveRequest }: {
   item: CartItem
   placing: boolean
   onUpdateQuantity: (id: string, qty: number) => void
   onPlaceOrder: (item: CartItem) => void
-  onRemove: (id: string) => void
+  onRemoveRequest: (item: CartItem) => void
 }) {
   const [confirmOrder, setConfirmOrder] = useState(false)
   const confirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -328,7 +399,7 @@ function CartItemRow({ item, placing, onUpdateQuantity, onPlaceOrder, onRemove }
       <td className="px-3 py-3.5 text-right">
         <div className="flex items-center justify-end gap-2">
           <button
-            onClick={() => onRemove(item.id)}
+            onClick={() => onRemoveRequest(item)}
             className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
             title="Aus Warenkorb entfernen"
           >
