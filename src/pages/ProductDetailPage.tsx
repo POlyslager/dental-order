@@ -42,7 +42,6 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
   const [suppliers, setSuppliers] = useState<string[]>([])
 
   const status = stockStatus(form)
-  const needsOrder = status === 'red' || status === 'orange'
 
   const barMax = Math.max(Number(form.current_stock) || 0, (Number(form.min_stock) || 0) * 2.5, 1)
   const fillPct = Math.min(100, ((Number(form.current_stock) || 0) / barMax) * 100)
