@@ -321,20 +321,25 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
         <h2 className="font-semibold text-slate-800 flex-1">Neuer Artikel</h2>
       </header>
 
-      {/* Scanner view */}
+      {/* Scanner modal */}
       {scanning && (
-        <div className="relative bg-slate-900" style={{ height: 'calc(100dvh - 57px)' }}>
-          <div id="barcode-scanner" className="w-full h-full" />
-          <button type="button" onClick={stopBarcodeScanner}
-            className="absolute top-4 left-4 bg-black/40 backdrop-blur-sm text-white rounded-full px-4 py-2 text-sm flex items-center gap-2 z-10">
-            <X size={14} /> Abbrechen
-          </button>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60">
+          <div className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+              <span className="font-semibold text-slate-800 text-sm">Barcode scannen</span>
+              <button type="button" onClick={stopBarcodeScanner}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+            <div id="barcode-scanner" className="w-full bg-slate-900" style={{ minHeight: 260 }} />
+            <p className="text-center text-xs text-slate-400 py-2 bg-slate-900">Halte barcode voor de camera</p>
+          </div>
         </div>
       )}
 
       {/* Form */}
-      {!scanning && (
-        <form onSubmit={handleCreate} className="p-4 pb-10 space-y-4 max-w-2xl">
+      <form onSubmit={handleCreate} className="p-4 pb-10 space-y-4 max-w-2xl">
           {/* Scan button — primary, at top of form */}
           <button type="button" onClick={startBarcodeScanner} disabled={scanning}
             className="w-full flex items-center justify-center gap-2 bg-sky-500 hover:bg-sky-600 disabled:opacity-40 text-white font-medium rounded-xl py-3 text-sm transition-colors">
@@ -406,7 +411,6 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
             </button>
           </div>
         </form>
-      )}
 
       {/* Duplicate barcode modal */}
       {duplicateProduct && (
