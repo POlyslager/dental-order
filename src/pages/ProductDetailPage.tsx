@@ -342,14 +342,14 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
           <div className="flex gap-3 pt-2">
             <button
               onClick={() => setEditing(true)}
-              className="flex-1 flex items-center justify-center gap-2 border border-slate-300 rounded-xl py-3 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+              className="flex-1 flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 rounded-xl py-3 text-sm font-medium text-slate-700 transition-colors"
             >
               <Pencil size={15} />
               Bearbeiten
             </button>
             <button
               onClick={() => setConfirmDelete(true)}
-              className="flex items-center justify-center gap-2 border border-red-200 rounded-xl px-4 py-3 text-sm font-medium text-red-500 hover:bg-red-50 transition-colors"
+              className="flex-1 flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 rounded-xl py-3 text-sm font-medium text-white transition-colors"
             >
               <Trash2 size={15} />
               Löschen

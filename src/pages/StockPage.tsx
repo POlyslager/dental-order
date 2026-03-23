@@ -305,16 +305,22 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
     </div>
   )
 
+  const [closingProduct, setClosingProduct] = useState(false)
+  function closeProduct() {
+    setClosingProduct(true)
+    setTimeout(() => { setSelectedProduct(null); setClosingProduct(false) }, 260)
+  }
+
   const productDetailProps = selectedProduct ? {
     product: selectedProduct,
-    onBack: () => setSelectedProduct(null),
+    onBack: closeProduct,
     onUpdated: (updated: Product) => {
       setProducts(prev => prev.map(p => p.id === updated.id ? updated : p))
       setSelectedProduct(updated)
     },
     onDeleted: (id: string) => {
       setProducts(prev => prev.filter(p => p.id !== id))
-      setSelectedProduct(null)
+      closeProduct()
     },
     onAddToCart: addToCart,
   } : null
@@ -530,13 +536,13 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
       )}
 
       {/* Product detail — full-screen on mobile, side panel modal on md+ */}
-      {selectedProduct && productDetailProps && (
+      {(selectedProduct || closingProduct) && productDetailProps && (
         <>
           <div
-            className="hidden md:block fixed inset-0 bg-black/30 z-40"
-            onClick={() => setSelectedProduct(null)}
+            className={`hidden md:block fixed inset-0 bg-black/30 z-40 ${closingProduct ? 'animate-fade-in' : 'animate-fade-in'}`}
+            onClick={closeProduct}
           />
-          <div className="fixed inset-0 bg-white z-50 overflow-y-auto md:inset-auto md:top-4 md:bottom-4 md:right-4 md:w-[520px] md:rounded-2xl md:shadow-2xl">
+          <div className={`fixed inset-0 bg-white z-50 overflow-y-auto md:inset-auto md:top-4 md:bottom-4 md:right-4 md:w-[520px] md:rounded-2xl md:shadow-2xl ${closingProduct ? 'animate-slide-out-right' : 'animate-slide-in-right'}`}>
             <ProductDetailPage {...productDetailProps} isModal />
           </div>
         </>
