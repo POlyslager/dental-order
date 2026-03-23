@@ -110,7 +110,7 @@ export default function Dashboard({ user }: Props) {
         {/* Logo + collapse toggle */}
         <div className={`flex items-center border-b border-slate-100 px-3 py-4 ${sidebarCollapsed ? 'justify-center' : 'justify-between'}`}>
           {!sidebarCollapsed && (
-            <span className="font-bold text-slate-800 tracking-tight text-sm">DentalOrder</span>
+            <span className="font-bold text-slate-800 tracking-tight text-base">DentalOrder</span>
           )}
           <button
             onClick={() => setSidebarCollapsed(c => !c)}
@@ -257,7 +257,7 @@ export default function Dashboard({ user }: Props) {
         >
           <div className="px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="font-bold text-slate-800 tracking-tight md:hidden">DentalOrder</span>
+              <span className="font-bold text-slate-800 tracking-tight text-lg md:hidden">DentalOrder</span>
               <span className="hidden md:block font-bold text-slate-800 tracking-tight">{PAGE_TITLES[tab]}</span>
               {role === 'admin' && (
                 <span className="text-xs bg-sky-100 text-sky-700 px-2 py-0.5 rounded-full font-medium md:hidden">Admin</span>
