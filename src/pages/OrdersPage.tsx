@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import type { CartItem, Order, OrderItem, Role } from '../lib/types'
-import { ShoppingCart, Package, Plus, Minus, CheckCircle, AlertCircle, ExternalLink, Check } from 'lucide-react'
+import { ShoppingCart, Package, Plus, Minus, CheckCircle, AlertCircle, ExternalLink, Check, Trash2 } from 'lucide-react'
 
 const APPROVAL_THRESHOLD = 2000
 
@@ -149,10 +149,14 @@ export default function OrdersPage({ role, user, onBadgeChange }: Props) {
             <div>
               <table className="w-full text-sm">
                 <tbody>
-                  {Object.entries(cartByDomain).map(([domain, items]) => {
+                  {Object.entries(cartByDomain).map(([domain, items], idx) => {
                     const domainTotal = items.reduce((s, i) => s + (i.quantity * (i.product?.last_price ?? 0)), 0)
                     return (
                       <>
+                        {/* Spacer between groups */}
+                        {idx > 0 && (
+                          <tr key={`spacer-${domain}`}><td colSpan={7} className="h-4 bg-slate-100" /></tr>
+                        )}
                         {/* Domain title row */}
                         <tr key={`domain-${domain}`} className="border-t border-slate-200 bg-slate-50">
                           <td colSpan={7} className="px-4 py-2.5">
@@ -182,6 +186,7 @@ export default function OrdersPage({ role, user, onBadgeChange }: Props) {
                             placing={placingItem === item.id}
                             onUpdateQuantity={updateQuantity}
                             onPlaceOrder={placeOrderForItem}
+                            onRemove={removeItem}
                           />
                         ))}
                       </>
@@ -235,11 +240,12 @@ export default function OrdersPage({ role, user, onBadgeChange }: Props) {
 }
 
 // ── Cart item row ───────────────────────────────────────────────────────────
-function CartItemRow({ item, placing, onUpdateQuantity, onPlaceOrder }: {
+function CartItemRow({ item, placing, onUpdateQuantity, onPlaceOrder, onRemove }: {
   item: CartItem
   placing: boolean
   onUpdateQuantity: (id: string, qty: number) => void
   onPlaceOrder: (item: CartItem) => void
+  onRemove: (id: string) => void
 }) {
   const [confirmOrder, setConfirmOrder] = useState(false)
   const confirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -261,9 +267,6 @@ function CartItemRow({ item, placing, onUpdateQuantity, onPlaceOrder }: {
     <tr className="bg-white hover:bg-slate-50 transition-colors border-b border-slate-100">
       <td className="px-4 py-3.5">
         <p className="text-sm font-semibold text-slate-800 truncate max-w-[180px] md:max-w-xs">{item.product?.name}</p>
-        {item.product?.preferred_supplier && (
-          <p className="text-xs text-slate-400 mt-0.5">{item.product.preferred_supplier}</p>
-        )}
         {item.product?.alternative_price != null &&
          item.product?.last_price != null &&
          item.product.alternative_price < item.product.last_price && (
@@ -321,29 +324,38 @@ function CartItemRow({ item, placing, onUpdateQuantity, onPlaceOrder }: {
           <span className="text-slate-300 text-xs">—</span>
         )}
       </td>
-      {/* Two-step order action */}
+      {/* Two-step order action + delete */}
       <td className="px-3 py-3.5 text-right">
-        <button
-          onClick={handleOrderClick}
-          disabled={placing}
-          className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap ml-auto disabled:opacity-50 ${
-            confirmOrder
-              ? 'bg-emerald-500 hover:bg-emerald-600 text-white'
-              : needsApproval
-              ? 'bg-amber-500 hover:bg-amber-600 text-white'
-              : 'bg-sky-500 hover:bg-sky-600 text-white'
-          }`}
-        >
-          {placing ? (
-            <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" />
-          ) : confirmOrder ? (
-            <><CheckCircle size={12} /> Bestätigen?</>
-          ) : needsApproval ? (
-            <><AlertCircle size={12} /> Zur Genehmigung</>
-          ) : (
-            <><CheckCircle size={12} /> Als bestellt markieren</>
-          )}
-        </button>
+        <div className="flex items-center justify-end gap-2">
+          <button
+            onClick={() => onRemove(item.id)}
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+            title="Aus Warenkorb entfernen"
+          >
+            <Trash2 size={14} />
+          </button>
+          <button
+            onClick={handleOrderClick}
+            disabled={placing}
+            className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap disabled:opacity-50 ${
+              confirmOrder
+                ? 'bg-emerald-500 hover:bg-emerald-600 text-white'
+                : needsApproval
+                ? 'bg-amber-500 hover:bg-amber-600 text-white'
+                : 'bg-sky-500 hover:bg-sky-600 text-white'
+            }`}
+          >
+            {placing ? (
+              <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" />
+            ) : confirmOrder ? (
+              <><CheckCircle size={12} /> Bestätigen?</>
+            ) : needsApproval ? (
+              <><AlertCircle size={12} /> Zur Genehmigung</>
+            ) : (
+              <><CheckCircle size={12} /> Als bestellt markieren</>
+            )}
+          </button>
+        </div>
       </td>
     </tr>
   )
