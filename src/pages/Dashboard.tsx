@@ -11,8 +11,9 @@ import TermsPage from './TermsPage'
 import {
   Package, ScanLine, ShoppingCart, Menu, X, Settings,
   LayoutDashboard, Bell, BellOff, ScrollText, LogOut,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, PackageMinus, PackagePlus, Check,
 } from 'lucide-react'
+import EntnehmenScanModal from '../components/EntnehmenScanModal'
 
 
 type Tab = 'overview' | 'stock' | 'orders' | 'scan'
@@ -51,6 +52,16 @@ export default function Dashboard({ user }: Props) {
   const [pendingBarcode, setPendingBarcode] = useState<string | null>(null)
   const [orderBadge, setOrderBadge] = useState(0)
   const [pushPermission, setPushPermission] = useState(() => currentPermission())
+  const [scanMode, setScanMode] = useState<null | 'choice' | 'entnehmen'>(null)
+  const [forceOrdersOpenTab, setForceOrdersOpenTab] = useState(0)
+  const [dashToast, setDashToast] = useState<string | null>(null)
+  const dashToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  function showDashToast(msg: string) {
+    if (dashToastTimer.current) clearTimeout(dashToastTimer.current)
+    setDashToast(msg)
+    dashToastTimer.current = setTimeout(() => setDashToast(null), 5000)
+  }
 
   function handleAddWithBarcode(barcode: string) {
     setPendingBarcode(barcode)
@@ -265,7 +276,7 @@ export default function Dashboard({ user }: Props) {
             </div>
             <div className="flex items-center gap-1">
               <button
-                onClick={() => setTab('scan')}
+                onClick={() => setScanMode('choice')}
                 className="hidden md:flex items-center justify-center p-2 bg-sky-500 hover:bg-sky-600 text-white rounded-xl transition-colors"
                 title="Scannen"
               >
@@ -292,7 +303,7 @@ export default function Dashboard({ user }: Props) {
                   {tab === 'overview' && <OverviewPage />}
                   {tab === 'stock'    && <StockPage role={role} initialBarcode={pendingBarcode} onBarcodeConsumed={() => setPendingBarcode(null)} onNavigateToOrders={() => setTab('orders')} />}
                   {tab === 'scan'     && <ScanPage onAddWithBarcode={handleAddWithBarcode} onSubview={() => {}} />}
-                  {tab === 'orders'   && <OrdersPage role={role} user={user} onBadgeChange={setOrderBadge} />}
+                  {tab === 'orders'   && <OrdersPage role={role} user={user} onBadgeChange={setOrderBadge} forceOpenTab={forceOrdersOpenTab} />}
                 </>
             }
           </div>
@@ -333,6 +344,65 @@ export default function Dashboard({ user }: Props) {
           </div>
         </nav>
       </div>
+
+      {/* ── Scan choice modal ── */}
+      {scanMode === 'choice' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => setScanMode(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-xs p-6 relative" onClick={e => e.stopPropagation()}>
+            <button onClick={() => setScanMode(null)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors">
+              <X size={20} />
+            </button>
+            <h3 className="font-semibold text-slate-800 text-base mb-1">Scannen</h3>
+            <p className="text-sm text-slate-400 mb-5">Was möchten Sie tun?</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setScanMode('entnehmen')}
+                className="flex-1 flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-slate-200 hover:border-sky-400 hover:bg-sky-50 transition-colors"
+              >
+                <PackageMinus size={22} className="text-sky-600" />
+                <span className="text-sm font-semibold text-slate-700">Entnehmen</span>
+              </button>
+              <button
+                onClick={() => {
+                  setScanMode(null)
+                  setTab('orders')
+                  setForceOrdersOpenTab(c => c + 1)
+                }}
+                className="flex-1 flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-slate-200 hover:border-emerald-400 hover:bg-emerald-50 transition-colors"
+              >
+                <PackagePlus size={22} className="text-emerald-600" />
+                <span className="text-sm font-semibold text-slate-700">Einbuchen</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Entnehmen scan modal ── */}
+      {scanMode === 'entnehmen' && (
+        <EntnehmenScanModal
+          onClose={() => setScanMode(null)}
+          onSuccess={(name) => {
+            setScanMode(null)
+            showDashToast(`${name} wurde entnommen`)
+          }}
+        />
+      )}
+
+      {/* ── Dash toast ── */}
+      {dashToast && (
+        <div className="fixed top-4 left-4 right-4 z-[100] flex justify-center pointer-events-none">
+          <div className="pointer-events-auto bg-slate-900 text-white rounded-2xl shadow-2xl px-4 py-4 flex items-center gap-3 max-w-[calc(100vw-2rem)]">
+            <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+              <Check size={16} className="text-emerald-400" />
+            </div>
+            <p className="text-sm font-medium">{dashToast}</p>
+            <button onClick={() => setDashToast(null)} className="text-white/50 hover:text-white transition-colors shrink-0 ml-1">
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Mobile hamburger overlay menu ─────────────────────── */}
       {menuOpen && (

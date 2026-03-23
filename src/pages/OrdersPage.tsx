@@ -2,11 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import type { CartItem, Order, OrderItem, Role } from '../lib/types'
-import { ShoppingCart, Package, Plus, Minus, CheckCircle, AlertCircle, ExternalLink, Check, Trash2, Undo2 } from 'lucide-react'
+import { ShoppingCart, Package, Plus, Minus, CheckCircle, AlertCircle, ExternalLink, Check, Trash2, Undo2, ScanLine, X } from 'lucide-react'
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
 
 const APPROVAL_THRESHOLD = 2000
 
-interface Props { role: Role | null; user: User; onBadgeChange: (n: number) => void }
+interface Props { role: Role | null; user: User; onBadgeChange: (n: number) => void; forceOpenTab?: number }
 
 // Extract domain from a URL, e.g. "https://www.dental-shop.de/..." → "dental-shop.de"
 function getDomain(url: string | null | undefined): string | null {
@@ -18,7 +19,7 @@ function getDomain(url: string | null | undefined): string | null {
   }
 }
 
-export default function OrdersPage({ role, user, onBadgeChange }: Props) {
+export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab }: Props) {
   const [tab, setTab] = useState<'cart' | 'open'>('cart')
   const [cartItems, setCartItems] = useState<CartItem[]>([])
   const [orders, setOrders] = useState<Order[]>([])
@@ -27,10 +28,20 @@ export default function OrdersPage({ role, user, onBadgeChange }: Props) {
   const [deleteConfirm, setDeleteConfirm] = useState<CartItem | null>(null)
   const [toast, setToast] = useState<{ message: string; onUndo?: () => void } | null>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [receivedIds, setReceivedIds] = useState<Set<string>>(new Set())
+  const [scanReceiving, setScanReceiving] = useState(false)
+  const [scanConfirm, setScanConfirm] = useState<{ item: OrderItem; order: Order } | null>(null)
+  const [receiving, setReceiving] = useState<string | null>(null)
+  const einbuchenScannerRef = useRef<Html5Qrcode | null>(null)
+  const EINBUCHEN_SCAN_DIV = 'einbuchen-scanner-div'
 
   useEffect(() => {
     Promise.all([fetchCart(), fetchOrders()])
   }, [])
+
+  useEffect(() => {
+    if (forceOpenTab) setTab('open')
+  }, [forceOpenTab])
 
   async function fetchCart() {
     const { data } = await supabase
@@ -154,6 +165,68 @@ export default function OrdersPage({ role, user, onBadgeChange }: Props) {
     fetchOrders()
   }
 
+  async function receiveOrderItem(item: OrderItem, orderId: string) {
+    setReceiving(item.id)
+    const { data: fresh } = await supabase.from('products').select('current_stock').eq('id', item.product_id).single()
+    const currentStock = fresh?.current_stock ?? 0
+    await supabase.from('products').update({ current_stock: currentStock + item.quantity }).eq('id', item.product_id)
+    await supabase.from('stock_movements').insert({ product_id: item.product_id, type: 'manual_in', quantity: item.quantity, scanned_by: user.id })
+    setReceiving(null)
+    const newSet = new Set([...receivedIds, item.id])
+    setReceivedIds(newSet)
+    const order = orders.find(o => o.id === orderId)
+    if (order) {
+      const allDone = (order.items ?? []).every(i => newSet.has(i.id))
+      if (allDone) {
+        await supabase.from('orders').update({ status: 'received' }).eq('id', orderId)
+        showToast(`Bestellung von ${order.supplier ?? 'Lieferant'} vollständig erhalten`)
+        fetchOrders()
+      }
+    }
+  }
+
+  async function startEinbuchenScanner() {
+    setScanReceiving(true)
+    await new Promise(r => setTimeout(r, 150))
+    try {
+      const formats = [
+        Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8,
+        Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.CODE_39,
+        Html5QrcodeSupportedFormats.UPC_A, Html5QrcodeSupportedFormats.QR_CODE,
+      ]
+      const s = new Html5Qrcode(EINBUCHEN_SCAN_DIV, { formatsToSupport: formats, verbose: false })
+      einbuchenScannerRef.current = s
+      await s.start(
+        { facingMode: 'environment' },
+        { fps: 15, qrbox: (w, h) => ({ width: Math.min(w, h) * 0.8, height: Math.min(w, h) * 0.5 }) },
+        async (raw) => {
+          await s.stop()
+          einbuchenScannerRef.current = null
+          setScanReceiving(false)
+          const clean = raw.replace(/^\][A-Za-z][0-9]/, '').replace(/[^\x20-\x7E]/g, '').trim()
+          const gtin = clean.match(/^01(\d{14})/)
+          const barcode = gtin ? gtin[1] : clean
+          // Find matching order item
+          for (const order of orders) {
+            const item = (order.items ?? []).find(i => i.product?.barcode === barcode && !receivedIds.has(i.id))
+            if (item) {
+              setScanConfirm({ item, order })
+              return
+            }
+          }
+          // Not found
+          showToast('Artikel nicht in offenen Bestellungen gefunden')
+        },
+        () => {}
+      )
+    } catch { setScanReceiving(false) }
+  }
+
+  function stopEinbuchenScanner() {
+    einbuchenScannerRef.current?.stop().catch(() => {})
+    einbuchenScannerRef.current = null
+    setScanReceiving(false)
+  }
 
   const openCount = orders.length
   const cartCount = cartItems.length
@@ -161,13 +234,21 @@ export default function OrdersPage({ role, user, onBadgeChange }: Props) {
   return (
     <div className="w-full relative">
       {/* Tab switcher */}
-      <div className="flex border-b border-slate-200 bg-white sticky top-0 z-10 px-4">
+      <div className="flex items-center border-b border-slate-200 bg-white sticky top-0 z-10 px-4">
         <TabButton active={tab === 'cart'} onClick={() => setTab('cart')} badge={cartCount}>
           Warenkorb
         </TabButton>
         <TabButton active={tab === 'open'} onClick={() => setTab('open')} badge={openCount}>
           Offen
         </TabButton>
+        {tab === 'open' && (
+          <button
+            onClick={startEinbuchenScanner}
+            className="ml-auto flex items-center gap-1.5 text-xs font-medium bg-sky-500 hover:bg-sky-600 text-white px-3 py-1.5 rounded-lg transition-colors shrink-0"
+          >
+            <ScanLine size={13} /> Barcode scannen
+          </button>
+        )}
       </div>
 
       <div>
@@ -261,10 +342,11 @@ export default function OrdersPage({ role, user, onBadgeChange }: Props) {
                     key={order.id}
                     order={order}
                     role={role}
-                    userId={user.id}
                     isFirst={idx === 0}
+                    receivedIds={receivedIds}
+                    receiving={receiving}
+                    onReceiveItem={(item) => receiveOrderItem(item, order.id)}
                     onApprove={() => approveOrder(order.id)}
-                    onOrderReceived={fetchOrders}
                   />
                 ))}
               </tbody>
@@ -312,6 +394,55 @@ export default function OrdersPage({ role, user, onBadgeChange }: Props) {
             </button>
           )}
         </div></div>
+      )}
+
+      {/* ── Einbuchen scanner modal ── */}
+      {scanReceiving && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40">
+          <div className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-4 border-b border-slate-100">
+              <h2 className="font-semibold text-slate-800">Einbuchen — Barcode scannen</h2>
+              <button onClick={stopEinbuchenScanner} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-4">
+              <div id={EINBUCHEN_SCAN_DIV} className="w-full rounded-xl overflow-hidden" style={{ minHeight: 240 }} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Scan confirm modal ── */}
+      {scanConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => setScanConfirm(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="font-semibold text-slate-800 text-base mb-1">Artikel gefunden</h3>
+            <p className="text-sm text-slate-500 mb-1">Ist das der richtige Artikel?</p>
+            <div className="bg-slate-50 rounded-xl px-4 py-3 mb-5">
+              <p className="font-semibold text-slate-800">{scanConfirm.item.product?.name ?? '—'}</p>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Bestellung von {scanConfirm.order.supplier ?? 'Lieferant'} · {scanConfirm.item.quantity}×
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setScanConfirm(null)}
+                className="flex-1 px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors">
+                Abbrechen
+              </button>
+              <button
+                onClick={async () => {
+                  const { item, order } = scanConfirm
+                  setScanConfirm(null)
+                  await receiveOrderItem(item, order.id)
+                }}
+                className="flex-1 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium transition-colors"
+              >
+                Als erhalten markieren
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
@@ -444,32 +575,14 @@ function TabButton({ active, onClick, badge, children }: {
 }
 
 // ── Open order section ─────────────────────────────────────────────────────
-function OpenOrderSection({ order, role, userId, isFirst, onApprove, onOrderReceived }: {
-  order: Order; role: Role | null; userId: string; isFirst: boolean
-  onApprove: () => void; onOrderReceived: () => void
+function OpenOrderSection({ order, role, isFirst, receivedIds, receiving, onReceiveItem, onApprove }: {
+  order: Order; role: Role | null; isFirst: boolean
+  receivedIds: Set<string>; receiving: string | null
+  onReceiveItem: (item: OrderItem) => void; onApprove: () => void
 }) {
-  const [receivedIds, setReceivedIds] = useState<Set<string>>(new Set())
-  const [receivingId, setReceivingId] = useState<string | null>(null)
-
   const isPending = order.status === 'pending_approval'
   const items = order.items ?? []
   const domain = getDomain(items[0]?.product?.supplier_url) ?? order.supplier ?? 'Unbekannter Lieferant'
-
-  async function receiveItem(item: OrderItem) {
-    if (!item.product_id) return
-    setReceivingId(item.id)
-    const { data: fresh } = await supabase.from('products').select('current_stock').eq('id', item.product_id).single()
-    const currentStock = fresh?.current_stock ?? 0
-    await supabase.from('products').update({ current_stock: currentStock + item.quantity }).eq('id', item.product_id)
-    await supabase.from('stock_movements').insert({ product_id: item.product_id, type: 'manual_in', quantity: item.quantity, scanned_by: userId })
-    const newSet = new Set([...receivedIds, item.id])
-    setReceivedIds(newSet)
-    setReceivingId(null)
-    if (newSet.size === items.length) {
-      await supabase.from('orders').update({ status: 'received' }).eq('id', order.id)
-      onOrderReceived()
-    }
-  }
 
   return (
     <>
@@ -544,11 +657,11 @@ function OpenOrderSection({ order, role, userId, isFirst, onApprove, onOrderRece
                 </span>
               ) : (
                 <button
-                  onClick={() => receiveItem(item)}
-                  disabled={receivingId === item.id || isPending}
+                  onClick={() => onReceiveItem(item)}
+                  disabled={receiving === item.id || isPending}
                   className="flex items-center gap-1.5 bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap ml-auto"
                 >
-                  {receivingId === item.id
+                  {receiving === item.id
                     ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" />
                     : <Package size={12} />
                   }
