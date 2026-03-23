@@ -28,7 +28,7 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
   const [deleteConfirm, setDeleteConfirm] = useState<CartItem | null>(null)
   const [toast, setToast] = useState<{ message: string; onUndo?: () => void } | null>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [receivedIds, setReceivedIds] = useState<Set<string>>(new Set())
+  const [scannedCounts, setScannedCounts] = useState<Record<string, number>>({})
   const [scanToggle, setScanToggle] = useState(false)
   const [scanConfirm, setScanConfirm] = useState<{ item: OrderItem; order: Order } | null>(null)
   const [receiving, setReceiving] = useState<string | null>(null)
@@ -183,24 +183,48 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
     fetchOrders()
   }
 
-  async function receiveOrderItem(item: OrderItem, orderId: string) {
-    setReceiving(item.id)
+  async function addStock(item: OrderItem, qty: number) {
     const { data: fresh } = await supabase.from('products').select('current_stock').eq('id', item.product_id).single()
     const currentStock = fresh?.current_stock ?? 0
-    await supabase.from('products').update({ current_stock: currentStock + item.quantity }).eq('id', item.product_id)
-    await supabase.from('stock_movements').insert({ product_id: item.product_id, type: 'manual_in', quantity: item.quantity, scanned_by: user.id })
-    setReceiving(null)
-    const newSet = new Set([...receivedIds, item.id])
-    setReceivedIds(newSet)
-    const order = orders.find(o => o.id === orderId)
-    if (order) {
-      const allDone = (order.items ?? []).every(i => newSet.has(i.id))
-      if (allDone) {
-        await supabase.from('orders').update({ status: 'received' }).eq('id', orderId)
-        showToast(`Bestellung von ${order.supplier ?? 'Lieferant'} vollständig erhalten`)
-        fetchOrders()
-      }
+    await supabase.from('products').update({ current_stock: currentStock + qty }).eq('id', item.product_id)
+    await supabase.from('stock_movements').insert({ product_id: item.product_id, type: 'manual_in', quantity: qty, scanned_by: user.id })
+  }
+
+  async function checkOrderComplete(order: Order, counts: Record<string, number>) {
+    const items = order.items ?? []
+    const allDone = items.every(i => (counts[i.id] ?? 0) >= i.quantity)
+    if (allDone) {
+      await supabase.from('orders').update({ status: 'received' }).eq('id', order.id)
+      showToast(`Alle artikelen van ${order.supplier ?? 'Lieferant'} ontvangen en ingeboekt`)
+      fetchOrders()
     }
+  }
+
+  // Called by scan confirm modal — increments by 1 unit
+  async function scanReceiveUnit(item: OrderItem, order: Order) {
+    const current = scannedCounts[item.id] ?? 0
+    const next = current + 1
+    const newCounts = { ...scannedCounts, [item.id]: next }
+    setScannedCounts(newCounts)
+    showToast(`${item.product?.name ?? 'Artikel'}: ${next}/${item.quantity} gescannt`)
+    // When item fully scanned: update stock
+    if (next >= item.quantity) {
+      setReceiving(item.id)
+      await addStock(item, item.quantity)
+      setReceiving(null)
+      await checkOrderComplete(order, newCounts)
+    }
+  }
+
+  // Called by manual "Lieferung erhalten" button — receives full qty at once
+  async function receiveOrderItem(item: OrderItem, orderId: string) {
+    setReceiving(item.id)
+    await addStock(item, item.quantity)
+    setReceiving(null)
+    const newCounts = { ...scannedCounts, [item.id]: item.quantity }
+    setScannedCounts(newCounts)
+    const order = orders.find(o => o.id === orderId)
+    if (order) await checkOrderComplete(order, newCounts)
   }
 
   async function startInlineScanner() {
@@ -226,7 +250,7 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
           const barcode = gtin ? gtin[1] : clean
           // Find matching order item
           for (const order of orders) {
-            const item = (order.items ?? []).find(i => i.product?.barcode === barcode && !receivedIds.has(i.id))
+            const item = (order.items ?? []).find(i => i.product?.barcode === barcode && (scannedCounts[i.id] ?? 0) < i.quantity)
             if (item) {
               setScanConfirm({ item, order })
               return
@@ -404,7 +428,7 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
                     order={order}
                     role={role}
                     isFirst={idx === 0}
-                    receivedIds={receivedIds}
+                    scannedCounts={scannedCounts}
                     receiving={receiving}
                     onReceiveItem={(item) => receiveOrderItem(item, order.id)}
                     onApprove={() => approveOrder(order.id)}
@@ -463,11 +487,11 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => setScanConfirm(null)}>
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
             <h3 className="font-semibold text-slate-800 text-base mb-1">Artikel gefunden</h3>
-            <p className="text-sm text-slate-500 mb-1">Ist das der richtige Artikel?</p>
+            <p className="text-sm text-slate-500 mb-1">Juist artikel gescand?</p>
             <div className="bg-slate-50 rounded-xl px-4 py-3 mb-5">
               <p className="font-semibold text-slate-800">{scanConfirm.item.product?.name ?? '—'}</p>
               <p className="text-xs text-slate-400 mt-0.5">
-                Bestellung von {scanConfirm.order.supplier ?? 'Lieferant'} · {scanConfirm.item.quantity}×
+                {scanConfirm.order.supplier ?? 'Lieferant'} · al gescand: {scannedCounts[scanConfirm.item.id] ?? 0}/{scanConfirm.item.quantity}
               </p>
             </div>
             <div className="flex gap-3">
@@ -479,11 +503,11 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
                 onClick={async () => {
                   const { item, order } = scanConfirm
                   setScanConfirm(null)
-                  await receiveOrderItem(item, order.id)
+                  await scanReceiveUnit(item, order)
                 }}
                 className="flex-1 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium transition-colors"
               >
-                Als erhalten markieren
+                Bevestigen (+1)
               </button>
             </div>
           </div>
@@ -620,25 +644,25 @@ function TabButton({ active, onClick, badge, children }: {
 }
 
 // ── Open order section ─────────────────────────────────────────────────────
-function OpenOrderSection({ order, role, isFirst, receivedIds, receiving, onReceiveItem, onApprove }: {
+function OpenOrderSection({ order, role, isFirst, scannedCounts, receiving, onReceiveItem, onApprove }: {
   order: Order; role: Role | null; isFirst: boolean
-  receivedIds: Set<string>; receiving: string | null
+  scannedCounts: Record<string, number>; receiving: string | null
   onReceiveItem: (item: OrderItem) => void; onApprove: () => void
 }) {
   const isPending = order.status === 'pending_approval'
   const items = order.items ?? []
   const domain = getDomain(items[0]?.product?.supplier_url) ?? order.supplier ?? 'Unbekannter Lieferant'
-  const receivedCount = items.filter(i => receivedIds.has(i.id)).length
-  const progressPct = items.length > 0 ? (receivedCount / items.length) * 100 : 0
+  const doneCount = items.filter(i => (scannedCounts[i.id] ?? 0) >= i.quantity).length
+  const progressPct = items.length > 0 ? (doneCount / items.length) * 100 : 0
 
   return (
     <>
       {/* Spacer between orders */}
-      {!isFirst && <tr><td colSpan={5} className="h-4 bg-slate-100" /></tr>}
+      {!isFirst && <tr><td colSpan={6} className="h-4 bg-slate-100" /></tr>}
 
       {/* Domain / supplier header row */}
       <tr className="border-t border-slate-200 bg-slate-50">
-        <td colSpan={5} className="px-4 py-2.5">
+        <td colSpan={6} className="px-4 py-2.5">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <p className="font-semibold text-slate-800 text-base">{domain}</p>
@@ -662,7 +686,7 @@ function OpenOrderSection({ order, role, isFirst, receivedIds, receiving, onRece
                 <div className="w-20 h-1.5 bg-slate-200 rounded-full overflow-hidden">
                   <div className="h-full bg-emerald-500 rounded-full transition-all duration-300" style={{ width: `${progressPct}%` }} />
                 </div>
-                <span className="text-xs text-slate-500 whitespace-nowrap">{receivedCount}/{items.length}</span>
+                <span className="text-xs text-slate-500 whitespace-nowrap">{doneCount}/{items.length}</span>
               </div>
             </div>
           </div>
@@ -672,15 +696,17 @@ function OpenOrderSection({ order, role, isFirst, receivedIds, receiving, onRece
       {/* Column headers */}
       <tr className="border-b border-slate-200 bg-white">
         <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide px-4 py-3">Artikel</th>
-        <th className="text-center text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Menge</th>
-        <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap hidden sm:table-cell">Preis/Einheit</th>
-        <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Gesamt</th>
-        <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Aktion</th>
+        <th className="text-center text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Besteld</th>
+        <th className="text-center text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Gescand</th>
+        <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap hidden sm:table-cell">Prijs/stuk</th>
+        <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Totaal</th>
+        <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Actie</th>
       </tr>
 
       {/* Item rows */}
       {items.map(item => {
-        const done = receivedIds.has(item.id)
+        const scanned = scannedCounts[item.id] ?? 0
+        const done = scanned >= item.quantity
         const rowTotal = item.quantity * (item.estimated_price ?? 0)
         return (
           <tr key={item.id} className={`border-b border-slate-100 transition-colors ${done ? 'bg-emerald-50/50' : 'bg-white hover:bg-slate-50'}`}>
@@ -688,6 +714,17 @@ function OpenOrderSection({ order, role, isFirst, receivedIds, receiving, onRece
               <p className={`text-sm font-semibold truncate max-w-[180px] md:max-w-xs ${done ? 'text-slate-400' : 'text-slate-800'}`}>{item.product?.name ?? '—'}</p>
             </td>
             <td className="px-3 py-3.5 text-center text-slate-500">{item.quantity}</td>
+            <td className="px-3 py-3.5 text-center">
+              {done ? (
+                <span className="inline-flex items-center justify-center gap-1 text-xs text-emerald-600 font-semibold">
+                  <Check size={12} /> {item.quantity}
+                </span>
+              ) : scanned > 0 ? (
+                <span className="text-xs font-semibold text-sky-600">{scanned}/{item.quantity}</span>
+              ) : (
+                <span className="text-xs text-slate-300">—</span>
+              )}
+            </td>
             <td className="px-3 py-3.5 text-right text-slate-500 whitespace-nowrap hidden sm:table-cell">
               {item.estimated_price != null
                 ? `€ ${item.estimated_price.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
