@@ -254,18 +254,21 @@ export default function OrdersPage({ role, user, onBadgeChange }: Props) {
               <p className="text-slate-400 text-sm">Keine offenen Bestellungen</p>
             </div>
           ) : (
-            <div className="divide-y divide-slate-200">
-              {orders.map(order => (
-                <OpenOrderSection
-                  key={order.id}
-                  order={order}
-                  role={role}
-                  userId={user.id}
-                  onApprove={() => approveOrder(order.id)}
-                  onOrderReceived={fetchOrders}
-                />
-              ))}
-            </div>
+            <table className="w-full text-sm">
+              <tbody>
+                {orders.map((order, idx) => (
+                  <OpenOrderSection
+                    key={order.id}
+                    order={order}
+                    role={role}
+                    userId={user.id}
+                    isFirst={idx === 0}
+                    onApprove={() => approveOrder(order.id)}
+                    onOrderReceived={fetchOrders}
+                  />
+                ))}
+              </tbody>
+            </table>
           )
         )}
       </div>
@@ -441,8 +444,8 @@ function TabButton({ active, onClick, badge, children }: {
 }
 
 // ── Open order section ─────────────────────────────────────────────────────
-function OpenOrderSection({ order, role, userId, onApprove, onOrderReceived }: {
-  order: Order; role: Role | null; userId: string
+function OpenOrderSection({ order, role, userId, isFirst, onApprove, onOrderReceived }: {
+  order: Order; role: Role | null; userId: string; isFirst: boolean
   onApprove: () => void; onOrderReceived: () => void
 }) {
   const [receivedIds, setReceivedIds] = useState<Set<string>>(new Set())
@@ -469,77 +472,93 @@ function OpenOrderSection({ order, role, userId, onApprove, onOrderReceived }: {
   }
 
   return (
-    <div className="px-4 pt-4 pb-5">
-      {/* Order header */}
-      <div className="flex items-start justify-between gap-3 mb-3">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <p className="font-semibold text-slate-800">{domain}</p>
-          <span className="text-sm text-slate-400">
-            {new Date(order.created_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-          </span>
-          <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${
-            isPending ? 'bg-amber-100 text-amber-700' : 'bg-sky-100 text-sky-700'
-          }`}>
-            {isPending ? 'Ausstehend' : 'Bestellt'}
-          </span>
-        </div>
-        <div className="flex items-center gap-3 shrink-0">
-          {order.total_estimate != null && (
-            <span className="font-semibold text-slate-800 whitespace-nowrap">
-              € {order.total_estimate.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </span>
-          )}
-          {isPending && role === 'admin' && (
-            <button onClick={onApprove}
-              className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap">
-              <CheckCircle size={12} /> Genehmigen
-            </button>
-          )}
-        </div>
-      </div>
+    <>
+      {/* Spacer between orders */}
+      {!isFirst && <tr><td colSpan={5} className="h-4 bg-slate-100" /></tr>}
 
-      {/* Products table */}
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-slate-200 bg-white">
-            <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide px-4 py-2.5">Produkt</th>
-            <th className="text-center text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-2.5">Menge</th>
-            <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-2.5">Aktion</th>
+      {/* Domain / supplier header row */}
+      <tr className="border-t border-slate-200 bg-slate-50">
+        <td colSpan={5} className="px-4 py-2.5">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <p className="font-semibold text-slate-800 text-base">{domain}</p>
+              <span className="text-sm text-slate-400">
+                {new Date(order.created_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+              </span>
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${
+                isPending ? 'bg-amber-100 text-amber-700' : 'bg-sky-100 text-sky-700'
+              }`}>
+                {isPending ? 'Ausstehend' : 'Bestellt'}
+              </span>
+            </div>
+            <div className="flex items-center gap-3 shrink-0">
+              {order.total_estimate != null && (
+                <span className="text-xs text-slate-500 hidden sm:inline">
+                  Gesamt: <span className="font-semibold text-slate-700">€ {order.total_estimate.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </span>
+              )}
+              {isPending && role === 'admin' && (
+                <button onClick={onApprove}
+                  className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap">
+                  <CheckCircle size={12} /> Genehmigen
+                </button>
+              )}
+            </div>
+          </div>
+        </td>
+      </tr>
+
+      {/* Column headers */}
+      <tr className="border-b border-slate-200 bg-white">
+        <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide px-4 py-3">Artikel</th>
+        <th className="text-center text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Menge</th>
+        <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap hidden sm:table-cell">Preis/Einheit</th>
+        <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Gesamt</th>
+        <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Aktion</th>
+      </tr>
+
+      {/* Item rows */}
+      {items.map(item => {
+        const done = receivedIds.has(item.id)
+        const rowTotal = item.quantity * (item.estimated_price ?? 0)
+        return (
+          <tr key={item.id} className={`border-b border-slate-100 transition-colors ${done ? 'bg-emerald-50/50' : 'bg-white hover:bg-slate-50'}`}>
+            <td className="px-4 py-3.5">
+              <p className={`text-sm font-semibold truncate max-w-[180px] md:max-w-xs ${done ? 'text-slate-400' : 'text-slate-800'}`}>{item.product?.name ?? '—'}</p>
+            </td>
+            <td className="px-3 py-3.5 text-center text-slate-500">{item.quantity}×</td>
+            <td className="px-3 py-3.5 text-right text-slate-500 whitespace-nowrap hidden sm:table-cell">
+              {item.estimated_price != null
+                ? `€ ${item.estimated_price.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                : '—'}
+            </td>
+            <td className="px-3 py-3.5 text-right font-semibold text-slate-800 whitespace-nowrap">
+              {item.estimated_price != null
+                ? `€ ${rowTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                : '—'}
+            </td>
+            <td className="px-3 py-3.5 text-right">
+              {done ? (
+                <span className="flex items-center justify-end gap-1.5 text-xs text-emerald-600 font-medium">
+                  <Check size={13} /> Erhalten
+                </span>
+              ) : (
+                <button
+                  onClick={() => receiveItem(item)}
+                  disabled={receivingId === item.id || isPending}
+                  className="flex items-center gap-1.5 bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap ml-auto"
+                >
+                  {receivingId === item.id
+                    ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" />
+                    : <Package size={12} />
+                  }
+                  Lieferung erhalten
+                </button>
+              )}
+            </td>
           </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-100">
-          {items.map(item => {
-            const done = receivedIds.has(item.id)
-            return (
-              <tr key={item.id} className={`transition-colors ${done ? 'bg-emerald-50/50' : 'bg-white hover:bg-slate-50'}`}>
-                <td className="px-4 py-3">
-                  <p className={`font-medium ${done ? 'text-slate-400' : 'text-slate-800'}`}>{item.product?.name ?? '—'}</p>
-                </td>
-                <td className="px-3 py-3 text-center text-slate-500">{item.quantity}×</td>
-                <td className="px-3 py-3 text-right">
-                  {done ? (
-                    <span className="flex items-center justify-end gap-1.5 text-xs text-emerald-600 font-medium">
-                      <Check size={13} /> Erhalten
-                    </span>
-                  ) : (
-                    <button
-                      onClick={() => receiveItem(item)}
-                      disabled={receivingId === item.id || isPending}
-                      className="flex items-center gap-1.5 bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap ml-auto"
-                    >
-                      {receivingId === item.id
-                        ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" />
-                        : <Package size={12} />
-                      }
-                      Lieferung erhalten
-                    </button>
-                  )}
-                </td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
-    </div>
+        )
+      })}
+    </>
   )
 }
