@@ -318,21 +318,8 @@ function CartItemRow({ item, placing, onUpdateQuantity, onPlaceOrder, onRemoveRe
   onPlaceOrder: (item: CartItem) => void
   onRemoveRequest: (item: CartItem) => void
 }) {
-  const [confirmOrder, setConfirmOrder] = useState(false)
-  const confirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const rowTotal = item.quantity * (item.product?.last_price ?? 0)
   const needsApproval = rowTotal >= APPROVAL_THRESHOLD
-
-  function handleOrderClick() {
-    if (confirmOrder) {
-      if (confirmTimer.current) clearTimeout(confirmTimer.current)
-      setConfirmOrder(false)
-      onPlaceOrder(item)
-    } else {
-      setConfirmOrder(true)
-      confirmTimer.current = setTimeout(() => setConfirmOrder(false), 3000)
-    }
-  }
 
   return (
     <tr className="bg-white hover:bg-slate-50 transition-colors border-b border-slate-100">
@@ -405,20 +392,16 @@ function CartItemRow({ item, placing, onUpdateQuantity, onPlaceOrder, onRemoveRe
             <Trash2 size={12} /> Entfernen
           </button>
           <button
-            onClick={handleOrderClick}
+            onClick={() => onPlaceOrder(item)}
             disabled={placing}
             className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap disabled:opacity-50 ${
-              confirmOrder
-                ? 'bg-emerald-500 hover:bg-emerald-600 text-white'
-                : needsApproval
+              needsApproval
                 ? 'bg-amber-500 hover:bg-amber-600 text-white'
                 : 'bg-sky-500 hover:bg-sky-600 text-white'
             }`}
           >
             {placing ? (
               <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" />
-            ) : confirmOrder ? (
-              <><CheckCircle size={12} /> Bestätigen?</>
             ) : needsApproval ? (
               <><AlertCircle size={12} /> Zur Genehmigung</>
             ) : (
