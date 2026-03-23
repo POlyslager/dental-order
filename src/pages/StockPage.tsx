@@ -306,6 +306,28 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
           {saving ? 'Speichern…' : 'Artikel hinzufügen'}
         </button>
       </form>
+
+      {/* Duplicate barcode modal — rendered here so it works inside the early return */}
+      {duplicateProduct && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 animate-slide-in-up">
+            <h3 className="font-semibold text-slate-800 text-lg mb-1">Artikel bereits vorhanden</h3>
+            <p className="text-sm text-slate-500 mb-5">
+              <span className="font-medium text-slate-700">{duplicateProduct.name}</span> ist bereits in deinem Inventar.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setDuplicateProduct(null)}
+                className="flex-1 border border-slate-300 rounded-xl py-2.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
+                Abbrechen
+              </button>
+              <button onClick={() => { setSelectedProduct(duplicateProduct); setShowForm(false); setDuplicateProduct(null) }}
+                className="flex-1 bg-sky-500 hover:bg-sky-600 text-white rounded-xl py-2.5 text-sm font-medium transition-colors">
+                Zum Artikel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 
