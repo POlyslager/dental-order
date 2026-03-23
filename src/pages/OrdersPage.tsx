@@ -400,10 +400,9 @@ function CartItemRow({ item, placing, onUpdateQuantity, onPlaceOrder, onRemoveRe
         <div className="flex items-center justify-end gap-2">
           <button
             onClick={() => onRemoveRequest(item)}
-            className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-            title="Aus Warenkorb entfernen"
+            className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white transition-colors whitespace-nowrap"
           >
-            <Trash2 size={14} />
+            <Trash2 size={12} /> Entfernen
           </button>
           <button
             onClick={handleOrderClick}
