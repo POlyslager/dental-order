@@ -305,10 +305,9 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
                 </div>
               </div>
 
-              {/* ── Divider ── */}
+              {/* ── Entnehmen (only when in stock) ── */}
+              {Number(form.current_stock) > 0 && <>
               <div className="border-t border-slate-100" />
-
-              {/* ── Entnehmen ── */}
               <div className="px-4 pt-3 pb-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">Entnehmen</p>
                 <div className="flex items-center gap-3">
@@ -335,6 +334,7 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
                   </button>
                 </div>
               </div>
+              </>}
 
             </div>
           )}

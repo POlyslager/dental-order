@@ -547,8 +547,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto">
-        <table className="w-full table-fixed">
+      <table className="w-full table-fixed">
           <colgroup>
             <col style={{ width: '30%' }} />
             <col className="hidden md:table-column" style={{ width: '17%' }} />
@@ -595,7 +594,6 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
             )}
           </tbody>
         </table>
-      </div>
 
       {/* Pagination (md+) */}
       {totalPages > 1 && (
