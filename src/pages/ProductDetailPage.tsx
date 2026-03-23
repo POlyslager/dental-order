@@ -58,7 +58,7 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
     supabase.from('stock_movements').select('created_at')
       .eq('product_id', product.id)
       .order('created_at', { ascending: false })
-      .limit(1).single()
+      .limit(1).maybeSingle()
       .then(({ data }) => { if (data) setLastScan(data.created_at) })
 
     const since = new Date()
@@ -109,12 +109,12 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
   }
 
   async function handleDelete() {
-    await supabase.from('stock_movements').delete().eq('product_id', product.id)
-    await supabase.from('cart_items').delete().eq('product_id', product.id)
-    await supabase.from('order_items').delete().eq('product_id', product.id)
-    const { data: deleted } = await supabase
-      .from('products').delete().eq('id', product.id).select('id')
-    if (deleted && deleted.length > 0) {
+    const res = await fetch('/api/delete-product', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: product.id }),
+    })
+    if (res.ok) {
       onDeleted(product.id)
       onBack()
     }
