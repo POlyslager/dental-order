@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
 import { supabase } from '../lib/supabase'
 import type { Product } from '../lib/types'
-import { X, Camera, Search, Minus, Plus, ChevronLeft } from 'lucide-react'
+import { X, Camera, Search, Minus, Plus } from 'lucide-react'
 
 const SCAN_FORMATS = [
   Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8,
@@ -108,42 +108,47 @@ export default function EntnehmenScanModal({ onClose, onSuccess }: Props) {
       <div className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl shadow-2xl overflow-hidden h-[500px] flex flex-col" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-4 border-b border-slate-100 shrink-0">
-          {selected
-            ? <button onClick={() => setSelected(null)} className="flex items-center gap-1 text-sm text-sky-500 hover:text-sky-600 transition-colors"><ChevronLeft size={16} />Zurück</button>
-            : <h2 className="font-semibold text-slate-800">Entnehmen</h2>
-          }
+          <h2 className="font-semibold text-slate-800">Entnehmen</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors"><X size={20} /></button>
         </div>
 
         {selected ? (
           /* ── Product + qty ── */
+          <>
           <div className="flex-1 overflow-y-auto px-4 py-5">
             <p className="font-semibold text-slate-800 text-base mb-0.5">{selected.name}</p>
             <p className="text-sm text-slate-400 mb-5">
               {selected.preferred_supplier && <span>{selected.preferred_supplier} · </span>}
               Bestand: <span className="font-medium text-slate-600">{selected.current_stock} {selected.unit}</span>
             </p>
-            {selected.current_stock <= 0 ? (
-              <p className="text-sm text-red-500 text-center py-4">Kein Bestand verfügbar</p>
-            ) : (
-              <>
-                <div className="flex items-center justify-between mb-5">
-                  <span className="text-sm font-medium text-slate-700">Menge</span>
-                  <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden">
-                    <button onClick={() => setQty(q => Math.max(1, q - 1))} disabled={qty <= 1}
-                      className="w-10 h-10 flex items-center justify-center text-slate-500 hover:bg-slate-50 disabled:opacity-30 transition-colors"><Minus size={14} /></button>
-                    <span className="w-12 text-center font-semibold text-slate-800 select-none">{qty}</span>
-                    <button onClick={() => setQty(q => Math.min(selected.current_stock, q + 1))} disabled={qty >= selected.current_stock}
-                      className="w-10 h-10 flex items-center justify-center text-slate-500 hover:bg-slate-50 disabled:opacity-30 transition-colors"><Plus size={14} /></button>
-                  </div>
+            {selected.current_stock > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-slate-700">Menge</span>
+                <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden">
+                  <button onClick={() => setQty(q => Math.max(1, q - 1))} disabled={qty <= 1}
+                    className="w-10 h-10 flex items-center justify-center text-slate-500 hover:bg-slate-50 disabled:opacity-30 transition-colors"><Minus size={14} /></button>
+                  <span className="w-12 text-center font-semibold text-slate-800 select-none">{qty}</span>
+                  <button onClick={() => setQty(q => Math.min(selected.current_stock, q + 1))} disabled={qty >= selected.current_stock}
+                    className="w-10 h-10 flex items-center justify-center text-slate-500 hover:bg-slate-50 disabled:opacity-30 transition-colors"><Plus size={14} /></button>
                 </div>
-                <button onClick={handleEntnehmen} disabled={taking}
-                  className="w-full bg-sky-500 hover:bg-sky-600 text-white font-semibold py-3 rounded-xl transition-colors disabled:opacity-50">
-                  {taking ? 'Wird gebucht…' : `${qty}× entnehmen`}
-                </button>
-              </>
+              </div>
+            )}
+            {selected.current_stock <= 0 && (
+              <p className="text-sm text-red-500 text-center py-4">Kein Bestand verfügbar</p>
             )}
           </div>
+          {/* Sticky bottom buttons */}
+          <div className="shrink-0 flex gap-3 px-4 py-4 border-t border-slate-100">
+            <button onClick={() => setSelected(null)}
+              className="flex-1 px-4 py-3 rounded-xl border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors">
+              Annuleren
+            </button>
+            <button onClick={handleEntnehmen} disabled={taking || selected.current_stock <= 0}
+              className="flex-1 px-4 py-3 rounded-xl bg-sky-500 hover:bg-sky-600 text-white text-sm font-semibold transition-colors disabled:opacity-50">
+              {taking ? 'Wordt geboekt…' : 'Entnehmen'}
+            </button>
+          </div>
+          </>
         ) : (
           <>
             {/* Tabs */}

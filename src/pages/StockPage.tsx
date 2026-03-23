@@ -38,7 +38,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
   const [page, setPage] = useState(1)
   const PAGE_SIZE = 20
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
-  const [selectedBrand, setSelectedBrand] = useState<string>('all')
+  const [selectedBrands, setSelectedBrands] = useState<Set<string>>(new Set())
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
@@ -267,7 +267,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
       return true
     })()
     const matchesCategory = selectedCategory === 'all' || p.category === selectedCategory
-    const matchesBrand = selectedBrand === 'all' || p.preferred_supplier === selectedBrand
+    const matchesBrand = selectedBrands.size === 0 || selectedBrands.has(p.preferred_supplier ?? '')
     return matchesSearch && matchesStatus && matchesCategory && matchesBrand
   })
 
@@ -569,12 +569,11 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
           ))}
         </select>
 
-        {/* Supplier filter — searchable */}
-        <SearchableSelect
-          value={selectedBrand}
-          onChange={v => { setSelectedBrand(v); setPage(1) }}
+        {/* Supplier filter — multi-select */}
+        <SupplierMultiSelect
+          selected={selectedBrands}
+          onChange={s => { setSelectedBrands(s); setPage(1) }}
           options={brands}
-          allLabel="Alle Lieferanten"
         />
 
         {/* Add button — pushed to end */}
@@ -810,11 +809,10 @@ function Field({ label, value, onChange, type = 'text', required = false, inputM
 }
 
 // ── Searchable select dropdown ────────────────────────────────────────────────
-function SearchableSelect({ value, onChange, options, allLabel }: {
-  value: string
-  onChange: (v: string) => void
+function SupplierMultiSelect({ selected, onChange, options }: {
+  selected: Set<string>
+  onChange: (s: Set<string>) => void
   options: string[]
-  allLabel: string
 }) {
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
@@ -829,20 +827,34 @@ function SearchableSelect({ value, onChange, options, allLabel }: {
   }, [])
 
   const filtered = options.filter(o => o.toLowerCase().includes(q.toLowerCase()))
-  const label = value === 'all' ? allLabel : value
+
+  function toggle(o: string) {
+    const next = new Set(selected)
+    if (next.has(o)) next.delete(o)
+    else next.add(o)
+    onChange(next)
+  }
+
+  const label = selected.size === 0
+    ? 'Alle Lieferanten'
+    : selected.size === 1
+    ? [...selected][0]
+    : `${selected.size} Lieferanten`
 
   return (
     <div ref={ref} className="relative shrink-0">
       <button
         type="button"
         onClick={() => { setOpen(o => !o); setQ('') }}
-        className="border border-slate-200 rounded-xl pl-3 pr-2.5 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500 flex items-center gap-2 min-w-[140px] justify-between"
+        className={`border rounded-xl pl-3 pr-2.5 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 flex items-center gap-2 min-w-[140px] justify-between ${
+          selected.size > 0 ? 'border-sky-400 text-sky-700' : 'border-slate-200 text-slate-700'
+        }`}
       >
         <span className="truncate">{label}</span>
         <ChevronDown size={13} className="text-slate-400 shrink-0" />
       </button>
       {open && (
-        <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-30 w-56 animate-slide-in-up">
+        <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-30 w-64 animate-slide-in-up">
           <div className="p-2 border-b border-slate-100">
             <input
               autoFocus
@@ -853,17 +865,23 @@ function SearchableSelect({ value, onChange, options, allLabel }: {
               className="w-full text-sm px-2 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500"
             />
           </div>
-          <ul className="max-h-52 overflow-y-auto py-1">
+          <ul className="max-h-56 overflow-y-auto py-1">
             <li>
-              <button type="button" onClick={() => { onChange('all'); setOpen(false) }}
-                className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-50 ${value === 'all' ? 'font-semibold text-sky-600' : 'text-slate-700'}`}>
-                {allLabel}
+              <button type="button" onClick={() => onChange(new Set())}
+                className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center gap-2.5 text-slate-700">
+                <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${selected.size === 0 ? 'bg-sky-500 border-sky-500' : 'border-slate-300'}`}>
+                  {selected.size === 0 && <Check size={10} className="text-white" />}
+                </span>
+                <span className={selected.size === 0 ? 'font-semibold text-sky-600' : ''}>Alle Lieferanten</span>
               </button>
             </li>
             {filtered.map(o => (
               <li key={o}>
-                <button type="button" onClick={() => { onChange(o); setOpen(false) }}
-                  className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-50 ${value === o ? 'font-semibold text-sky-600' : 'text-slate-700'}`}>
+                <button type="button" onClick={() => toggle(o)}
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center gap-2.5 text-slate-700">
+                  <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${selected.has(o) ? 'bg-sky-500 border-sky-500' : 'border-slate-300'}`}>
+                    {selected.has(o) && <Check size={10} className="text-white" />}
+                  </span>
                   {o}
                 </button>
               </li>
