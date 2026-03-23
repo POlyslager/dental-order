@@ -32,7 +32,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [selectedStatus, setSelectedStatus] = useState<'all' | 'ok' | 'low' | 'critical' | 'empty'>('all')
+  const [selectedStatus, setSelectedStatus] = useState<'all' | 'ok' | 'low' | 'critical' | 'empty' | 'in_order'>('all')
   const [sortKey, setSortKey] = useState<'name' | 'category' | 'article_number' | 'preferred_supplier' | 'current_stock' | 'status'>('name')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [page, setPage] = useState(1)
@@ -263,6 +263,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
       if (selectedStatus === 'low')      return p.current_stock > p.min_stock && p.current_stock <= p.min_stock * 1.5
       if (selectedStatus === 'critical') return p.current_stock > 0 && p.current_stock <= p.min_stock
       if (selectedStatus === 'empty')    return p.current_stock <= 0
+      if (selectedStatus === 'in_order') return cartProductIds.has(p.id)
       return true
     })()
     const matchesCategory = selectedCategory === 'all' || p.category === selectedCategory
@@ -549,6 +550,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
           <option value="low">Knapp</option>
           <option value="critical">Niedriger Bestand</option>
           <option value="empty">Kein Bestand</option>
+          <option value="in_order">In Bestellung</option>
         </select>
 
         {/* Category filter */}
