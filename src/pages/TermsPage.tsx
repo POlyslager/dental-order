@@ -1,4 +1,4 @@
-import { ArrowLeft } from 'lucide-react'
+import { ChevronLeft } from 'lucide-react'
 
 interface Props { onBack: () => void }
 
@@ -6,8 +6,9 @@ export default function TermsPage({ onBack }: Props) {
   return (
     <div className="min-h-full bg-slate-50">
       <div className="bg-white border-b border-slate-200 px-4 py-3 flex items-center gap-2 sticky top-0 z-10">
-        <button onClick={onBack} className="text-slate-500 hover:text-slate-800 p-1 -ml-1 shrink-0">
-          <ArrowLeft size={20} />
+        <button onClick={onBack} className="flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-slate-700 p-1 -ml-1 shrink-0">
+          <ChevronLeft size={16} />
+          Zurück
         </button>
         <h1 className="font-semibold text-slate-800">Rechtliches</h1>
       </div>

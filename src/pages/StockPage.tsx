@@ -5,7 +5,7 @@ import { supabase, getCurrentUser } from '../lib/supabase'
 import type { Product, Role } from '../lib/types'
 import ProductDetailPage from './ProductDetailPage'
 import CategorySelect from '../components/CategorySelect'
-import { Search, Plus, X, ShoppingCart, Check, Camera, ArrowLeft } from 'lucide-react'
+import { Search, Plus, X, Camera, ChevronLeft, Activity, ChevronUp, ChevronDown, Package, PackageCheck, PackageX, TriangleAlert } from 'lucide-react'
 
 const SCAN_FORMATS = [
   Html5QrcodeSupportedFormats.QR_CODE, Html5QrcodeSupportedFormats.DATA_MATRIX,
@@ -15,11 +15,6 @@ const SCAN_FORMATS = [
 ]
 
 interface Props { role: Role | null; initialBarcode?: string | null; onBarcodeConsumed?: () => void }
-
-type Filter = 'all' | 'kritisch' | 'niedrig'
-
-function isLowStock(p: Product) { return p.current_stock <= p.min_stock }
-function isNearThreshold(p: Product) { return !isLowStock(p) && p.current_stock <= p.min_stock * 1.5 }
 
 const EMPTY_FORM = {
   article_number: '', name: '', description: '', category: '', barcode: '',
@@ -37,13 +32,19 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState<Filter>('all')
+  const [selectedStatus, setSelectedStatus] = useState<'all' | 'ok' | 'low' | 'critical' | 'empty'>('all')
+  const [sortKey, setSortKey] = useState<'name' | 'category' | 'article_number' | 'preferred_supplier' | 'current_stock' | 'status'>('name')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  const [page, setPage] = useState(1)
+  const PAGE_SIZE = 20
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
+  const [selectedBrand, setSelectedBrand] = useState<string>('all')
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
-  const [addedToCart, setAddedToCart] = useState<Set<string>>(new Set())
+  const [, setAddedToCart] = useState<Set<string>>(new Set())
+
   const [scanning, setScanning] = useState(false)
   const scannerRef = useRef<Html5Qrcode | null>(null)
 
@@ -163,54 +164,77 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
   }
 
   const categories = ['all', ...Array.from(new Set(products.map(p => p.category))).sort()]
+  const brands = Array.from(new Set(products.map(p => p.preferred_supplier).filter((s): s is string => !!s))).sort()
 
-  const kritischCount = products.filter(isLowStock).length
-  const niedrigCount  = products.filter(isNearThreshold).length
+  const stockHealth = {
+    green:  products.filter(p => p.current_stock > p.min_stock * 1.5).length,
+    orange: products.filter(p => p.current_stock > p.min_stock && p.current_stock <= p.min_stock * 1.5).length,
+    red:    products.filter(p => p.current_stock <= p.min_stock && p.current_stock > 0).length,
+    empty:  products.filter(p => p.current_stock <= 0).length,
+  }
 
   const filtered = products.filter(p => {
     const matchesSearch =
       p.name.toLowerCase().includes(search.toLowerCase()) ||
       p.category.toLowerCase().includes(search.toLowerCase()) ||
       (p.article_number?.toLowerCase().includes(search.toLowerCase()) ?? false)
+    const matchesStatus = (() => {
+      if (selectedStatus === 'all')      return true
+      if (selectedStatus === 'ok')       return p.current_stock > p.min_stock * 1.5
+      if (selectedStatus === 'low')      return p.current_stock > p.min_stock && p.current_stock <= p.min_stock * 1.5
+      if (selectedStatus === 'critical') return p.current_stock > 0 && p.current_stock <= p.min_stock
+      if (selectedStatus === 'empty')    return p.current_stock <= 0
+      return true
+    })()
     const matchesCategory = selectedCategory === 'all' || p.category === selectedCategory
-    const matchesFilter =
-      filter === 'all'      ? true :
-      filter === 'kritisch' ? isLowStock(p) :
-                              isNearThreshold(p)
-    return matchesSearch && matchesCategory && matchesFilter
+    const matchesBrand = selectedBrand === 'all' || p.preferred_supplier === selectedBrand
+    return matchesSearch && matchesStatus && matchesCategory && matchesBrand
   })
 
-  // Sort within each group by urgency (ratio of current to min, ascending)
-  const byUrgency = (a: Product, b: Product) =>
-    (a.current_stock / Math.max(a.min_stock, 1)) - (b.current_stock / Math.max(b.min_stock, 1))
+  function stockRank(p: Product) {
+    if (p.current_stock <= 0) return 3
+    if (p.current_stock <= p.min_stock) return 2
+    if (p.current_stock <= p.min_stock * 1.5) return 1
+    return 0
+  }
 
-  const kritisch  = filtered.filter(p => isLowStock(p)).sort(byUrgency)
-  const niedrig   = filtered.filter(p => isNearThreshold(p)).sort(byUrgency)
-  const ok        = filtered.filter(p => !isLowStock(p) && !isNearThreshold(p)).sort(byUrgency)
+  const sorted = [...filtered].sort((a, b) => {
+    const dir = sortDir === 'asc' ? 1 : -1
+    switch (sortKey) {
+      case 'name':               return dir * a.name.localeCompare(b.name)
+      case 'category':           return dir * a.category.localeCompare(b.category)
+      case 'article_number':     return dir * (a.article_number ?? '').localeCompare(b.article_number ?? '')
+      case 'preferred_supplier': return dir * (a.preferred_supplier ?? '').localeCompare(b.preferred_supplier ?? '')
+      case 'current_stock':      return dir * (a.current_stock - b.current_stock)
+      case 'status':             return dir * (stockRank(a) - stockRank(b))
+      default:                   return 0
+    }
+  })
 
-  if (selectedProduct) return (
-    <ProductDetailPage
-      product={selectedProduct}
-      onBack={() => setSelectedProduct(null)}
-      onUpdated={updated => {
-        setProducts(prev => prev.map(p => p.id === updated.id ? updated : p))
-        setSelectedProduct(updated)
-      }}
-      onDeleted={id => {
-        setProducts(prev => prev.filter(p => p.id !== id))
-        setSelectedProduct(null)
-      }}
-      onAddToCart={addToCart}
-    />
-  )
+  function toggleSort(key: typeof sortKey) {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortKey(key); setSortDir('asc') }
+    setPage(1)
+  }
+
+  const totalPages = Math.ceil(sorted.length / PAGE_SIZE)
+  const paginated = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+  function SortIcon({ col }: { col: typeof sortKey }) {
+    if (sortKey !== col) return <ChevronUp size={12} className="text-slate-300" />
+    return sortDir === 'asc'
+      ? <ChevronUp size={12} className="text-sky-500" />
+      : <ChevronDown size={12} className="text-sky-500" />
+  }
 
   function closeForm() { stopBarcodeScanner(); setShowForm(false); setForm(EMPTY_FORM) }
 
-  if (showForm) return (
+  if (showForm && !selectedProduct) return (
     <div className="max-w-2xl mx-auto animate-slide-in-right">
       <header className="bg-white border-b border-slate-200 px-4 py-3 flex items-center gap-3 sticky top-0 z-10">
-        <button onClick={closeForm} className="text-slate-500 hover:text-slate-800 p-1 -ml-1">
-          <ArrowLeft size={20} />
+        <button onClick={closeForm} className="flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-slate-700 p-1 -ml-1">
+          <ChevronLeft size={16} />
+          Zurück
         </button>
         <h2 className="font-semibold text-slate-800">Neuer Artikel</h2>
       </header>
@@ -281,144 +305,276 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
     </div>
   )
 
+  const productDetailProps = selectedProduct ? {
+    product: selectedProduct,
+    onBack: () => setSelectedProduct(null),
+    onUpdated: (updated: Product) => {
+      setProducts(prev => prev.map(p => p.id === updated.id ? updated : p))
+      setSelectedProduct(updated)
+    },
+    onDeleted: (id: string) => {
+      setProducts(prev => prev.filter(p => p.id !== id))
+      setSelectedProduct(null)
+    },
+    onAddToCart: addToCart,
+  } : null
+
   return (
-    <div className="max-w-2xl mx-auto">
-      {/* Summary filter bar */}
-      <div className="grid grid-cols-3 divide-x divide-slate-200 border-b border-slate-200 bg-white sticky top-0 z-10">
-        <button onClick={() => setFilter('all')} className={`py-2 px-4 text-center transition-colors ${filter === 'all' ? 'bg-sky-50' : ''}`}>
-          <p className={`text-xl font-bold ${filter === 'all' ? 'text-sky-600' : 'text-slate-800'}`}>{products.length}</p>
-          <p className={`text-xs mt-0.5 ${filter === 'all' ? 'text-sky-500 font-medium' : 'text-slate-500'}`}>Alle</p>
-        </button>
-        <button onClick={() => setFilter(filter === 'kritisch' ? 'all' : 'kritisch')} className={`py-2 px-4 text-center transition-colors ${filter === 'kritisch' ? 'bg-red-50' : ''}`}>
-          <p className={`text-xl font-bold ${filter === 'kritisch' ? 'text-red-500' : kritischCount > 0 ? 'text-red-500' : 'text-slate-800'}`}>{kritischCount}</p>
-          <p className={`text-xs mt-0.5 ${filter === 'kritisch' ? 'text-red-500 font-medium' : 'text-slate-500'}`}>Kritisch</p>
-        </button>
-        <button onClick={() => setFilter(filter === 'niedrig' ? 'all' : 'niedrig')} className={`py-2 px-4 text-center transition-colors ${filter === 'niedrig' ? 'bg-amber-50' : ''}`}>
-          <p className={`text-xl font-bold ${filter === 'niedrig' ? 'text-amber-500' : niedrigCount > 0 ? 'text-amber-500' : 'text-slate-800'}`}>{niedrigCount}</p>
-          <p className={`text-xs mt-0.5 ${filter === 'niedrig' ? 'text-amber-500 font-medium' : 'text-slate-500'}`}>Niedrig</p>
-        </button>
-      </div>
-
-      <div className="p-4 space-y-3">
-        {/* Search + add */}
-        <div className="flex gap-2">
-          <div className="relative flex-1">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input type="search" value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="Artikel suchen…"
-              className="w-full border border-slate-300 rounded-xl pl-9 pr-9 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white" />
-            {search && (
-              <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                <X size={15} />
-              </button>
-            )}
+    <div className="w-full relative">
+      {/* Lagergesundheit stat bar */}
+      {products.length > 0 && (
+        <div className="px-4 pt-4 pb-2">
+          <div className="bg-white rounded-2xl border border-slate-100">
+            <div className="flex divide-x divide-slate-100 overflow-x-auto">
+              {([
+                { count: products.length,    label: 'Artikel gesamt', icon: <Package size={20} />,       iconBg: 'bg-slate-100',    iconColor: 'text-slate-500',   filter: 'all'      as const, active: false },
+                { count: stockHealth.green,  label: 'Verfügbar',      icon: <PackageCheck size={20} />,  iconBg: 'bg-emerald-100',  iconColor: 'text-emerald-600', filter: 'ok'       as const, active: selectedStatus === 'ok' },
+                { count: stockHealth.orange, label: 'Knapp',          icon: <Activity size={20} />,      iconBg: 'bg-amber-100',    iconColor: 'text-amber-500',   filter: 'low'      as const, active: selectedStatus === 'low' },
+                { count: stockHealth.red,    label: 'Niedriger Bestand', icon: <TriangleAlert size={20} />, iconBg: 'bg-orange-100', iconColor: 'text-orange-500',  filter: 'critical' as const, active: selectedStatus === 'critical' },
+                { count: stockHealth.empty,  label: 'Kein Bestand',   icon: <PackageX size={20} />,      iconBg: 'bg-red-100',      iconColor: 'text-red-500',     filter: 'empty'    as const, active: selectedStatus === 'empty' },
+              ]).map((s, i) => (
+                <button
+                  key={s.label}
+                  onClick={() => {
+                    if (s.filter === 'all') { setSelectedStatus('all'); setPage(1) }
+                    else { setSelectedStatus(p => p === s.filter ? 'all' : s.filter); setPage(1) }
+                  }}
+                  className={`flex-1 flex items-center gap-3 px-5 py-4 transition-colors min-w-0 shrink-0 ${
+                    s.active ? 'bg-slate-50' : 'hover:bg-slate-50'
+                  } ${i === 0 ? 'rounded-l-2xl' : ''} ${i === 4 ? 'rounded-r-2xl' : ''}`}
+                >
+                  <div className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 ${s.iconBg} ${s.active ? 'ring-2 ring-offset-1 ring-slate-300' : ''}`}>
+                    <span className={s.iconColor}>{s.icon}</span>
+                  </div>
+                  <div className="min-w-0 text-left">
+                    <p className="text-xs text-slate-500 truncate">{s.label}</p>
+                    <p className="text-2xl font-bold text-slate-800 leading-tight">{s.count}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
-          <button onClick={() => setShowForm(true)} title="Artikel hinzufügen"
-            className="bg-sky-500 hover:bg-sky-600 text-white px-3 rounded-xl transition-colors flex items-center">
-            <Plus size={20} />
-          </button>
         </div>
+      )}
 
-        {/* Category chips */}
-        <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-          {categories.map(cat => (
-            <button key={cat} onClick={() => setSelectedCategory(cat)}
-              className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                selectedCategory === cat ? 'bg-slate-800 text-white' : 'bg-white border border-slate-200 text-slate-600'
-              }`}>
-              {cat === 'all' ? 'Alle' : cat}
+      {/* Search + filters + add — single row */}
+      <div className="px-4 pt-3 pb-3 flex gap-2 items-center flex-wrap">
+        {/* Search */}
+        <div className="relative w-52 shrink-0">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            value={search}
+            onChange={e => { setSearch(e.target.value); setPage(1) }}
+            placeholder="Suchen…"
+            className="w-full border border-slate-200 rounded-xl pl-8 pr-7 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white"
+          />
+          {search && (
+            <button onClick={() => { setSearch(''); setPage(1) }} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+              <X size={13} />
             </button>
-          ))}
+          )}
         </div>
 
-        {filtered.length === 0 ? (
-          <p className="text-center text-slate-400 py-12">Keine Artikel gefunden</p>
-        ) : (
-          <div className="space-y-5">
-            <ProductGroup label="Kritisch" color="bg-red-400" textColor="text-red-500" products={kritisch} onOpen={setSelectedProduct} addedToCart={addedToCart} onAddToCart={addToCart} />
-            <ProductGroup label="Niedrig" color="bg-amber-400" textColor="text-amber-500" products={niedrig} onOpen={setSelectedProduct} addedToCart={addedToCart} onAddToCart={addToCart} />
-            <ProductGroup label="Ausreichend" color="bg-emerald-400" textColor="text-emerald-600" products={ok} onOpen={setSelectedProduct} addedToCart={addedToCart} onAddToCart={addToCart} />
-          </div>
-        )}
-      </div>
-
-    </div>
-  )
-}
-
-// ── Group section ──────────────────────────────────────────────────────────
-function ProductGroup({ label, color, textColor, products, onOpen, addedToCart, onAddToCart }: {
-  label: string; color: string; textColor: string
-  products: Product[]; onOpen: (p: Product) => void
-  addedToCart: Set<string>; onAddToCart: (id: string, quantity: number) => void
-}) {
-  if (products.length === 0) return null
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2">
-        <div className={`w-2 h-2 rounded-full shrink-0 ${color}`} />
-        <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{label}</h3>
-        <span className={`text-xs font-semibold ${textColor}`}>{products.length}</span>
-      </div>
-      <div className="space-y-2">
-        {products.map(p => (
-          <ProductRow key={p.id} product={p} onOpen={() => onOpen(p)}
-            added={addedToCart.has(p.id)} onAddToCart={(qty) => onAddToCart(p.id, qty)} />
-        ))}
-      </div>
-    </div>
-  )
-}
-
-// ── Product row ────────────────────────────────────────────────────────────
-function ProductRow({ product: p, onOpen, added, onAddToCart }: {
-  product: Product; onOpen: () => void; added: boolean; onAddToCart: (qty: number) => void
-}) {
-  const low = isLowStock(p)
-  const near = isNearThreshold(p)
-  const defaultQty = Math.max(1, Math.ceil(p.min_stock * 1.5))
-
-  const max = Math.max(p.current_stock, p.min_stock * 2.5, 1)
-  const fillPct = Math.min(100, (p.current_stock / max) * 100)
-  const thresholdPct = Math.min(99, (p.min_stock / max) * 100)
-  const barColor = low ? 'bg-red-400' : near ? 'bg-amber-400' : 'bg-emerald-400'
-  const stockColor = low ? 'text-red-500' : near ? 'text-amber-500' : 'text-slate-800'
-
-  return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-      <div className="flex items-center gap-3 px-4 pt-3 pb-2">
-        {/* Tappable info area → navigate to detail */}
-        <button onClick={onOpen} className="flex-1 min-w-0 text-left">
-          <p className="text-sm font-semibold text-slate-800 truncate">{p.name}</p>
-          <p className="text-xs text-slate-400 truncate mt-0.5">
-            {p.category}{p.preferred_supplier ? ` · ${p.preferred_supplier}` : ''}
-          </p>
-        </button>
-
-        {/* Stock count → also navigates */}
-        <button onClick={onOpen} className="text-right shrink-0">
-          <span className={`text-2xl font-bold leading-none ${stockColor}`}>{p.current_stock}</span>
-          <p className="text-xs text-slate-400 mt-0.5">{p.unit}</p>
-        </button>
-
-        {/* Add to cart with default qty */}
-        <button
-          onClick={e => { e.stopPropagation(); onAddToCart(defaultQty) }}
-          className={`shrink-0 w-9 h-9 flex items-center justify-center rounded-xl transition-colors ${
-            added ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 hover:bg-sky-100 hover:text-sky-600 text-slate-500'
-          }`}
+        {/* Status filter */}
+        <select
+          value={selectedStatus}
+          onChange={e => { setSelectedStatus(e.target.value as typeof selectedStatus); setPage(1) }}
+          className="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500 shrink-0"
         >
-          {added ? <Check size={16} /> : <ShoppingCart size={16} />}
+          <option value="all">Alle Status</option>
+          <option value="ok">Verfügbar</option>
+          <option value="low">Knapp</option>
+          <option value="critical">Niedriger Bestand</option>
+          <option value="empty">Kein Bestand</option>
+        </select>
+
+        {/* Category filter */}
+        <select
+          value={selectedCategory}
+          onChange={e => { setSelectedCategory(e.target.value); setPage(1) }}
+          className="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500 shrink-0"
+        >
+          <option value="all">Alle Kategorien</option>
+          {categories.filter(c => c !== 'all').map(c => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+
+        {/* Supplier filter */}
+        <select
+          value={selectedBrand}
+          onChange={e => { setSelectedBrand(e.target.value); setPage(1) }}
+          className="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500 shrink-0"
+        >
+          <option value="all">Alle Lieferanten</option>
+          {brands.map(b => (
+            <option key={b} value={b}>{b}</option>
+          ))}
+        </select>
+
+        {/* Add button — pushed to end */}
+        <button
+          onClick={() => setShowForm(true)}
+          className="ml-auto bg-sky-500 hover:bg-sky-600 text-white px-4 py-2 rounded-xl transition-colors flex items-center gap-2 text-sm font-medium whitespace-nowrap shrink-0"
+        >
+          <Plus size={16} />
+          <span className="hidden sm:inline">Neuer Artikel</span>
         </button>
       </div>
 
-      {/* Stock bar */}
-      <div className="relative h-1.5 bg-slate-100">
-        <div className={`absolute left-0 top-0 h-full transition-all ${barColor}`} style={{ width: `${fillPct}%` }} />
-        <div className="absolute top-0 h-full w-[3px] bg-slate-500 opacity-60" style={{ left: `${thresholdPct}%` }} />
+      {/* Table */}
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-slate-200 bg-white">
+              <Th label="Name"      col="name"               onClick={toggleSort} SortIcon={SortIcon} />
+              <Th label="Kategorie" col="category"           onClick={toggleSort} SortIcon={SortIcon} className="hidden md:table-cell" />
+              <Th label="Artikelnr." col="article_number"    onClick={toggleSort} SortIcon={SortIcon} className="hidden md:table-cell" />
+              <Th label="Lieferant" col="preferred_supplier" onClick={toggleSort} SortIcon={SortIcon} className="hidden md:table-cell" />
+              <Th label="Bestand"   col="current_stock"      onClick={toggleSort} SortIcon={SortIcon} align="right" />
+              <Th label="Status"    col="status"             onClick={toggleSort} SortIcon={SortIcon} />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {paginated.map(p => (
+              <tr
+                key={p.id}
+                onClick={() => setSelectedProduct(p)}
+                className={`bg-white hover:bg-slate-50 cursor-pointer transition-colors ${selectedProduct?.id === p.id ? 'bg-sky-50' : ''}`}
+              >
+                <td className="px-4 py-3.5">
+                  <p className="text-sm font-semibold text-slate-800">{p.name}</p>
+                  <p className="text-xs text-slate-400 md:hidden mt-0.5">{p.category}</p>
+                </td>
+                <td className="hidden md:table-cell px-4 py-3.5 text-sm text-slate-500">{p.category}</td>
+                <td className="hidden md:table-cell px-4 py-3.5 text-sm text-slate-500">{p.article_number ?? '—'}</td>
+                <td className="hidden md:table-cell px-4 py-3.5 text-sm text-slate-500">{p.preferred_supplier ?? '—'}</td>
+                <td className="px-4 py-3.5 text-right">
+                  <span className="text-sm font-bold text-slate-800">{p.current_stock}</span>
+                  <span className="text-xs text-slate-400 ml-1">{p.unit}</span>
+                </td>
+                <td className="px-4 py-3.5"><StockStatus product={p} /></td>
+              </tr>
+            ))}
+            {sorted.length === 0 && (
+              <tr>
+                <td colSpan={6} className="px-4 py-12 text-center text-slate-400 text-sm">Keine Artikel gefunden</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
+
+      {/* Pagination (md+) */}
+      {totalPages > 1 && (
+        <div className="hidden md:flex items-center justify-between px-4 py-3 border-t border-slate-100 bg-white">
+          <p className="text-xs text-slate-400">
+            {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, sorted.length)} von {sorted.length} Artikeln
+          </p>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setPage(1)}
+              disabled={page === 1}
+              className="px-2 py-1.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              «
+            </button>
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="px-3 py-1.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              Zurück
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(n => n === 1 || n === totalPages || Math.abs(n - page) <= 1)
+              .reduce<(number | '…')[]>((acc, n, i, arr) => {
+                if (i > 0 && n - (arr[i - 1] as number) > 1) acc.push('…')
+                acc.push(n)
+                return acc
+              }, [])
+              .map((n, i) =>
+                n === '…' ? (
+                  <span key={`ellipsis-${i}`} className="px-2 py-1.5 text-xs text-slate-300">…</span>
+                ) : (
+                  <button
+                    key={n}
+                    onClick={() => setPage(n as number)}
+                    className={`w-8 h-7 text-xs rounded-lg transition-colors ${
+                      page === n ? 'bg-sky-500 text-white font-semibold' : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    {n}
+                  </button>
+                )
+              )
+            }
+            <button
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="px-3 py-1.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              Weiter
+            </button>
+            <button
+              onClick={() => setPage(totalPages)}
+              disabled={page === totalPages}
+              className="px-2 py-1.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              »
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Product detail — full-screen on mobile, side panel modal on md+ */}
+      {selectedProduct && productDetailProps && (
+        <>
+          <div
+            className="hidden md:block fixed inset-0 bg-black/30 z-40"
+            onClick={() => setSelectedProduct(null)}
+          />
+          <div className="fixed inset-0 bg-white z-50 overflow-y-auto md:inset-auto md:top-4 md:bottom-4 md:right-4 md:w-[520px] md:rounded-2xl md:shadow-2xl">
+            <ProductDetailPage {...productDetailProps} isModal />
+          </div>
+        </>
+      )}
     </div>
   )
+}
+
+// ── Sortable table header ────────────────────────────────────────────────────
+function Th({ label, col, onClick, SortIcon, align, className = '' }: {
+  label: string
+  col: string
+  onClick: (col: never) => void
+  SortIcon: (props: { col: never }) => React.ReactElement
+  align?: 'right'
+  className?: string
+}) {
+  return (
+    <th
+      onClick={() => onClick(col as never)}
+      className={`${align === 'right' ? 'text-right' : 'text-left'} text-xs font-semibold text-slate-400 uppercase tracking-wide px-4 py-3 cursor-pointer select-none hover:text-slate-600 transition-colors ${className}`}
+    >
+      <span className="inline-flex items-center gap-1">
+        {label}
+        <SortIcon col={col as never} />
+      </span>
+    </th>
+  )
+}
+
+// ── Stock status badge ──────────────────────────────────────────────────────
+function StockStatus({ product: p }: { product: Product }) {
+  if (p.current_stock <= 0)
+    return <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-red-500"><span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />Kein Bestand</span>
+  if (p.current_stock <= p.min_stock)
+    return <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-500"><span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />Niedriger Bestand</span>
+  if (p.current_stock <= p.min_stock * 1.5)
+    return <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-400"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />Knapp</span>
+  return <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-500"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />Verfügbar</span>
 }
 
 function Field({ label, value, onChange, type = 'text', required = false, inputMode, rows }: {

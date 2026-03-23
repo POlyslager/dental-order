@@ -4,7 +4,7 @@ import type { Product } from '../lib/types'
 import Drawer from '../components/Drawer'
 import CategorySelect from '../components/CategorySelect'
 import {
-  ArrowLeft, Pencil, Trash2, ShoppingCart, Check, ExternalLink,
+  ChevronLeft, Pencil, Trash2, ShoppingCart, Check, ExternalLink,
 } from 'lucide-react'
 
 const STORAGE_LOCATIONS = [
@@ -26,9 +26,10 @@ interface Props {
   onUpdated: (p: Product) => void
   onDeleted: (id: string) => void
   onAddToCart: (productId: string, qty: number) => Promise<void>
+  isModal?: boolean
 }
 
-export default function ProductDetailPage({ product, onBack, onUpdated, onDeleted, onAddToCart }: Props) {
+export default function ProductDetailPage({ product, onBack, onUpdated, onDeleted, onAddToCart, isModal }: Props) {
   const [form, setForm] = useState(product)
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -162,8 +163,9 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
       {/* Sub-header */}
       <div className="bg-white border-b border-slate-200 px-4 py-3 flex items-center gap-2 sticky top-0 z-10">
         <button onClick={editing ? () => { setForm(product); setEditing(false) } : onBack}
-          className="text-slate-500 hover:text-slate-800 p-1 -ml-1 shrink-0">
-          <ArrowLeft size={20} />
+          className="flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-slate-700 p-1 -ml-1 shrink-0">
+          <ChevronLeft size={16} />
+          Zurück
         </button>
         <h1 className="font-semibold text-slate-800 truncate flex-1">{form.name}</h1>
         {!editing && (
@@ -179,7 +181,7 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
       </div>
 
       <div className="max-w-2xl mx-auto p-4 space-y-4"
-        style={{ paddingBottom: editing ? '60vh' : undefined }}>
+        style={{ paddingBottom: editing && !isModal ? '80px' : undefined }}>
 
         {/* ── Stock card ── */}
         <div className={`rounded-2xl border overflow-hidden ${styles.border}`}>
@@ -309,7 +311,7 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
 
       {/* Edit footer */}
       {editing && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 px-4 py-4 flex gap-3 z-20">
+        <div className={`${isModal ? '' : 'fixed bottom-0 left-0 right-0'} bg-white border-t border-slate-100 px-4 py-4 flex gap-3 z-20`}>
           <button onClick={() => { setForm(product); setEditing(false) }}
             className="flex-1 border border-slate-300 rounded-xl py-3 text-sm text-slate-600">
             Abbrechen
