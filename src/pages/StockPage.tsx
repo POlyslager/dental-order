@@ -413,6 +413,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
     onDeleted: (id: string) => {
       const name = selectedProduct.name
       setProducts(prev => prev.filter(p => p.id !== id))
+      fetchProducts()
       closeProduct()
       setCartToast(`${name} wurde gelöscht`)
     },

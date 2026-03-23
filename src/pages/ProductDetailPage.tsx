@@ -112,8 +112,9 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
     await supabase.from('stock_movements').delete().eq('product_id', product.id)
     await supabase.from('cart_items').delete().eq('product_id', product.id)
     await supabase.from('order_items').delete().eq('product_id', product.id)
-    const { error } = await supabase.from('products').delete().eq('id', product.id)
-    if (!error) {
+    const { data: deleted } = await supabase
+      .from('products').delete().eq('id', product.id).select('id')
+    if (deleted && deleted.length > 0) {
       onDeleted(product.id)
       onBack()
     }
