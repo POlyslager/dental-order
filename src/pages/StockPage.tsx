@@ -268,20 +268,15 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
   function closeForm() { stopBarcodeScanner(); setShowForm(false); setForm(EMPTY_FORM) }
 
   if (showForm && !selectedProduct) return (
-    <div className="w-full animate-slide-in-right">
+    <div className="w-full bg-white animate-slide-in-right">
       {/* Header */}
       <header className="bg-white border-b border-slate-200 px-4 py-3 flex items-center gap-3 sticky top-0 z-10">
-        <button onClick={closeForm} className="flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-slate-700 p-1 -ml-1">
+        {/* Back button — mobile only */}
+        <button onClick={closeForm} className="md:hidden flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-slate-700 p-1 -ml-1">
           <ChevronLeft size={16} />
           Zurück
         </button>
         <h2 className="font-semibold text-slate-800 flex-1">Neuer Artikel</h2>
-        {/* Scan button in header */}
-        <button type="button" onClick={startBarcodeScanner} disabled={scanning}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-300 text-sm text-slate-600 hover:bg-sky-50 hover:border-sky-300 hover:text-sky-600 disabled:opacity-40 transition-colors">
-          <Camera size={16} />
-          {form.barcode ? 'Barcode: ' + form.barcode : 'Barcode scannen'}
-        </button>
       </header>
 
       {/* Scanner view */}
@@ -298,12 +293,19 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
       {/* Form */}
       {!scanning && (
         <form onSubmit={handleCreate} className="p-4 pb-10 space-y-4 max-w-2xl">
+          {/* Scan button — primary, at top of form */}
+          <button type="button" onClick={startBarcodeScanner} disabled={scanning}
+            className="w-full flex items-center justify-center gap-2 bg-sky-500 hover:bg-sky-600 disabled:opacity-40 text-white font-medium rounded-xl py-3 text-sm transition-colors">
+            <Camera size={18} />
+            {form.barcode ? `Barcode: ${form.barcode}` : 'Barcode scannen'}
+          </button>
           <Field label="Name *" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} required />
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">Kategorie *</label>
             <CategorySelect value={form.category} onChange={v => setForm(f => ({ ...f, category: v }))} categories={categories.filter(c => c !== 'all')} required />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
+            <Field label="Bestand" inputMode="numeric" value={form.current_stock} onChange={v => setForm(f => ({ ...f, current_stock: v }))} />
             <Field label="Meldebestand *" inputMode="numeric" value={form.min_stock} onChange={v => setForm(f => ({ ...f, min_stock: v }))} required />
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Einheit</label>
@@ -313,9 +315,11 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
               </select>
             </div>
           </div>
-          <Field label="Stückpreis (€)" inputMode="decimal" value={form.last_price} onChange={v => setForm(f => ({ ...f, last_price: v }))} />
-          <Field label="Beschreibung" value={form.description} onChange={v => setForm(f => ({ ...f, description: v }))} />
-          <Field label="Artikelnummer" value={form.article_number} onChange={v => setForm(f => ({ ...f, article_number: v }))} />
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Artikelnummer" value={form.article_number} onChange={v => setForm(f => ({ ...f, article_number: v }))} />
+            <Field label="Stückpreis (€)" inputMode="decimal" value={form.last_price} onChange={v => setForm(f => ({ ...f, last_price: v }))} />
+          </div>
+          <Field label="Beschreibung" value={form.notes} onChange={v => setForm(f => ({ ...f, notes: v }))} rows={3} />
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">Lagerort</label>
             <select value={form.storage_location} onChange={e => setForm(f => ({ ...f, storage_location: e.target.value }))}
@@ -349,7 +353,6 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
               )}
             </div>
           </div>
-          <Field label="Beschreibung" value={form.notes} onChange={v => setForm(f => ({ ...f, notes: v }))} rows={3} />
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={closeForm}
               className="flex-1 border border-slate-300 rounded-xl py-3 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
@@ -525,11 +528,11 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
         <table className="w-full table-fixed">
           <colgroup>
             <col style={{ width: '30%' }} />
-            <col className="hidden md:table-column" style={{ width: '18%' }} />
-            <col className="hidden md:table-column" style={{ width: '12%' }} />
-            <col className="hidden md:table-column" style={{ width: '18%' }} />
-            <col style={{ width: '12%' }} />
+            <col className="hidden md:table-column" style={{ width: '17%' }} />
+            <col className="hidden md:table-column" style={{ width: '17%' }} />
+            <col className="hidden md:table-column" style={{ width: '17%' }} />
             <col style={{ width: '10%' }} />
+            <col style={{ width: '9%' }} />
           </colgroup>
           <thead>
             <tr className="border-b border-slate-200 bg-white">

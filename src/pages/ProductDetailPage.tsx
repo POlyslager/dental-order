@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Product } from '../lib/types'
-import Drawer from '../components/Drawer'
 import CategorySelect from '../components/CategorySelect'
 import {
   ChevronLeft, Pencil, Trash2, ShoppingCart, Check, ExternalLink, X,
@@ -110,9 +109,14 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
   }
 
   async function handleDelete() {
-    await supabase.from('products').delete().eq('id', product.id)
-    onDeleted(product.id)
-    onBack()
+    // Remove dependent records first to avoid FK constraint failures
+    await supabase.from('stock_movements').delete().eq('product_id', product.id)
+    await supabase.from('cart_items').delete().eq('product_id', product.id)
+    const { error } = await supabase.from('products').delete().eq('id', product.id)
+    if (!error) {
+      onDeleted(product.id)
+      onBack()
+    }
   }
 
   async function handleAddToCart() {
@@ -386,25 +390,25 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
         </div>
       )}
 
-      {/* Delete confirmation */}
-      <Drawer open={confirmDelete} onClose={() => setConfirmDelete(false)} zIndex={60}>
-        <div className="px-5 py-6 space-y-4">
-          <div>
-            <h3 className="font-semibold text-slate-800 text-lg">Artikel löschen?</h3>
-            <p className="text-sm text-slate-500 mt-1">{product.name} wird dauerhaft gelöscht.</p>
-          </div>
-          <div className="flex gap-3">
-            <button onClick={() => setConfirmDelete(false)}
-              className="flex-1 border border-slate-300 rounded-xl py-3 text-sm text-slate-600">
-              Abbrechen
-            </button>
-            <button onClick={handleDelete}
-              className="flex-1 bg-red-500 hover:bg-red-600 text-white rounded-xl py-3 text-sm font-medium">
-              Löschen
-            </button>
+      {/* Delete confirmation modal */}
+      {confirmDelete && (
+        <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 animate-slide-in-up">
+            <h3 className="font-semibold text-slate-800 text-lg mb-1">Artikel löschen?</h3>
+            <p className="text-sm text-slate-500 mb-5">{product.name} wird dauerhaft gelöscht.</p>
+            <div className="flex gap-3">
+              <button onClick={() => setConfirmDelete(false)}
+                className="flex-1 border border-slate-300 rounded-xl py-3 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
+                Abbrechen
+              </button>
+              <button onClick={handleDelete}
+                className="flex-1 bg-red-500 hover:bg-red-600 text-white rounded-xl py-3 text-sm font-medium transition-colors">
+                Löschen
+              </button>
+            </div>
           </div>
         </div>
-      </Drawer>
+      )}
     </div>
   )
 }
