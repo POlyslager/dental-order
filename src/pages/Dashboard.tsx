@@ -41,8 +41,13 @@ export default function Dashboard({ user }: Props) {
 
   function closeMenu() {
     setMenuClosing(true)
-    setTimeout(() => { setMenuOpen(false); setMenuClosing(false) }, 260)
+    setTimeout(() => {
+      setMenuOpen(false)
+      setMenuClosing(false)
+      setSettingsOpen(false)
+    }, 260)
   }
+
   const [pendingBarcode, setPendingBarcode] = useState<string | null>(null)
   const [orderBadge, setOrderBadge] = useState(0)
   const [pushPermission, setPushPermission] = useState(() => currentPermission())
@@ -66,7 +71,6 @@ export default function Dashboard({ user }: Props) {
     getUserRole().then(setRole)
   }, [])
 
-  // Fetch badge count: cart items + pending approval orders
   useEffect(() => {
     async function fetchBadge() {
       const [{ count: cartCount }, { count: pendingCount }] = await Promise.all([
@@ -76,7 +80,6 @@ export default function Dashboard({ user }: Props) {
       setOrderBadge((cartCount ?? 0) + (pendingCount ?? 0))
     }
     fetchBadge()
-
     const interval = setInterval(fetchBadge, 30000)
     return () => clearInterval(interval)
   }, [tab])
@@ -88,7 +91,6 @@ export default function Dashboard({ user }: Props) {
   ]
   const activeIndex = bottomTabs.findIndex(t => t.id === tab)
 
-  // Sidebar nav items
   const sidebarItems: { id: Tab; icon: React.ReactNode; label: string; badge?: number }[] = [
     { id: 'stock',    icon: <Package size={20} />,         label: 'Artikel' },
     { id: 'orders',   icon: <ShoppingCart size={20} />,    label: 'Bestellungen', badge: orderBadge },
@@ -118,82 +120,97 @@ export default function Dashboard({ user }: Props) {
           </button>
         </div>
 
-        {/* Nav items */}
-        <nav className="flex-1 py-2 space-y-0.5 px-2 overflow-y-auto">
-          {sidebarItems.map(item => (
-            <button
-              key={item.id}
-              onClick={() => setTab(item.id)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm transition-colors rounded-xl ${
-                tab === item.id
-                  ? 'bg-sky-50 text-sky-600'
-                  : 'text-slate-600 hover:bg-slate-50'
-              } ${sidebarCollapsed ? 'justify-center' : ''}`}
-            >
-              <span className="shrink-0 relative">
-                {item.icon}
-                {!!item.badge && item.badge > 0 && (
-                  <span className="absolute -top-1.5 -right-2 bg-red-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center leading-none">
-                    {item.badge > 9 ? '9+' : item.badge}
-                  </span>
-                )}
-              </span>
-              {!sidebarCollapsed && (
-                <span className="truncate font-medium">{item.label}</span>
-              )}
-            </button>
-          ))}
-          {/* Settings — collapsible */}
-          <button
-            onClick={() => !sidebarCollapsed && setSettingsOpen(o => !o)}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl transition-colors ${
-              settingsOpen && !sidebarCollapsed ? 'bg-slate-50 text-slate-800' : 'text-slate-600 hover:bg-slate-50'
-            } ${sidebarCollapsed ? 'justify-center' : ''}`}
+        {/* Nav — sliding panels */}
+        <div className="flex-1 overflow-hidden relative">
+          <div
+            className="flex h-full transition-transform duration-220 ease-in-out"
+            style={{ width: '200%', transform: settingsOpen && !sidebarCollapsed ? 'translateX(-50%)' : 'translateX(0)' }}
           >
-            <Settings size={20} className="shrink-0" />
-            {!sidebarCollapsed && (
-              <>
-                <span className="truncate font-medium">Einstellungen</span>
-                <ChevronRight size={14} className={`ml-auto shrink-0 text-slate-400 transition-transform ${settingsOpen ? 'rotate-90' : ''}`} />
-              </>
-            )}
-          </button>
+            {/* ── Main panel ── */}
+            <div className="overflow-y-auto py-2 space-y-0.5 px-2" style={{ width: '50%' }}>
+              {sidebarItems.map(item => (
+                <button
+                  key={item.id}
+                  onClick={() => setTab(item.id)}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm transition-colors rounded-xl ${
+                    tab === item.id ? 'bg-sky-50 text-sky-600' : 'text-slate-600 hover:bg-slate-50'
+                  } ${sidebarCollapsed ? 'justify-center' : ''}`}
+                >
+                  <span className="shrink-0 relative">
+                    {item.icon}
+                    {!!item.badge && item.badge > 0 && (
+                      <span className="absolute -top-1.5 -right-2 bg-red-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center leading-none">
+                        {item.badge > 9 ? '9+' : item.badge}
+                      </span>
+                    )}
+                  </span>
+                  {!sidebarCollapsed && <span className="truncate font-medium">{item.label}</span>}
+                </button>
+              ))}
 
-          {/* Notifications — submenu, only when settings expanded */}
-          {settingsOpen && !sidebarCollapsed && isPushSupported() && pushPermission !== 'granted' && (
-            <button
-              onClick={enableNotifications}
-              className="w-full flex items-center gap-3 pl-9 pr-3 py-2 text-sm text-slate-600 hover:bg-slate-50 rounded-xl transition-colors"
-            >
-              <Bell size={16} className="shrink-0" />
-              <span className="truncate text-sm">Benachrichtigungen</span>
-            </button>
-          )}
-          {settingsOpen && !sidebarCollapsed && pushPermission === 'granted' && (
-            <div className="w-full flex items-center gap-3 pl-9 pr-3 py-2 text-sm text-emerald-600 bg-emerald-50 rounded-xl">
-              <BellOff size={16} className="shrink-0" />
-              <span className="truncate text-sm">Benachrichtigungen aktiv</span>
+              {/* Settings entry */}
+              <button
+                onClick={() => !sidebarCollapsed && setSettingsOpen(true)}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl transition-colors text-slate-600 hover:bg-slate-50 ${sidebarCollapsed ? 'justify-center' : ''}`}
+              >
+                <Settings size={20} className="shrink-0" />
+                {!sidebarCollapsed && (
+                  <>
+                    <span className="truncate font-medium">Einstellungen</span>
+                    <ChevronRight size={14} className="ml-auto shrink-0 text-slate-400" />
+                  </>
+                )}
+              </button>
+
+              {/* Collapsed: show bell icon directly */}
+              {sidebarCollapsed && isPushSupported() && pushPermission !== 'granted' && (
+                <button
+                  onClick={enableNotifications}
+                  className="w-full flex items-center justify-center px-3 py-2.5 text-sm text-slate-600 hover:bg-slate-50 rounded-xl transition-colors"
+                >
+                  <Bell size={20} className="shrink-0" />
+                </button>
+              )}
+              {sidebarCollapsed && pushPermission === 'granted' && (
+                <div className="w-full flex items-center justify-center px-3 py-2.5 text-sm text-emerald-600 bg-emerald-50 rounded-xl">
+                  <BellOff size={20} className="shrink-0" />
+                </div>
+              )}
             </div>
-          )}
-          {sidebarCollapsed && isPushSupported() && pushPermission !== 'granted' && (
-            <button
-              onClick={enableNotifications}
-              className="w-full flex items-center justify-center px-3 py-2.5 text-sm text-slate-600 hover:bg-slate-50 rounded-xl transition-colors"
-            >
-              <Bell size={20} className="shrink-0" />
-            </button>
-          )}
-          {sidebarCollapsed && pushPermission === 'granted' && (
-            <div className="w-full flex items-center justify-center px-3 py-2.5 text-sm text-emerald-600 bg-emerald-50 rounded-xl">
-              <BellOff size={20} className="shrink-0" />
+
+            {/* ── Settings panel ── */}
+            <div className="overflow-y-auto py-2 px-2 space-y-0.5" style={{ width: '50%' }}>
+              {/* Back button */}
+              <button
+                onClick={() => setSettingsOpen(false)}
+                className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-slate-500 hover:bg-slate-50 rounded-xl transition-colors mb-1"
+              >
+                <ChevronLeft size={16} className="shrink-0" />
+                <span className="font-medium">Einstellungen</span>
+              </button>
+              <div className="border-t border-slate-100 pt-1">
+                {isPushSupported() && pushPermission !== 'granted' && (
+                  <button
+                    onClick={enableNotifications}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-slate-600 hover:bg-slate-50 rounded-xl transition-colors"
+                  >
+                    <Bell size={18} className="shrink-0" />
+                    <span className="truncate font-medium">Benachrichtigungen</span>
+                  </button>
+                )}
+                {pushPermission === 'granted' && (
+                  <div className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-emerald-600 bg-emerald-50 rounded-xl">
+                    <BellOff size={18} className="shrink-0" />
+                    <span className="truncate font-medium">Benachrichtigungen aktiv</span>
+                  </div>
+                )}
+              </div>
             </div>
-          )}
-        </nav>
+          </div>
+        </div>
 
         {/* Bottom section */}
         <div className="border-t border-slate-100 py-2 px-2 space-y-0.5">
-
-          {/* User info + sign out */}
           <div className={`${sidebarCollapsed ? 'flex flex-col items-center gap-2' : ''}`}>
             {sidebarCollapsed ? (
               <>
@@ -234,13 +251,11 @@ export default function Dashboard({ user }: Props) {
 
       {/* ── Right side: header + main ──────────────────────────── */}
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-        {/* Header */}
         <header
           className="bg-white border-b border-slate-200 sticky top-0 z-10"
           style={{ paddingTop: 'env(safe-area-inset-top)' }}
         >
           <div className="px-4 py-3 flex items-center justify-between">
-            {/* Mobile: logo; tablet+: page title */}
             <div className="flex items-center gap-2">
               <span className="font-bold text-slate-800 tracking-tight md:hidden">DentalOrder</span>
               <span className="hidden md:block font-bold text-slate-800 tracking-tight">{PAGE_TITLES[tab]}</span>
@@ -249,7 +264,6 @@ export default function Dashboard({ user }: Props) {
               )}
             </div>
             <div className="flex items-center gap-1">
-              {/* Scan icon: tablet+ only */}
               <button
                 onClick={() => setTab('scan')}
                 className="hidden md:flex items-center justify-center p-2 bg-sky-500 hover:bg-sky-600 text-white rounded-xl transition-colors"
@@ -257,7 +271,6 @@ export default function Dashboard({ user }: Props) {
               >
                 <ScanLine size={20} />
               </button>
-              {/* Hamburger: mobile only */}
               <button
                 onClick={() => setMenuOpen(true)}
                 className="text-slate-500 hover:text-slate-800 p-1 transition-colors md:hidden"
@@ -353,49 +366,70 @@ export default function Dashboard({ user }: Props) {
               swipeStartX.current = null
             }}
           >
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-              <span className="font-semibold text-slate-800">Menü</span>
+            {/* Header — changes when in settings panel */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0">
+              {settingsOpen ? (
+                <button
+                  onClick={() => setSettingsOpen(false)}
+                  className="flex items-center gap-2 text-slate-600 hover:text-slate-800 transition-colors"
+                >
+                  <ChevronLeft size={18} />
+                  <span className="font-semibold text-slate-800">Einstellungen</span>
+                </button>
+              ) : (
+                <span className="font-semibold text-slate-800">Menü</span>
+              )}
               <button onClick={closeMenu} className="text-slate-400 hover:text-slate-600">
                 <X size={20} />
               </button>
             </div>
 
-            <nav className="flex-1 py-2">
-              <MenuItem icon={<Package size={18} />} label="Artikel"
-                active={tab === 'stock'} onClick={() => navigate('stock')} />
-              <MenuItem icon={<ShoppingCart size={18} />} label="Bestellungen"
-                active={tab === 'orders'} onClick={() => navigate('orders')} />
-              <MenuItem icon={<LayoutDashboard size={18} />} label="Dashboard"
-                active={tab === 'overview'} onClick={() => navigate('overview')} />
-              <MenuItem
-                icon={<Settings size={18} />}
-                label="Einstellungen"
-                onClick={() => setSettingsOpen(o => !o)}
-                chevron
-                expanded={settingsOpen}
-              />
-              {settingsOpen && isPushSupported() && pushPermission !== 'granted' && (
-                <MenuItem
-                  icon={<Bell size={16} />}
-                  label="Benachrichtigungen"
-                  onClick={enableNotifications}
-                  indent
-                />
-              )}
-              {settingsOpen && pushPermission === 'granted' && (
-                <MenuItem
-                  icon={<BellOff size={16} className="text-emerald-500" />}
-                  label="Benachrichtigungen aktiv"
-                  onClick={closeMenu}
-                  active
-                  indent
-                />
-              )}
-              <MenuItem icon={<ScrollText size={18} />} label="Nutzungsbedingungen"
-                onClick={() => { setShowTerms(true); closeMenu() }} />
-            </nav>
+            {/* Nav — sliding panels */}
+            <div className="flex-1 overflow-hidden relative">
+              <div
+                className="flex h-full transition-transform duration-220 ease-in-out"
+                style={{ width: '200%', transform: settingsOpen ? 'translateX(-50%)' : 'translateX(0)' }}
+              >
+                {/* Main panel */}
+                <div className="overflow-y-auto py-2" style={{ width: '50%' }}>
+                  <MenuItem icon={<Package size={18} />} label="Artikel"
+                    active={tab === 'stock'} onClick={() => navigate('stock')} />
+                  <MenuItem icon={<ShoppingCart size={18} />} label="Bestellungen"
+                    active={tab === 'orders'} onClick={() => navigate('orders')} />
+                  <MenuItem icon={<LayoutDashboard size={18} />} label="Dashboard"
+                    active={tab === 'overview'} onClick={() => navigate('overview')} />
+                  <MenuItem
+                    icon={<Settings size={18} />}
+                    label="Einstellungen"
+                    onClick={() => setSettingsOpen(true)}
+                    chevron
+                  />
+                  <MenuItem icon={<ScrollText size={18} />} label="Nutzungsbedingungen"
+                    onClick={() => { setShowTerms(true); closeMenu() }} />
+                </div>
 
-            <div className="border-t border-slate-100 p-4">
+                {/* Settings panel */}
+                <div className="overflow-y-auto py-2" style={{ width: '50%' }}>
+                  {isPushSupported() && pushPermission !== 'granted' && (
+                    <MenuItem
+                      icon={<Bell size={18} />}
+                      label="Benachrichtigungen"
+                      onClick={enableNotifications}
+                    />
+                  )}
+                  {pushPermission === 'granted' && (
+                    <MenuItem
+                      icon={<BellOff size={18} className="text-emerald-500" />}
+                      label="Benachrichtigungen aktiv"
+                      onClick={() => {}}
+                      active
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t border-slate-100 p-4 shrink-0">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-9 h-9 rounded-full bg-sky-100 flex items-center justify-center text-sky-600 font-semibold text-sm">
                   {user.email?.[0].toUpperCase()}
@@ -418,21 +452,19 @@ export default function Dashboard({ user }: Props) {
   )
 }
 
-function MenuItem({ icon, label, onClick, disabled = false, active = false, indent = false, chevron = false, expanded = false }: {
+function MenuItem({ icon, label, onClick, active = false, chevron = false }: {
   icon: React.ReactNode; label: string; onClick: () => void
-  disabled?: boolean; active?: boolean; indent?: boolean; chevron?: boolean; expanded?: boolean
+  active?: boolean; chevron?: boolean
 }) {
   return (
-    <button onClick={onClick} disabled={disabled}
-      className={`w-full flex items-center gap-3 py-2.5 text-sm transition-colors text-left ${
-        indent ? 'px-10' : 'px-5'
-      } ${
-        disabled ? 'text-slate-300' : active ? 'text-emerald-600 bg-emerald-50' : 'text-slate-700 hover:bg-slate-50'
+    <button onClick={onClick}
+      className={`w-full flex items-center gap-3 px-5 py-3 text-sm transition-colors text-left ${
+        active ? 'text-sky-600 bg-sky-50' : 'text-slate-700 hover:bg-slate-50'
       }`}
     >
       {icon}
       <span className="flex-1">{label}</span>
-      {chevron && <ChevronRight size={14} className={`text-slate-400 transition-transform ${expanded ? 'rotate-90' : ''}`} />}
+      {chevron && <ChevronRight size={14} className="text-slate-400" />}
     </button>
   )
 }

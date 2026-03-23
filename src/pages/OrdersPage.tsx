@@ -162,42 +162,50 @@ export default function OrdersPage({ role, user, onBadgeChange }: Props) {
               <p className="text-xs text-slate-300 mt-1">Artikel über das Lager hinzufügen</p>
             </div>
           ) : (
-            <div className="space-y-6">
-              {Object.entries(cartByDomain).map(([domain, items]) => {
-                const domainTotal = items.reduce((s, i) => s + (i.quantity * (i.product?.last_price ?? 0)), 0)
-                const websiteUrl = items[0]?.product?.supplier_url ?? null
-                return (
-                  <div key={domain} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                    {/* Domain header */}
-                    <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-3">
-                      <p className="font-semibold text-slate-800 text-sm">{domain}</p>
-                      {websiteUrl && (
-                        <a
-                          href={websiteUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1.5 text-xs text-sky-600 hover:text-sky-700 bg-sky-50 hover:bg-sky-100 px-2.5 py-1.5 rounded-lg transition-colors shrink-0"
-                        >
-                          <ExternalLink size={12} />
-                          Website öffnen
-                        </a>
-                      )}
-                    </div>
-
-                    {/* Table */}
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="border-b border-slate-100 bg-slate-50/50">
-                            <th className="text-left px-4 py-2.5 text-xs font-medium text-slate-400">Artikel</th>
-                            <th className="text-center px-3 py-2.5 text-xs font-medium text-slate-400 whitespace-nowrap">Menge</th>
-                            <th className="text-right px-3 py-2.5 text-xs font-medium text-slate-400 whitespace-nowrap hidden sm:table-cell">Preis/Einheit</th>
-                            <th className="text-right px-3 py-2.5 text-xs font-medium text-slate-400 whitespace-nowrap">Gesamt</th>
-                            <th className="px-2 py-2.5 w-8"></th>
-                            <th className="px-3 py-2.5 text-xs font-medium text-slate-400 whitespace-nowrap text-right">Aktion</th>
+            <div>
+              <div className="overflow-x-auto bg-white rounded-2xl border border-slate-200 shadow-sm">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50">
+                      <th className="text-left px-4 py-2.5 text-xs font-medium text-slate-400">Artikel</th>
+                      <th className="text-center px-3 py-2.5 text-xs font-medium text-slate-400 whitespace-nowrap">Menge</th>
+                      <th className="text-right px-3 py-2.5 text-xs font-medium text-slate-400 whitespace-nowrap hidden sm:table-cell">Preis/Einheit</th>
+                      <th className="text-right px-3 py-2.5 text-xs font-medium text-slate-400 whitespace-nowrap">Gesamt</th>
+                      <th className="px-2 py-2.5 w-8"></th>
+                      <th className="px-3 py-2.5 text-xs font-medium text-slate-400 whitespace-nowrap text-right">Aktion</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(cartByDomain).map(([domain, items]) => {
+                      const domainTotal = items.reduce((s, i) => s + (i.quantity * (i.product?.last_price ?? 0)), 0)
+                      const websiteUrl = items[0]?.product?.supplier_url ?? null
+                      return (
+                        <>
+                          {/* Domain section header row */}
+                          <tr key={`header-${domain}`} className="border-t border-slate-200 bg-slate-50/80">
+                            <td colSpan={6} className="px-4 py-2">
+                              <div className="flex items-center justify-between gap-3">
+                                <p className="font-semibold text-slate-700 text-sm">{domain}</p>
+                                <div className="flex items-center gap-3">
+                                  <span className="text-xs text-slate-400 hidden sm:inline">
+                                    Gesamt: <span className="font-semibold text-slate-700">€ {domainTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                  </span>
+                                  {websiteUrl && (
+                                    <a
+                                      href={websiteUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex items-center gap-1.5 text-xs text-sky-600 hover:text-sky-700 bg-sky-50 hover:bg-sky-100 px-2.5 py-1 rounded-lg transition-colors shrink-0"
+                                    >
+                                      <ExternalLink size={12} />
+                                      Website öffnen
+                                    </a>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
                           </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
+                          {/* Item rows */}
                           {items.map(item => (
                             <CartItemRow
                               key={item.id}
@@ -208,27 +216,16 @@ export default function OrdersPage({ role, user, onBadgeChange }: Props) {
                               onPlaceOrder={placeOrderForItem}
                             />
                           ))}
-                        </tbody>
-                        {/* Domain total row */}
-                        <tfoot>
-                          <tr className="border-t border-slate-200 bg-slate-50">
-                            <td colSpan={3} className="px-4 py-2.5 text-xs text-slate-400 hidden sm:table-cell">
-                              {items.length} {items.length === 1 ? 'Artikel' : 'Artikel'}
-                            </td>
-                            <td colSpan={3} className="px-4 py-2.5 sm:px-3 text-right font-bold text-slate-800">
-                              € {domainTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    </div>
-                  </div>
-                )
-              })}
+                        </>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
 
               {/* Grand total — only when multiple domains */}
               {Object.keys(cartByDomain).length > 1 && (
-                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm px-4 py-3 flex items-center justify-between">
+                <div className="mt-3 px-4 py-3 flex items-center justify-between border-t border-slate-200">
                   <p className="text-sm font-medium text-slate-600">Gesamtsumme Warenkorb</p>
                   <p className="text-lg font-bold text-slate-800">
                     € {grandTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -251,12 +248,11 @@ export default function OrdersPage({ role, user, onBadgeChange }: Props) {
               <p className="text-slate-400 text-sm">Keine offenen Bestellungen</p>
             </div>
           ) : (
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-100 bg-slate-50/50">
-                      <th className="text-left px-4 py-2.5 text-xs font-medium text-slate-400">Lieferant</th>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50">
+                    <th className="text-left px-4 py-2.5 text-xs font-medium text-slate-400">Lieferant</th>
                       <th className="text-left px-3 py-2.5 text-xs font-medium text-slate-400 hidden sm:table-cell">Datum</th>
                       <th className="text-center px-3 py-2.5 text-xs font-medium text-slate-400 hidden md:table-cell">Artikel</th>
                       <th className="text-right px-3 py-2.5 text-xs font-medium text-slate-400">Gesamt</th>
@@ -276,7 +272,6 @@ export default function OrdersPage({ role, user, onBadgeChange }: Props) {
                     ))}
                   </tbody>
                 </table>
-              </div>
             </div>
           )
         )}
