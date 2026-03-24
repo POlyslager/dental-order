@@ -62,7 +62,7 @@ export default function SuppliersPage() {
     }
 
     const lastPurchase: Record<string, string> = {}
-    for (const item of (orderItemRows ?? []) as { product_id: string; orders: { created_at: string } }[]) {
+    for (const item of (orderItemRows ?? []) as unknown as { product_id: string; orders: { created_at: string } }[]) {
       const supplier = productToSupplier[item.product_id]
       if (!supplier) continue
       const date = item.orders.created_at
