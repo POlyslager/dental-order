@@ -481,11 +481,11 @@ useEffect(() => {
 
       {/* Desktop header (md+) */}
       <div className="hidden md:grid md:grid-cols-5 border-b border-slate-200 bg-white sticky top-0 z-10">
-        <ColHeader label="Name"      col="name"               onClick={toggleSort} SortIcon={SortIcon} />
-        <ColHeader label="Kategorie" col="category"           onClick={toggleSort} SortIcon={SortIcon} />
-        <ColHeader label="Lieferant" col="preferred_supplier" onClick={toggleSort} SortIcon={SortIcon} />
-        <ColHeader label="Bestand"   col="current_stock"      onClick={toggleSort} SortIcon={SortIcon} align="right" />
-        <ColHeader label="Status"    col="status"             onClick={toggleSort} SortIcon={SortIcon} />
+        <ColHeader label="Name"      col="name"               onClick={toggleSort} SortIcon={SortIcon} className="bg-red-100" />
+        <ColHeader label="Kategorie" col="category"           onClick={toggleSort} SortIcon={SortIcon} className="bg-blue-100" />
+        <ColHeader label="Lieferant" col="preferred_supplier" onClick={toggleSort} SortIcon={SortIcon} className="bg-green-100" />
+        <ColHeader label="Bestand"   col="current_stock"      onClick={toggleSort} SortIcon={SortIcon} align="right" className="bg-yellow-100" />
+        <ColHeader label="Status"    col="status"             onClick={toggleSort} SortIcon={SortIcon} className="bg-purple-100" />
       </div>
 
       {/* Mobile header */}
@@ -505,7 +505,7 @@ useEffect(() => {
           >
             {/* Desktop row */}
             <div className="hidden md:grid md:grid-cols-5 items-center">
-              <div className="min-w-0 px-4 py-3.5">
+              <div className="min-w-0 px-4 py-3.5 bg-red-50">
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-semibold text-slate-800 truncate">{p.name}</p>
                   {cartProductIds.has(p.id) && (
@@ -515,13 +515,13 @@ useEffect(() => {
                   )}
                 </div>
               </div>
-              <div className="min-w-0 px-4 py-3.5 text-sm text-slate-500 truncate">{p.category}</div>
-              <div className="min-w-0 px-4 py-3.5 text-sm text-slate-500 truncate">{p.preferred_supplier ?? '—'}</div>
-              <div className="px-4 py-3.5 text-right">
+              <div className="min-w-0 px-4 py-3.5 text-sm text-slate-500 truncate bg-blue-50">{p.category}</div>
+              <div className="min-w-0 px-4 py-3.5 text-sm text-slate-500 truncate bg-green-50">{p.preferred_supplier ?? '—'}</div>
+              <div className="px-4 py-3.5 text-right bg-yellow-50">
                 <span className="text-sm font-bold text-slate-800">{p.current_stock}</span>
                 <span className="text-xs text-slate-400 ml-1">{p.unit}</span>
               </div>
-              <div className="px-4 py-3.5"><StockStatus product={p} /></div>
+              <div className="px-4 py-3.5 bg-purple-50"><StockStatus product={p} /></div>
             </div>
             {/* Mobile row */}
             <div className="flex md:hidden items-center">
