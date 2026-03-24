@@ -23,6 +23,8 @@ export default function OrdersPage({ user, onBadgeChange, forceOpenTab, forceSca
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [placingItem, setPlacingItem] = useState<string | null>(null)
+  const [suppliers, setSuppliers] = useState<string[]>([])
+  const [itemEdits, setItemEdits] = useState<Record<string, { price: number | null; supplier: string }>>({})
   const [deleteConfirm, setDeleteConfirm] = useState<CartItem | null>(null)
   const [toast, setToast] = useState<{ message: string; onUndo?: () => void } | null>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -72,11 +74,26 @@ export default function OrdersPage({ user, onBadgeChange, forceOpenTab, forceSca
   }, [tab])
 
   async function fetchCart() {
-    const { data } = await supabase
-      .from('cart_items')
-      .select('id, product_id, quantity, created_at, product:products(id, name, current_stock, unit, last_price, alternative_price, alternative_url, alternative_supplier, supplier_url, preferred_supplier)')
-      .order('created_at')
-    setCartItems((data as unknown as CartItem[]) ?? [])
+    const [{ data }, { data: supData }] = await Promise.all([
+      supabase
+        .from('cart_items')
+        .select('id, product_id, quantity, created_at, product:products(id, name, current_stock, unit, last_price, alternative_price, alternative_url, alternative_supplier, supplier_url, preferred_supplier)')
+        .order('created_at'),
+      supabase.from('suppliers').select('name').order('name'),
+    ])
+    const items = (data as unknown as CartItem[]) ?? []
+    setCartItems(items)
+    setSuppliers((supData ?? []).map((s: { name: string }) => s.name))
+    setItemEdits(prev => {
+      const next: Record<string, { price: number | null; supplier: string }> = {}
+      for (const item of items) {
+        next[item.id] = prev[item.id] ?? {
+          price: item.product?.last_price ?? null,
+          supplier: item.product?.preferred_supplier ?? '',
+        }
+      }
+      return next
+    })
   }
 
   async function fetchOrders() {
@@ -93,6 +110,14 @@ export default function OrdersPage({ user, onBadgeChange, forceOpenTab, forceSca
     onBadgeChange(cart.length + openOrders.length)
   }
 
+  function handlePriceChange(itemId: string, price: number | null) {
+    setItemEdits(e => ({ ...e, [itemId]: { ...e[itemId], price } }))
+  }
+
+  function handleSupplierChange(itemId: string, supplier: string) {
+    setItemEdits(e => ({ ...e, [itemId]: { ...e[itemId], supplier } }))
+  }
+
   // Group cart items by website domain (from supplier_url), fallback to supplier name
   const cartByDomain = cartItems.reduce<Record<string, CartItem[]>>((acc, item) => {
     const domain = getDomain(item.product?.supplier_url) ?? item.product?.preferred_supplier ?? 'Kein Lieferant'
@@ -101,7 +126,10 @@ export default function OrdersPage({ user, onBadgeChange, forceOpenTab, forceSca
     return acc
   }, {})
 
-  const grandTotal = cartItems.reduce((s, i) => s + (i.quantity * (i.product?.last_price ?? 0)), 0)
+  const grandTotal = cartItems.reduce((s, i) => {
+    const price = itemEdits[i.id]?.price ?? i.product?.last_price ?? 0
+    return s + (i.quantity * price)
+  }, 0)
 
   const ordersBySupplier = useMemo<[string, Order[]][]>(() => {
     const grouped: [string, Order[]][] = []
@@ -159,8 +187,10 @@ export default function OrdersPage({ user, onBadgeChange, forceOpenTab, forceSca
 
   async function placeOrderForItem(item: CartItem) {
     setPlacingItem(item.id)
-    const total = item.quantity * (item.product?.last_price ?? 0)
-    const supplier = item.product?.preferred_supplier ?? 'Kein Lieferant'
+    const edit = itemEdits[item.id]
+    const price = edit?.price ?? item.product?.last_price ?? null
+    const supplier = edit?.supplier?.trim() || item.product?.preferred_supplier || 'Kein Lieferant'
+    const total = item.quantity * (price ?? 0)
 
     const { data: order, error } = await supabase
       .from('orders')
@@ -179,10 +209,20 @@ export default function OrdersPage({ user, onBadgeChange, forceOpenTab, forceSca
       order_id: order.id,
       product_id: item.product_id,
       quantity: item.quantity,
-      estimated_price: item.product?.last_price ?? null,
+      estimated_price: price,
     })
 
     await supabase.from('cart_items').delete().eq('id', item.id)
+
+    // Persist supplier/price changes to the product for future reference
+    if (item.product_id) {
+      const updates: Record<string, unknown> = {}
+      if (price !== item.product?.last_price) updates.last_price = price
+      if (supplier !== item.product?.preferred_supplier) updates.preferred_supplier = supplier
+      if (Object.keys(updates).length > 0) {
+        await supabase.from('products').update(updates).eq('id', item.product_id)
+      }
+    }
 
     fetch('/api/send-push', {
       method: 'POST',
@@ -389,7 +429,10 @@ export default function OrdersPage({ user, onBadgeChange, forceOpenTab, forceSca
               <table className="w-full text-sm">
                 <tbody>
                   {Object.entries(cartByDomain).map(([domain, items], idx) => {
-                    const domainTotal = items.reduce((s, i) => s + (i.quantity * (i.product?.last_price ?? 0)), 0)
+                    const domainTotal = items.reduce((s, i) => {
+                      const price = itemEdits[i.id]?.price ?? i.product?.last_price ?? 0
+                      return s + (i.quantity * price)
+                    }, 0)
                     return (
                       <>
                         {/* Spacer between groups */}
@@ -423,6 +466,11 @@ export default function OrdersPage({ user, onBadgeChange, forceOpenTab, forceSca
                             key={item.id}
                             item={item}
                             placing={placingItem === item.id}
+                            suppliers={suppliers}
+                            currentPrice={itemEdits[item.id]?.price ?? item.product?.last_price ?? null}
+                            currentSupplier={itemEdits[item.id]?.supplier ?? item.product?.preferred_supplier ?? ''}
+                            onPriceChange={handlePriceChange}
+                            onSupplierChange={handleSupplierChange}
                             onUpdateQuantity={updateQuantity}
                             onPlaceOrder={placeOrderForItem}
                             onRemoveRequest={setDeleteConfirm}
@@ -590,18 +638,32 @@ export default function OrdersPage({ user, onBadgeChange, forceOpenTab, forceSca
 }
 
 // ── Cart item row ───────────────────────────────────────────────────────────
-function CartItemRow({ item, placing, onUpdateQuantity, onPlaceOrder, onRemoveRequest }: {
+function CartItemRow({ item, placing, suppliers, currentPrice, currentSupplier, onPriceChange, onSupplierChange, onUpdateQuantity, onPlaceOrder, onRemoveRequest }: {
   item: CartItem
   placing: boolean
+  suppliers: string[]
+  currentPrice: number | null
+  currentSupplier: string
+  onPriceChange: (id: string, price: number | null) => void
+  onSupplierChange: (id: string, supplier: string) => void
   onUpdateQuantity: (id: string, qty: number) => void
   onPlaceOrder: (item: CartItem) => void
   onRemoveRequest: (item: CartItem) => void
 }) {
-  const rowTotal = item.quantity * (item.product?.last_price ?? 0)
+  const [priceStr, setPriceStr] = useState(() =>
+    currentPrice != null ? currentPrice.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ''
+  )
+
+  const rowTotal = item.quantity * (currentPrice ?? 0)
+
+  // Ensure dropdown includes currentSupplier even if not in suppliers list
+  const allSupplierOptions = currentSupplier && !suppliers.includes(currentSupplier)
+    ? [currentSupplier, ...suppliers]
+    : suppliers
 
   return (
     <tr className="bg-white hover:bg-slate-50 transition-colors border-b border-slate-100">
-      <td className="px-4 py-3.5">
+      <td className="px-4 py-3">
         <p className="text-sm font-semibold text-slate-800 truncate max-w-[180px] md:max-w-xs">{item.product?.name}</p>
         {item.product?.alternative_price != null &&
          item.product?.last_price != null &&
@@ -614,41 +676,62 @@ function CartItemRow({ item, placing, onUpdateQuantity, onPlaceOrder, onRemoveRe
             Günstiger: € {Number(item.product.alternative_price).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} bei {item.product.alternative_supplier ?? 'Alternativlieferant'}
           </a>
         )}
+        <select
+          value={currentSupplier}
+          onChange={e => onSupplierChange(item.id, e.target.value)}
+          className="mt-1.5 text-xs border border-slate-200 rounded-lg px-2 py-1 text-slate-600 bg-white focus:outline-none focus:ring-1 focus:ring-sky-400 max-w-[180px] md:max-w-xs"
+        >
+          {allSupplierOptions.length === 0 && <option value="">— Kein Lieferant —</option>}
+          {allSupplierOptions.map(s => <option key={s} value={s}>{s}</option>)}
+          {currentSupplier && <option value="">— Kein Lieferant —</option>}
+        </select>
       </td>
       {/* Current stock */}
-      <td className="px-4 py-3.5 text-right hidden md:table-cell">
+      <td className="px-4 py-3 text-right hidden md:table-cell">
         <span className="text-sm font-bold text-slate-800">{item.product?.current_stock ?? '—'}</span>
         {item.product?.unit && <span className="text-xs text-slate-400 ml-1">{item.product.unit}</span>}
       </td>
       {/* Order quantity */}
-      <td className="px-3 py-3.5">
+      <td className="px-3 py-3">
         <div className="flex items-center gap-1 justify-center">
-          <button
-            onClick={() => onUpdateQuantity(item.id, item.quantity - 1)}
-            className="w-6 h-6 flex items-center justify-center rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
-          >
+          <button onClick={() => onUpdateQuantity(item.id, item.quantity - 1)}
+            className="w-6 h-6 flex items-center justify-center rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors">
             <Minus size={11} />
           </button>
           <span className="w-7 text-center font-semibold text-slate-800">{item.quantity}</span>
-          <button
-            onClick={() => onUpdateQuantity(item.id, item.quantity + 1)}
-            className="w-6 h-6 flex items-center justify-center rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
-          >
+          <button onClick={() => onUpdateQuantity(item.id, item.quantity + 1)}
+            className="w-6 h-6 flex items-center justify-center rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors">
             <Plus size={11} />
           </button>
         </div>
       </td>
-      <td className="px-3 py-3.5 text-right text-slate-500 whitespace-nowrap hidden sm:table-cell">
-        {item.product?.last_price != null
-          ? `€ ${item.product.last_price.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-          : '—'
-        }
+      {/* Editable price */}
+      <td className="px-3 py-3 text-right hidden sm:table-cell">
+        <div className="flex items-center justify-end gap-1">
+          <span className="text-xs text-slate-400">€</span>
+          <input
+            type="text"
+            inputMode="decimal"
+            value={priceStr}
+            onChange={e => {
+              setPriceStr(e.target.value)
+              const n = parseFloat(e.target.value.replace(',', '.'))
+              onPriceChange(item.id, isNaN(n) || n < 0 ? null : n)
+            }}
+            onFocus={e => e.target.select()}
+            className="w-20 text-right border border-slate-200 rounded-lg px-2 py-1 text-sm text-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-400"
+            placeholder="0,00"
+          />
+        </div>
       </td>
-      <td className="px-3 py-3.5 text-right font-semibold text-slate-800 whitespace-nowrap">
-        € {rowTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+      {/* Row total */}
+      <td className="px-3 py-3 text-right font-semibold text-slate-800 whitespace-nowrap">
+        {currentPrice != null
+          ? `€ ${rowTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+          : '—'}
       </td>
       {/* Website link */}
-      <td className="px-3 py-3.5 hidden sm:table-cell">
+      <td className="px-3 py-3 hidden sm:table-cell">
         {item.product?.supplier_url ? (
           <a href={item.product.supplier_url} target="_blank" rel="noopener noreferrer"
             onClick={e => e.stopPropagation()}
@@ -660,25 +743,19 @@ function CartItemRow({ item, placing, onUpdateQuantity, onPlaceOrder, onRemoveRe
           <span className="text-slate-300 text-xs">—</span>
         )}
       </td>
-      {/* Two-step order action + delete */}
-      <td className="px-3 py-3.5 text-right">
+      {/* Actions */}
+      <td className="px-3 py-3 text-right">
         <div className="flex items-center justify-end gap-2">
-          <button
-            onClick={() => onRemoveRequest(item)}
-            className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white transition-colors whitespace-nowrap"
-          >
+          <button onClick={() => onRemoveRequest(item)}
+            className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white transition-colors whitespace-nowrap">
             <Trash2 size={12} /> Entfernen
           </button>
-          <button
-            onClick={() => onPlaceOrder(item)}
-            disabled={placing}
-            className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap disabled:opacity-50 bg-sky-500 hover:bg-sky-600 text-white"
-          >
-            {placing ? (
-              <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" />
-            ) : (
-              <><CheckCircle size={12} /> Als bestellt markieren</>
-            )}
+          <button onClick={() => onPlaceOrder(item)} disabled={placing}
+            className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap disabled:opacity-50 bg-sky-500 hover:bg-sky-600 text-white">
+            {placing
+              ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" />
+              : <><CheckCircle size={12} /> Als bestellt markieren</>
+            }
           </button>
         </div>
       </td>
