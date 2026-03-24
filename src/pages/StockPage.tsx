@@ -365,8 +365,8 @@ useEffect(() => {
     onCartItemAdded: (name: string) => {
       closeProduct()
       setCartToastUndo(null)
+      setCartToastAction(null)
       setCartToast(`${name} wurde zum Warenkorb hinzugefügt`)
-      setCartToastAction(onNavigateToOrders ? () => onNavigateToOrders() : null)
     },
     onItemTaken: (name: string) => {
       closeProduct()
@@ -479,48 +479,67 @@ useEffect(() => {
         </button>
       </div>
 
-      {/* List (flex rows — guaranteed equal-width columns) */}
-      <div>
-        {/* Header */}
-        <div className="flex border-b border-slate-200 bg-white sticky top-0 z-10">
-          <ColHeader label="Name"      col="name"               onClick={toggleSort} SortIcon={SortIcon} />
-          <ColHeader label="Kategorie" col="category"           onClick={toggleSort} SortIcon={SortIcon} className="hidden md:flex" />
-          <ColHeader label="Lieferant" col="preferred_supplier" onClick={toggleSort} SortIcon={SortIcon} className="hidden md:flex" />
-          <ColHeader label="Bestand"   col="current_stock"      onClick={toggleSort} SortIcon={SortIcon} align="right" />
-          <ColHeader label="Status"    col="status"             onClick={toggleSort} SortIcon={SortIcon} />
-        </div>
-        {/* Rows */}
-        <div className="divide-y divide-slate-100">
-          {paginated.map(p => (
-            <div
-              key={p.id}
-              onClick={() => setSelectedProduct(p)}
-              className={`flex items-center bg-white hover:bg-slate-50 cursor-pointer transition-colors ${selectedProduct?.id === p.id ? 'bg-sky-50' : ''}`}
-            >
-              <div className="flex-1 min-w-0 px-4 py-3.5">
+      {/* Desktop header (md+) */}
+      <div className="hidden md:flex border-b border-slate-200 bg-white sticky top-0 z-10">
+        <ColHeader label="Name"      col="name"               onClick={toggleSort} SortIcon={SortIcon} className="w-1/5" />
+        <ColHeader label="Kategorie" col="category"           onClick={toggleSort} SortIcon={SortIcon} className="w-1/5" />
+        <ColHeader label="Lieferant" col="preferred_supplier" onClick={toggleSort} SortIcon={SortIcon} className="w-1/5" />
+        <ColHeader label="Bestand"   col="current_stock"      onClick={toggleSort} SortIcon={SortIcon} align="right"     className="w-1/5" />
+        <ColHeader label="Status"    col="status"             onClick={toggleSort} SortIcon={SortIcon} className="w-1/5" />
+      </div>
+
+      {/* Mobile header */}
+      <div className="flex md:hidden border-b border-slate-200 bg-white sticky top-0 z-10">
+        <ColHeader label="Artikel"  col="name"          onClick={toggleSort} SortIcon={SortIcon} className="flex-1" />
+        <ColHeader label="Bestand"  col="current_stock" onClick={toggleSort} SortIcon={SortIcon} align="right" className="w-24" />
+        <ColHeader label="Status"   col="status"        onClick={toggleSort} SortIcon={SortIcon} className="w-28" />
+      </div>
+
+      {/* Rows */}
+      <div className="divide-y divide-slate-100">
+        {paginated.map(p => (
+          <div
+            key={p.id}
+            onClick={() => setSelectedProduct(p)}
+            className={`bg-white hover:bg-slate-50 cursor-pointer transition-colors ${selectedProduct?.id === p.id ? 'bg-sky-50' : ''}`}
+          >
+            {/* Desktop row */}
+            <div className="hidden md:flex items-center">
+              <div className="w-1/5 min-w-0 px-4 py-3.5">
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-semibold text-slate-800 truncate">{p.name}</p>
                   {cartProductIds.has(p.id) && (
-                    <span className="hidden sm:inline-flex items-center gap-1 text-xs font-medium bg-sky-50 text-sky-600 px-2 py-0.5 rounded-full shrink-0">
+                    <span className="inline-flex items-center gap-1 text-xs font-medium bg-sky-50 text-sky-600 px-2 py-0.5 rounded-full shrink-0">
                       <ShoppingCart size={10} /> In Bestellung
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-slate-400 md:hidden mt-0.5 truncate">{p.category}</p>
               </div>
-              <div className="hidden md:flex flex-1 min-w-0 px-4 py-3.5 text-sm text-slate-500 truncate">{p.category}</div>
-              <div className="hidden md:flex flex-1 min-w-0 px-4 py-3.5 text-sm text-slate-500 truncate">{p.preferred_supplier ?? '—'}</div>
-              <div className="flex-1 px-4 py-3.5 text-right">
+              <div className="w-1/5 min-w-0 px-4 py-3.5 text-sm text-slate-500 truncate">{p.category}</div>
+              <div className="w-1/5 min-w-0 px-4 py-3.5 text-sm text-slate-500 truncate">{p.preferred_supplier ?? '—'}</div>
+              <div className="w-1/5 px-4 py-3.5 text-right">
                 <span className="text-sm font-bold text-slate-800">{p.current_stock}</span>
                 <span className="text-xs text-slate-400 ml-1">{p.unit}</span>
               </div>
-              <div className="flex-1 px-4 py-3.5"><StockStatus product={p} /></div>
+              <div className="w-1/5 px-4 py-3.5"><StockStatus product={p} /></div>
             </div>
-          ))}
-          {sorted.length === 0 && (
-            <p className="px-4 py-12 text-center text-slate-400 text-sm">Keine Artikel gefunden</p>
-          )}
-        </div>
+            {/* Mobile row */}
+            <div className="flex md:hidden items-center">
+              <div className="flex-1 min-w-0 px-4 py-3.5">
+                <p className="text-sm font-semibold text-slate-800 truncate">{p.name}</p>
+                <p className="text-xs text-slate-400 mt-0.5 truncate">{p.category}</p>
+              </div>
+              <div className="w-24 px-4 py-3.5 text-right shrink-0">
+                <span className="text-sm font-bold text-slate-800">{p.current_stock}</span>
+                <span className="text-xs text-slate-400 ml-1">{p.unit}</span>
+              </div>
+              <div className="w-28 px-4 py-3.5 shrink-0"><StockStatus product={p} /></div>
+            </div>
+          </div>
+        ))}
+        {sorted.length === 0 && (
+          <p className="px-4 py-12 text-center text-slate-400 text-sm">Keine Artikel gefunden</p>
+        )}
       </div>
 
       {/* Pagination (md+) */}
@@ -749,7 +768,7 @@ function ColHeader({ label, col, onClick, SortIcon, align, className = '' }: {
   return (
     <button
       onClick={() => onClick(col as never)}
-      className={`flex-1 flex items-center gap-1 px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide cursor-pointer select-none hover:text-slate-600 transition-colors ${align === 'right' ? 'justify-end' : 'justify-start'} ${className}`}
+      className={`flex items-center gap-1 px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide cursor-pointer select-none hover:text-slate-600 transition-colors ${align === 'right' ? 'justify-end' : 'justify-start'} ${className}`}
     >
       {label}
       <SortIcon col={col as never} />
