@@ -17,7 +17,7 @@ function getDomain(url: string | null | undefined): string | null {
   }
 }
 
-export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, forceScanMode }: Props) {
+export default function OrdersPage({ user, onBadgeChange, forceOpenTab, forceScanMode }: Props) {
   const [tab, setTab] = useState<'cart' | 'open'>('cart')
   const [cartItems, setCartItems] = useState<CartItem[]>([])
   const [orders, setOrders] = useState<Order[]>([])
