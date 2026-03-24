@@ -480,7 +480,7 @@ useEffect(() => {
       </div>
 
       {/* Desktop header (md+) */}
-      <div className="hidden md:grid md:grid-cols-5 border-b border-slate-200 bg-white sticky top-0 z-10">
+      <div className="hidden md:grid border-b border-slate-200 bg-white sticky top-0 z-10" style={{ gridTemplateColumns: '2fr 1fr 1fr 0.5fr 1fr' }}>
         <ColHeader label="Name"      col="name"               onClick={toggleSort} SortIcon={SortIcon} />
         <ColHeader label="Kategorie" col="category"           onClick={toggleSort} SortIcon={SortIcon} />
         <ColHeader label="Lieferant" col="preferred_supplier" onClick={toggleSort} SortIcon={SortIcon} />
@@ -504,7 +504,7 @@ useEffect(() => {
             className={`bg-white hover:bg-slate-50 cursor-pointer transition-colors ${selectedProduct?.id === p.id ? 'bg-sky-50' : ''}`}
           >
             {/* Desktop row */}
-            <div className="hidden md:grid md:grid-cols-5 items-center">
+            <div className="hidden md:grid items-center" style={{ gridTemplateColumns: '2fr 1fr 1fr 0.5fr 1fr' }}>
               <div className="min-w-0 px-4 py-3.5">
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-semibold text-slate-800 truncate">{p.name}</p>
