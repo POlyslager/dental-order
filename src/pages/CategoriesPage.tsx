@@ -14,6 +14,7 @@ export default function CategoriesPage() {
   const [isNew, setIsNew] = useState(false)
   const [form, setForm] = useState<{ name: string; description: string }>({ name: '', description: '' })
   const [saving, setSaving] = useState(false)
+  const [closing, setClosing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   useEffect(() => { load() }, [])
@@ -48,10 +49,14 @@ export default function CategoriesPage() {
   }
 
   function closePanel() {
-    setSelected(null)
-    setIsNew(false)
-    setForm({ name: '', description: '' })
-    setConfirmDelete(false)
+    setClosing(true)
+    setTimeout(() => {
+      setSelected(null)
+      setIsNew(false)
+      setForm({ name: '', description: '' })
+      setConfirmDelete(false)
+      setClosing(false)
+    }, 260)
   }
 
   async function handleSave() {
@@ -167,10 +172,10 @@ export default function CategoriesPage() {
       )}
 
       {/* Detail panel */}
-      {panelOpen && (
-        <div className="fixed inset-0 z-30">
-          <div className="absolute inset-0 bg-black/20" onClick={closePanel} />
-          <div className="absolute top-0 right-0 h-full w-full max-w-md bg-white shadow-2xl flex flex-col animate-slide-in-right">
+      {(panelOpen || closing) && (
+        <>
+          <div className="hidden md:block fixed inset-0 bg-black/30 z-40" onClick={closePanel} />
+          <div className={`fixed inset-0 bg-white z-50 flex flex-col overflow-y-auto md:inset-auto md:top-4 md:bottom-4 md:right-4 md:w-[520px] md:rounded-2xl md:shadow-2xl md:overflow-hidden ${closing ? 'animate-slide-out-right' : 'animate-slide-in-right'}`}>
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0">
               <h2 className="font-semibold text-slate-800">{isNew ? 'Neue Kategorie' : 'Kategorie bearbeiten'}</h2>
               <button onClick={closePanel} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors">
@@ -226,7 +231,7 @@ export default function CategoriesPage() {
               </button>
             </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   )
