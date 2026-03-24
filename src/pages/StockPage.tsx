@@ -28,7 +28,7 @@ const STORAGE_LOCATIONS = [
 ]
 const UNITS = ['Stück', 'Packung', 'Flasche', 'Kanister']
 
-export default function StockPage({ role: _role, initialBarcode, onBarcodeConsumed, onNavigateToOrders }: Props) {
+export default function StockPage({ role: _role, initialBarcode, onBarcodeConsumed, onNavigateToOrders: _onNavigateToOrders }: Props) {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
