@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import type { CartItem, Order, OrderItem, Role } from '../lib/types'
-import { ShoppingCart, Package, Plus, Minus, CheckCircle, ExternalLink, Check, Trash2, Undo2, ScanLine, X } from 'lucide-react'
+import { ShoppingCart, Package, Plus, Minus, CheckCircle, ExternalLink, Check, Trash2, Undo2, ScanLine, X, Pencil } from 'lucide-react'
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
 
 interface Props { role: Role | null; user: User; onBadgeChange: (n: number) => void; forceOpenTab?: number; forceScanMode?: number }
@@ -23,6 +23,11 @@ export default function OrdersPage({ user, onBadgeChange, forceOpenTab, forceSca
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [placingItem, setPlacingItem] = useState<string | null>(null)
+  const [editItem, setEditItem] = useState<CartItem | null>(null)
+  const [editClosing, setEditClosing] = useState(false)
+  const [editForm, setEditForm] = useState<{ supplier: string; price: string }>({ supplier: '', price: '' })
+  const [editSaving, setEditSaving] = useState(false)
+  const [suppliers, setSuppliers] = useState<string[]>([])
   const [deleteConfirm, setDeleteConfirm] = useState<CartItem | null>(null)
   const [toast, setToast] = useState<{ message: string; onUndo?: () => void } | null>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -72,12 +77,15 @@ export default function OrdersPage({ user, onBadgeChange, forceOpenTab, forceSca
   }, [tab])
 
   async function fetchCart() {
-    const { data } = await supabase
-      .from('cart_items')
-      .select('id, product_id, quantity, created_at, product:products(id, name, current_stock, unit, last_price, alternative_price, alternative_url, alternative_supplier, supplier_url, preferred_supplier)')
-      .order('created_at')
-    const items = (data as unknown as CartItem[]) ?? []
-    setCartItems(items)
+    const [{ data }, { data: supData }] = await Promise.all([
+      supabase
+        .from('cart_items')
+        .select('id, product_id, quantity, created_at, product:products(id, name, current_stock, unit, last_price, alternative_price, alternative_url, alternative_supplier, supplier_url, preferred_supplier)')
+        .order('created_at'),
+      supabase.from('suppliers').select('name').order('name'),
+    ])
+    setCartItems((data as unknown as CartItem[]) ?? [])
+    setSuppliers((supData ?? []).map((s: { name: string }) => s.name))
   }
 
   async function fetchOrders() {
@@ -135,6 +143,37 @@ export default function OrdersPage({ user, onBadgeChange, forceOpenTab, forceSca
     if (toastTimer.current) clearTimeout(toastTimer.current)
     setToast({ message, onUndo })
     toastTimer.current = setTimeout(() => setToast(null), 5000)
+  }
+
+  function openEditPanel(item: CartItem) {
+    setEditItem(item)
+    setEditClosing(false)
+    setEditForm({
+      supplier: item.product?.preferred_supplier ?? '',
+      price: item.product?.last_price != null
+        ? item.product.last_price.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        : '',
+    })
+  }
+
+  function closeEditPanel() {
+    setEditClosing(true)
+    setTimeout(() => { setEditItem(null); setEditClosing(false) }, 260)
+  }
+
+  async function saveEditPanel() {
+    if (!editItem?.product_id) return
+    setEditSaving(true)
+    const n = parseFloat(editForm.price.replace(',', '.'))
+    const price = isNaN(n) || n < 0 ? null : n
+    await supabase.from('products').update({
+      preferred_supplier: editForm.supplier.trim() || null,
+      last_price: price,
+    }).eq('id', editItem.product_id)
+    await fetchCart()
+    setEditSaving(false)
+    closeEditPanel()
+    showToast('Änderungen gespeichert')
   }
 
   async function confirmDelete(item: CartItem) {
@@ -428,6 +467,7 @@ export default function OrdersPage({ user, onBadgeChange, forceOpenTab, forceSca
                             onUpdateQuantity={updateQuantity}
                             onPlaceOrder={placeOrderForItem}
                             onRemoveRequest={setDeleteConfirm}
+                            onEdit={openEditPanel}
                           />
                         ))}
                       </>
@@ -483,6 +523,59 @@ export default function OrdersPage({ user, onBadgeChange, forceOpenTab, forceSca
           </>
         )}
       </div>
+
+      {/* Edit cart item panel */}
+      {(editItem || editClosing) && (
+        <>
+          <div className="hidden md:block fixed inset-0 bg-black/30 z-40" onClick={closeEditPanel} />
+          <div className={`fixed inset-0 bg-white z-50 flex flex-col md:inset-auto md:top-4 md:bottom-4 md:right-4 md:w-[400px] md:rounded-2xl md:shadow-2xl ${editClosing ? 'animate-slide-out-right' : 'animate-slide-in-right'}`}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0">
+              <h2 className="font-semibold text-slate-800 truncate flex-1 mr-2">{editItem?.product?.name}</h2>
+              <button onClick={closeEditPanel} className="text-slate-400 hover:text-slate-600 p-1.5 transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Lieferant</label>
+                <select
+                  value={editForm.supplier}
+                  onChange={e => setEditForm(f => ({ ...f, supplier: e.target.value }))}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white"
+                >
+                  <option value="">— Kein Lieferant —</option>
+                  {suppliers.map(s => <option key={s} value={s}>{s}</option>)}
+                  {editForm.supplier && !suppliers.includes(editForm.supplier) && (
+                    <option value={editForm.supplier}>{editForm.supplier}</option>
+                  )}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Preis pro Einheit (€)</label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={editForm.price}
+                  onChange={e => setEditForm(f => ({ ...f, price: e.target.value }))}
+                  onFocus={e => e.target.select()}
+                  placeholder="0,00"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                />
+              </div>
+            </div>
+            <div className="border-t border-slate-100 px-5 py-4 flex gap-3 shrink-0">
+              <button onClick={closeEditPanel}
+                className="flex-1 border border-slate-300 rounded-xl py-3 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
+                Abbrechen
+              </button>
+              <button onClick={saveEditPanel} disabled={editSaving}
+                className="flex-1 bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white rounded-xl py-3 text-sm font-medium transition-colors">
+                {editSaving ? 'Speichern…' : 'Speichern'}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Delete confirmation modal */}
       {deleteConfirm && (
@@ -592,12 +685,13 @@ export default function OrdersPage({ user, onBadgeChange, forceOpenTab, forceSca
 }
 
 // ── Cart item row ───────────────────────────────────────────────────────────
-function CartItemRow({ item, placing, onUpdateQuantity, onPlaceOrder, onRemoveRequest }: {
+function CartItemRow({ item, placing, onUpdateQuantity, onPlaceOrder, onRemoveRequest, onEdit }: {
   item: CartItem
   placing: boolean
   onUpdateQuantity: (id: string, qty: number) => void
   onPlaceOrder: (item: CartItem) => void
   onRemoveRequest: (item: CartItem) => void
+  onEdit: (item: CartItem) => void
 }) {
   const price = item.product?.last_price ?? null
   const rowTotal = item.quantity * (price ?? 0)
@@ -667,16 +761,20 @@ function CartItemRow({ item, placing, onUpdateQuantity, onPlaceOrder, onRemoveRe
       </td>
       {/* Actions */}
       <td className="px-3 py-3 text-right">
-        <div className="flex items-center justify-end gap-2">
-          <button onClick={() => onRemoveRequest(item)}
-            className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white transition-colors whitespace-nowrap">
-            <Trash2 size={12} /> Entfernen
+        <div className="flex items-center justify-end gap-1">
+          <button onClick={() => onEdit(item)} title="Bearbeiten"
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-sky-600 hover:bg-sky-50 transition-colors">
+            <Pencil size={14} />
           </button>
-          <button onClick={() => onPlaceOrder(item)} disabled={placing}
-            className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap disabled:opacity-50 bg-sky-500 hover:bg-sky-600 text-white">
+          <button onClick={() => onRemoveRequest(item)} title="Entfernen"
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors">
+            <Trash2 size={14} />
+          </button>
+          <button onClick={() => onPlaceOrder(item)} disabled={placing} title="Als bestellt markieren"
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors disabled:opacity-40">
             {placing
-              ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" />
-              : <><CheckCircle size={12} /> Als bestellt markieren</>
+              ? <span className="w-3.5 h-3.5 border-2 border-slate-400 border-t-transparent rounded-full animate-spin inline-block" />
+              : <CheckCircle size={14} />
             }
           </button>
         </div>
