@@ -11,6 +11,16 @@ export interface SupplierHistoryEntry {
   source: string | null
 }
 
+export interface PriceComparisonShop {
+  id: string
+  domain: string
+  base_url: string
+  search_paths: string[]
+  type: 'html' | 'dm'
+  is_active: boolean
+  created_at: string
+}
+
 export interface PriceAlternative {
   domain: string
   name: string | null

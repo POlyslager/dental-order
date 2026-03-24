@@ -330,7 +330,12 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
             <button onClick={() => setEditing(true)} className="text-slate-400 hover:text-sky-600 p-1.5 shrink-0">
               <Pencil size={16} />
             </button>
-            <button onClick={() => setConfirmDelete(true)} className="text-slate-300 hover:text-red-400 p-1.5 shrink-0">
+            <button
+              onClick={() => !inCart && !inOrdered && setConfirmDelete(true)}
+              disabled={inCart || inOrdered}
+              title={inCart ? 'Im Warenkorb — kann nicht gelöscht werden' : inOrdered ? 'In offener Bestellung — kann nicht gelöscht werden' : undefined}
+              className={`p-1.5 shrink-0 transition-colors ${inCart || inOrdered ? 'text-slate-200 cursor-not-allowed' : 'text-slate-300 hover:text-red-400'}`}
+            >
               <Trash2 size={16} />
             </button>
           </>
@@ -653,13 +658,25 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
               <Pencil size={15} />
               Bearbeiten
             </button>
-            <button
-              onClick={() => setConfirmDelete(true)}
-              className="flex-1 flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 rounded-xl py-3 text-sm font-medium text-white transition-colors"
-            >
-              <Trash2 size={15} />
-              Löschen
-            </button>
+            <div className="flex-1 flex flex-col gap-1">
+              <button
+                onClick={() => !inCart && !inOrdered && setConfirmDelete(true)}
+                disabled={inCart || inOrdered}
+                className={`flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-medium transition-colors ${
+                  inCart || inOrdered
+                    ? 'bg-red-200 text-red-300 cursor-not-allowed'
+                    : 'bg-red-500 hover:bg-red-600 text-white'
+                }`}
+              >
+                <Trash2 size={15} />
+                Löschen
+              </button>
+              {(inCart || inOrdered) && (
+                <p className="text-xs text-slate-400 text-center">
+                  {inCart ? 'Aktuell im Warenkorb' : 'In offener Bestellung'}
+                </p>
+              )}
+            </div>
           </div>
         )}
 

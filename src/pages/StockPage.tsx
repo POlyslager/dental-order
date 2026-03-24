@@ -45,6 +45,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
   const [saving, setSaving] = useState(false)
   const [, setAddedToCart] = useState<Set<string>>(new Set())
   const [cartProductIds, setCartProductIds] = useState<Set<string>>(new Set())
+  const [orderedProductIds, setOrderedProductIds] = useState<Set<string>>(new Set())
 
   const [scanning, setScanning] = useState(false)
   const [looking, setLooking] = useState(false)
@@ -175,16 +176,17 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
   async function fetchCartProductIds() {
     const [{ data: cartData }, { data: openOrders }] = await Promise.all([
       supabase.from('cart_items').select('product_id'),
-      supabase.from('orders').select('id').in('status', ['pending_approval', 'ordered']),
+      supabase.from('orders').select('id').eq('status', 'ordered'),
     ])
-    const ids = new Set((cartData ?? []).map(i => i.product_id))
+    setCartProductIds(new Set((cartData ?? []).map(i => i.product_id)))
     const openOrderIds = (openOrders ?? []).map(o => o.id)
     if (openOrderIds.length > 0) {
       const { data: orderItems } = await supabase
         .from('order_items').select('product_id').in('order_id', openOrderIds)
-      ;(orderItems ?? []).forEach(i => ids.add(i.product_id))
+      setOrderedProductIds(new Set((orderItems ?? []).map(i => i.product_id)))
+    } else {
+      setOrderedProductIds(new Set())
     }
-    setCartProductIds(ids)
   }
 
   useEffect(() => {
@@ -214,8 +216,8 @@ useEffect(() => {
   }
 
   async function fetchSuppliers() {
-    const { data } = await supabase.from('suppliers').select('name').order('name')
-    if (data) setSuppliers(data.map(r => r.name))
+    const { data } = await supabase.from('products').select('preferred_supplier').not('preferred_supplier', 'is', null)
+    if (data) setSuppliers([...new Set(data.map(r => r.preferred_supplier as string))].filter(Boolean).sort())
   }
 
   async function upsertSupplier(name: string) {
@@ -284,13 +286,13 @@ useEffect(() => {
       if (selectedStatus === 'low')      return p.current_stock > p.min_stock && p.current_stock <= p.min_stock * 1.5
       if (selectedStatus === 'critical') return p.current_stock > 0 && p.current_stock <= p.min_stock
       if (selectedStatus === 'empty')    return p.current_stock <= 0
-      if (selectedStatus === 'in_order') return cartProductIds.has(p.id)
+      if (selectedStatus === 'in_order') return cartProductIds.has(p.id) || orderedProductIds.has(p.id)
       return true
     })()
     const matchesCategory = selectedCategory === 'all' || p.category === selectedCategory
     const matchesBrand = selectedBrands.size === 0 || selectedBrands.has(p.preferred_supplier ?? '')
     return matchesSearch && matchesStatus && matchesCategory && matchesBrand
-  }), [products, search, selectedStatus, selectedCategory, selectedBrands, cartProductIds])
+  }), [products, search, selectedStatus, selectedCategory, selectedBrands, cartProductIds, orderedProductIds])
 
   const sorted = useMemo(() => [...filtered].sort((a, b) => {
     const dir = sortDir === 'asc' ? 1 : -1
@@ -516,7 +518,12 @@ useEffect(() => {
                   <p className="text-sm font-semibold text-slate-800 truncate">{p.name}</p>
                   {cartProductIds.has(p.id) && (
                     <span className="inline-flex items-center gap-1 text-xs font-medium bg-sky-50 text-sky-600 px-2 py-0.5 rounded-full shrink-0">
-                      <ShoppingCart size={10} /> In Bestellung
+                      <ShoppingCart size={10} /> Im Warenkorb
+                    </span>
+                  )}
+                  {!cartProductIds.has(p.id) && orderedProductIds.has(p.id) && (
+                    <span className="inline-flex items-center gap-1 text-xs font-medium bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full shrink-0">
+                      <Package size={10} /> In Bestellung
                     </span>
                   )}
                 </div>
@@ -687,10 +694,13 @@ useEffect(() => {
                 <Field label="Meldebestand *" inputMode="numeric" value={form.min_stock} onChange={v => setForm(f => ({ ...f, min_stock: v }))} required />
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Einheit</label>
-                  <select value={form.unit} onChange={e => setForm(f => ({ ...f, unit: e.target.value }))}
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500">
-                    {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
-                  </select>
+                  <div className="relative">
+                    <select value={form.unit} onChange={e => setForm(f => ({ ...f, unit: e.target.value }))}
+                      className="w-full appearance-none border border-slate-300 rounded-lg pl-3 pr-8 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500">
+                      {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                    </select>
+                    <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  </div>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -700,11 +710,14 @@ useEffect(() => {
               <Field label="Beschreibung" value={form.notes} onChange={v => setForm(f => ({ ...f, notes: v }))} rows={3} />
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Lagerort</label>
-                <select value={form.storage_location} onChange={e => setForm(f => ({ ...f, storage_location: e.target.value }))}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500">
-                  <option value="">— Kein Lagerort —</option>
-                  {STORAGE_LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}
-                </select>
+                <div className="relative">
+                  <select value={form.storage_location} onChange={e => setForm(f => ({ ...f, storage_location: e.target.value }))}
+                    className="w-full appearance-none border border-slate-300 rounded-lg pl-3 pr-8 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500">
+                    <option value="">— Kein Lagerort —</option>
+                    {STORAGE_LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}
+                  </select>
+                  <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                </div>
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Lieferant / Hersteller</label>

@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { createClient } from '@supabase/supabase-js'
 
 export interface Alternative {
   domain: string
@@ -19,32 +20,10 @@ const JSON_HEADERS = {
   'Accept-Language': 'de-DE,de;q=0.9,en;q=0.8',
 }
 
-// Search URL patterns — {q} is replaced with encodeURIComponent(query)
-const SITES: { domain: string; base: string; searches: string[] }[] = [
-  // ── Dental-specific ────────────────────────────────────────────────────────
-  { domain: 'henryschein-dental.de',   base: 'https://www.henryschein-dental.de',    searches: ['/search?q={q}', '/search?query={q}'] },
-  { domain: 'minilu.de',               base: 'https://www.minilu.de',                searches: ['/search?q={q}', '/?sSearch={q}'] },
-  { domain: 'dentina.de',              base: 'https://www.dentina.de',               searches: ['/?sSearch={q}', '/search?q={q}'] },
-  { domain: 'dentalkauf24.com',        base: 'https://www.dentalkauf24.com',         searches: ['/search?q={q}', '/?sSearch={q}'] },
-  { domain: 'multi-com.de',            base: 'https://www.multi-com.de',             searches: ['/search?q={q}', '/?sSearch={q}'] },
-  { domain: 'mwdental.de',             base: 'https://www.mwdental.de',              searches: ['/search?q={q}', '/?sSearch={q}'] },
-  { domain: 'dentalbauer.de',          base: 'https://www.dentalbauer.de',           searches: ['/shop/cat/index/?sSearch={q}', '/search?q={q}'] },
-  { domain: 'kaniedenta.de',           base: 'https://www.kaniedenta.de',            searches: ['/search?q={q}', '/?sSearch={q}'] },
-  { domain: 'netdental.de',            base: 'https://shop.netdental.de',            searches: ['/search?q={q}', '/?sSearch={q}'] },
-  { domain: 'medic-star.de',           base: 'https://www.medic-star.de',            searches: ['/search?q={q}', '/?sSearch={q}'] },
-  { domain: 'praxisdienst.com',        base: 'https://www.praxisdienst.com',         searches: ['/search?q={q}', '/catalogsearch/result/?q={q}'] },
-  { domain: 'direct-onlinehandel.de',  base: 'https://shop.direct-onlinehandel.de',  searches: ['/search?q={q}', '/?sSearch={q}'] },
-  { domain: 'pluradent.de',            base: 'https://www.pluradent.de',             searches: ['/search?q={q}', '/?sSearch={q}'] },
-  { domain: 'aera-online.de',          base: 'https://www.aera-online.de',           searches: ['/search?q={q}', '/search?query={q}'] },
-  // ── General medical / pharmacy ─────────────────────────────────────────────
-  { domain: 'aponeo.de',               base: 'https://www.aponeo.de',                searches: ['/?sSearch={q}', '/suche.html?sSearch={q}'] },
-  { domain: 'shop-apotheke.com',       base: 'https://www.shop-apotheke.com',        searches: ['/search?q={q}', '/search?query={q}'] },
-  { domain: 'docmorris.de',            base: 'https://www.docmorris.de',             searches: ['/search?q={q}', '/suche?q={q}'] },
-  { domain: 'medizinfuchs.de',         base: 'https://www.medizinfuchs.de',          searches: ['/?s={q}', '/search?q={q}'] },
-  { domain: 'medicalcorner24.de',      base: 'https://www.medicalcorner24.de',       searches: ['/search?q={q}', '/?sSearch={q}'] },
-  { domain: 'ampri.de',                base: 'https://www.ampri.de',                 searches: ['/search?q={q}', '/?sSearch={q}'] },
-  { domain: 'amazon.de',               base: 'https://www.amazon.de',                searches: ['/s?k={q}'] },
-]
+const adminClient = createClient(
+  process.env.VITE_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+)
 
 // ── Name relevance check ────────────────────────────────────────────────────
 // Tokenise a string into meaningful lowercase words (4+ chars, non-numeric)
@@ -150,7 +129,7 @@ async function searchDm(query: string): Promise<Alternative | null> {
 }
 
 // ── HTML-scraping sites ───────────────────────────────────────────────────────
-async function searchSite(site: typeof SITES[number], query: string): Promise<Alternative | null> {
+async function searchSite(site: { domain: string; base: string; searches: string[] }, query: string): Promise<Alternative | null> {
   const q = encodeURIComponent(query)
   for (const searchPath of site.searches) {
     const url = site.base + searchPath.replace('{q}', q)
@@ -179,9 +158,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Prepend brand to query so "Mivolis Magnesium + Kalium Direkt-Sticks" is searched, not just the product name
   const query = [brand?.trim(), productName.trim()].filter(Boolean).join(' ')
 
+  const { data: shopRows } = await adminClient
+    .from('price_comparison_shops')
+    .select('domain, base_url, search_paths, type')
+    .eq('is_active', true)
+
+  const htmlShops = (shopRows ?? [])
+    .filter(r => r.type === 'html')
+    .map(r => ({ domain: r.domain as string, base: r.base_url as string, searches: r.search_paths as string[] }))
+  const hasDm = (shopRows ?? []).some(r => r.type === 'dm')
+
   const settled = await Promise.allSettled([
-    ...SITES.map(site => searchSite(site, query)),
-    searchDm(query),
+    ...htmlShops.map(site => searchSite(site, query)),
+    ...(hasDm ? [searchDm(query)] : []),
   ])
 
   const results: Alternative[] = settled
@@ -189,5 +178,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     .map(r => r.value)
     .sort((a, b) => a.price - b.price)
 
-  return res.status(200).json({ results, searchedCount: SITES.length + 1 })
+  return res.status(200).json({ results, searchedCount: (shopRows ?? []).length })
 }

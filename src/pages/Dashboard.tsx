@@ -7,6 +7,7 @@ import {
   Package, ScanLine, ShoppingCart, Menu, X, Settings,
   LayoutDashboard, Bell, BellOff, ScrollText, LogOut,
   ChevronLeft, ChevronRight, PackageMinus, PackagePlus, Check,
+  Store, Users, Tag,
 } from 'lucide-react'
 
 const StockPage          = lazy(() => import('./StockPage'))
@@ -14,6 +15,9 @@ const OrdersPage         = lazy(() => import('./OrdersPage'))
 const OverviewPage       = lazy(() => import('./OverviewPage'))
 const TermsPage          = lazy(() => import('./TermsPage'))
 const EntnehmenScanModal = lazy(() => import('../components/EntnehmenScanModal'))
+const ShopsPage          = lazy(() => import('./ShopsPage'))
+const SuppliersPage      = lazy(() => import('./SuppliersPage'))
+const CategoriesPage     = lazy(() => import('./CategoriesPage'))
 
 function PageSpinner() {
   return (
@@ -24,7 +28,7 @@ function PageSpinner() {
 }
 
 
-type Tab = 'overview' | 'stock' | 'orders' | 'scan'
+type Tab = 'overview' | 'stock' | 'orders' | 'scan' | 'shops' | 'suppliers' | 'categories'
 
 interface Props { user: User }
 
@@ -33,6 +37,9 @@ const PAGE_TITLES: Record<Tab, string> = {
   stock: 'Artikel',
   scan: 'Scannen',
   orders: 'Bestellungen',
+  shops: 'Preisvergleich-Shops',
+  suppliers: 'Lieferanten',
+  categories: 'Kategorien',
 }
 
 export default function Dashboard({ user }: Props) {
@@ -204,7 +211,7 @@ export default function Dashboard({ user }: Props) {
                 <ChevronLeft size={16} className="shrink-0" />
                 <span className="font-medium">Einstellungen</span>
               </button>
-              <div className="border-t border-slate-100 pt-1">
+              <div className="border-t border-slate-100 pt-1 space-y-0.5">
                 {isPushSupported() && pushPermission !== 'granted' && (
                   <button
                     onClick={enableNotifications}
@@ -220,6 +227,27 @@ export default function Dashboard({ user }: Props) {
                     <span className="truncate font-medium">Benachrichtigungen aktiv</span>
                   </div>
                 )}
+                <button
+                  onClick={() => { setTab('shops'); setSettingsOpen(false) }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-slate-600 hover:bg-slate-50 rounded-xl transition-colors"
+                >
+                  <Store size={18} className="shrink-0" />
+                  <span className="truncate font-medium">Preisvergleich-Shops</span>
+                </button>
+                <button
+                  onClick={() => { setTab('suppliers'); setSettingsOpen(false) }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-slate-600 hover:bg-slate-50 rounded-xl transition-colors"
+                >
+                  <Users size={18} className="shrink-0" />
+                  <span className="truncate font-medium">Lieferanten</span>
+                </button>
+                <button
+                  onClick={() => { setTab('categories'); setSettingsOpen(false) }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-slate-600 hover:bg-slate-50 rounded-xl transition-colors"
+                >
+                  <Tag size={18} className="shrink-0" />
+                  <span className="truncate font-medium">Kategorien</span>
+                </button>
               </div>
             </div>
           </div>
@@ -306,9 +334,12 @@ export default function Dashboard({ user }: Props) {
               {showTerms
                 ? <TermsPage onBack={() => setShowTerms(false)} />
                 : <>
-                    {tab === 'overview' && <OverviewPage />}
-                    {tab === 'stock'    && <StockPage role={role} initialBarcode={pendingBarcode} onBarcodeConsumed={() => setPendingBarcode(null)} onNavigateToOrders={() => setTab('orders')} />}
-                    {tab === 'orders'   && <OrdersPage role={role} user={user} onBadgeChange={setOrderBadge} forceOpenTab={forceOrdersOpenTab} forceScanMode={forceOrdersScanMode} />}
+                    {tab === 'overview'    && <OverviewPage />}
+                    {tab === 'stock'       && <StockPage role={role} initialBarcode={pendingBarcode} onBarcodeConsumed={() => setPendingBarcode(null)} onNavigateToOrders={() => setTab('orders')} />}
+                    {tab === 'orders'      && <OrdersPage role={role} user={user} onBadgeChange={setOrderBadge} forceOpenTab={forceOrdersOpenTab} forceScanMode={forceOrdersScanMode} />}
+                    {tab === 'shops'       && <ShopsPage />}
+                    {tab === 'suppliers'   && <SuppliersPage />}
+                    {tab === 'categories'  && <CategoriesPage />}
                   </>
               }
             </Suspense>
@@ -504,6 +535,21 @@ export default function Dashboard({ user }: Props) {
                       active
                     />
                   )}
+                  <MenuItem
+                    icon={<Store size={18} />}
+                    label="Preisvergleich-Shops"
+                    onClick={() => navigate('shops')}
+                  />
+                  <MenuItem
+                    icon={<Users size={18} />}
+                    label="Lieferanten"
+                    onClick={() => navigate('suppliers')}
+                  />
+                  <MenuItem
+                    icon={<Tag size={18} />}
+                    label="Kategorien"
+                    onClick={() => navigate('categories')}
+                  />
                 </div>
               </div>
             </div>
