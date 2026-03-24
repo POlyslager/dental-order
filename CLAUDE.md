@@ -4,12 +4,12 @@
 
 **Never deploy automatically.** Only deploy when explicitly asked with the word "deploy".
 
-Before deploying, batch all pending changes into a single deploy:
+Vercel is connected to GitHub and deploys automatically on every push. Therefore:
+
 1. Run `npx tsc --noEmit` — fix any errors before proceeding
-2. Run `npx vercel --prod`
+2. Commit all pending changes in a single commit
+3. Run `git push` — this triggers the deploy automatically via the GitHub integration
 
-Do not deploy after every fix or feature. If multiple changes are made in a session, deploy once at the end when asked.
+**Never run `npx vercel --prod`** — it causes a duplicate deploy on top of the one GitHub already triggered.
 
-If a deploy fails due to a code error, fix the error first, then deploy again as a single follow-up — do not keep retrying.
-
-Do not deploy to fix a TypeScript error, then deploy again for the next fix, then again for another. Fix everything first, then deploy once.
+Do not commit and push after every fix. Batch all changes in a session into one commit and one push.
