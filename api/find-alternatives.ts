@@ -194,9 +194,15 @@ async function searchSite(site: { domain: string; searches: string[] }, query: s
   for (const searchPath of site.searches) {
     const url = searchPath.replace('{q}', q)
     try {
-      const res = await fetch(url, { headers: HTML_HEADERS, redirect: 'follow', signal: AbortSignal.timeout(6000) })
+      let res = await fetch(url, { headers: HTML_HEADERS, redirect: 'follow', signal: AbortSignal.timeout(6000) })
       console.log(`[${site.domain}] ${url} → ${res.status} ${res.statusText}`)
       if (!res.ok) { console.log(`[${site.domain}] skipped: non-OK status`); continue }
+      // If a redirect stripped the query string (e.g. www → non-www on Magento), re-fetch with query appended
+      if (res.url !== url && !res.url.includes('?') && url.includes('?')) {
+        const corrected = res.url + '?' + url.split('?')[1]
+        const retry = await fetch(corrected, { headers: HTML_HEADERS, redirect: 'follow', signal: AbortSignal.timeout(6000) })
+        if (retry.ok) { res = retry; console.log(`[${site.domain}] redirect stripped query; retried → ${retry.status}`) }
+      }
       const html = await res.text()
       const hasJsonLd = html.includes('application/ld+json')
       const hasItemprop = html.includes('itemprop')

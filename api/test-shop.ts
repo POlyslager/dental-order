@@ -119,12 +119,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const url = searchUrl.replace('{q}', encodeURIComponent(query.trim()))
 
   try {
-    const response = await fetch(url, {
+    let response = await fetch(url, {
       headers: HTML_HEADERS,
       redirect: 'follow',
       signal: AbortSignal.timeout(8000),
     })
     if (!response.ok) return res.status(200).json({ found: false, error: `HTTP ${response.status}` })
+
+    // If a redirect stripped the query string (e.g. www → non-www redirect on Magento), re-fetch with query appended
+    if (response.url !== url && !response.url.includes('?') && url.includes('?')) {
+      const corrected = response.url + '?' + url.split('?')[1]
+      const retry = await fetch(corrected, { headers: HTML_HEADERS, redirect: 'follow', signal: AbortSignal.timeout(8000) })
+      if (retry.ok) response = retry
+    }
 
     const html = await response.text()
     const pageUrl = response.url
