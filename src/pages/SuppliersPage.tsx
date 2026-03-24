@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { Plus, Search, ChevronRight, X, Trash2, RefreshCw } from 'lucide-react'
+import { Plus, Search, X, Trash2, RefreshCw, ChevronRight } from 'lucide-react'
 
 interface Supplier { id: string; name: string }
 
@@ -15,7 +15,7 @@ export default function SuppliersPage() {
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { loadWithSync() }, [])
 
   async function load() {
     const { data } = await supabase.from('suppliers').select('id, name').order('name')
@@ -23,8 +23,7 @@ export default function SuppliersPage() {
     setLoading(false)
   }
 
-  async function syncFromProducts() {
-    setSyncing(true)
+  async function loadWithSync() {
     const { data } = await supabase.from('products').select('preferred_supplier').not('preferred_supplier', 'is', null)
     if (data) {
       const names = [...new Set(data.map(p => p.preferred_supplier as string))].filter(Boolean)
@@ -33,6 +32,11 @@ export default function SuppliersPage() {
       }
     }
     await load()
+  }
+
+  async function syncFromProducts() {
+    setSyncing(true)
+    await loadWithSync()
     setSyncing(false)
   }
 
@@ -93,32 +97,38 @@ export default function SuppliersPage() {
   const panelOpen = isNew || selected != null
 
   return (
-    <div className="max-w-5xl mx-auto p-4 pb-8">
-      <div className="flex items-center gap-2 mb-4">
-        <div className="relative flex-1">
+    <div className="w-full relative">
+      {/* Toolbar */}
+      <div className="px-4 pt-3 pb-3 flex gap-2 items-center">
+        <div className="relative w-52 shrink-0">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
-            placeholder="Lieferant suchen…"
+            placeholder="Suchen…"
             value={query}
             onChange={e => setQuery(e.target.value)}
-            className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+            className="w-full border border-slate-200 rounded-xl pl-8 pr-7 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white"
           />
+          {query && (
+            <button onClick={() => setQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+              <X size={13} />
+            </button>
+          )}
         </div>
         <button
           onClick={syncFromProducts}
           disabled={syncing}
           title="Aus Produkten synchronisieren"
-          className="p-2 border border-slate-200 rounded-xl text-slate-500 hover:bg-slate-50 transition-colors disabled:opacity-40"
+          className="p-2 border border-slate-200 rounded-xl text-slate-500 hover:bg-slate-50 transition-colors disabled:opacity-40 bg-white"
         >
           <RefreshCw size={15} className={syncing ? 'animate-spin' : ''} />
         </button>
         <button
           onClick={openNew}
-          className="flex items-center gap-1.5 px-3 py-2 bg-sky-500 hover:bg-sky-600 text-white rounded-xl text-sm font-medium transition-colors shrink-0"
+          className="ml-auto bg-sky-500 hover:bg-sky-600 text-white px-4 py-2 rounded-xl transition-colors flex items-center gap-2 text-sm font-medium shrink-0"
         >
-          <Plus size={15} />
-          Hinzufügen
+          <Plus size={16} />
+          <span className="hidden sm:inline">Neuer Lieferant</span>
         </button>
       </div>
 
@@ -128,43 +138,25 @@ export default function SuppliersPage() {
         </div>
       ) : (
         <>
-          <div className="hidden md:block bg-white rounded-2xl border border-slate-100 overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-100">
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">Name</th>
-                  <th className="w-8" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {filtered.map(s => (
-                  <tr key={s.id} onClick={() => openExisting(s)} className="hover:bg-slate-50 cursor-pointer transition-colors">
-                    <td className="px-4 py-3.5 font-medium text-slate-800">{s.name}</td>
-                    <td className="px-4 py-3.5 text-slate-300"><ChevronRight size={14} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {filtered.length === 0 && (
-              <p className="text-sm text-slate-400 text-center py-10">Keine Lieferanten gefunden</p>
-            )}
+          {/* Desktop header */}
+          <div className="hidden md:flex border-b border-slate-200 bg-white sticky top-0 z-10">
+            <div className="flex-1 px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Name</div>
+            <div className="w-8" />
           </div>
 
-          <div className="md:hidden space-y-2">
+          {/* Rows */}
+          <div className="divide-y divide-slate-100">
             {filtered.map(s => (
-              <div key={s.id} onClick={() => openExisting(s)}
-                className="bg-white rounded-2xl border border-slate-100 px-4 py-3.5 flex items-center gap-3 cursor-pointer hover:bg-slate-50 transition-colors"
-              >
-                <p className="flex-1 text-sm font-medium text-slate-800 truncate">{s.name}</p>
-                <ChevronRight size={14} className="text-slate-300 shrink-0" />
+              <div key={s.id} onClick={() => openExisting(s)} className="bg-white hover:bg-slate-50 cursor-pointer transition-colors flex items-center">
+                <div className="flex-1 px-4 py-3.5 text-sm font-semibold text-slate-800 truncate">{s.name}</div>
+                <div className="px-4 py-3.5 text-slate-300"><ChevronRight size={14} /></div>
               </div>
             ))}
-            {filtered.length === 0 && (
-              <p className="text-sm text-slate-400 text-center py-10 bg-white rounded-2xl border border-slate-100">
-                Keine Lieferanten gefunden
-              </p>
-            )}
           </div>
+
+          {filtered.length === 0 && (
+            <p className="text-sm text-slate-400 text-center py-16">Keine Lieferanten gefunden</p>
+          )}
         </>
       )}
 
@@ -182,14 +174,9 @@ export default function SuppliersPage() {
             <div className="flex-1 overflow-y-auto p-5 space-y-4">
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Name</label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={e => setName(e.target.value)}
-                  placeholder="z.B. Henry Schein"
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
-                  autoFocus
-                />
+                <input type="text" value={name} onChange={e => setName(e.target.value)}
+                  placeholder="z.B. Henry Schein" autoFocus
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm" />
               </div>
 
               {!isNew && (
@@ -199,20 +186,15 @@ export default function SuppliersPage() {
                       <p className="text-sm text-slate-600">Lieferant wirklich löschen?</p>
                       <div className="flex gap-2">
                         <button onClick={() => setConfirmDelete(false)}
-                          className="flex-1 border border-slate-300 rounded-xl py-2.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
-                          Abbrechen
-                        </button>
+                          className="flex-1 border border-slate-300 rounded-xl py-2.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors">Abbrechen</button>
                         <button onClick={handleDelete}
-                          className="flex-1 bg-red-500 hover:bg-red-600 text-white rounded-xl py-2.5 text-sm font-medium transition-colors">
-                          Löschen
-                        </button>
+                          className="flex-1 bg-red-500 hover:bg-red-600 text-white rounded-xl py-2.5 text-sm font-medium transition-colors">Löschen</button>
                       </div>
                     </div>
                   ) : (
                     <button onClick={() => setConfirmDelete(true)}
                       className="flex items-center gap-2 text-sm text-red-500 hover:text-red-600 transition-colors">
-                      <Trash2 size={14} />
-                      Lieferant löschen
+                      <Trash2 size={14} /> Lieferant löschen
                     </button>
                   )}
                 </div>
@@ -221,9 +203,7 @@ export default function SuppliersPage() {
 
             <div className="border-t border-slate-100 px-5 py-4 flex gap-3 shrink-0">
               <button onClick={closePanel}
-                className="flex-1 border border-slate-300 rounded-xl py-3 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
-                Abbrechen
-              </button>
+                className="flex-1 border border-slate-300 rounded-xl py-3 text-sm text-slate-600 hover:bg-slate-50 transition-colors">Abbrechen</button>
               <button onClick={handleSave} disabled={saving || !name.trim()}
                 className="flex-1 bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white rounded-xl py-3 text-sm font-medium transition-colors">
                 {saving ? 'Speichern…' : 'Speichern'}

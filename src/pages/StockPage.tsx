@@ -32,7 +32,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [selectedStatus, setSelectedStatus] = useState<'all' | 'ok' | 'low' | 'critical' | 'empty' | 'in_order'>('all')
+  const [selectedStatus, setSelectedStatus] = useState<StatusFilter>('all')
   const [sortKey, setSortKey] = useState<'name' | 'category' | 'article_number' | 'preferred_supplier' | 'current_stock' | 'status'>('name')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [page, setPage] = useState(1)
@@ -40,6 +40,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [selectedBrands, setSelectedBrands] = useState<Set<string>>(new Set())
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+  type StatusFilter = 'all' | 'ok' | 'low' | 'critical' | 'empty' | 'in_cart' | 'in_ordered'
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
@@ -286,7 +287,8 @@ useEffect(() => {
       if (selectedStatus === 'low')      return p.current_stock > p.min_stock && p.current_stock <= p.min_stock * 1.5
       if (selectedStatus === 'critical') return p.current_stock > 0 && p.current_stock <= p.min_stock
       if (selectedStatus === 'empty')    return p.current_stock <= 0
-      if (selectedStatus === 'in_order') return cartProductIds.has(p.id) || orderedProductIds.has(p.id)
+      if (selectedStatus === 'in_cart')    return cartProductIds.has(p.id)
+      if (selectedStatus === 'in_ordered') return !cartProductIds.has(p.id) && orderedProductIds.has(p.id)
       return true
     })()
     const matchesCategory = selectedCategory === 'all' || p.category === selectedCategory
@@ -450,7 +452,8 @@ useEffect(() => {
             <option value="low">Knapp</option>
             <option value="critical">Niedriger Bestand</option>
             <option value="empty">Kein Bestand</option>
-            <option value="in_order">In Bestellung</option>
+            <option value="in_cart">Im Warenkorb</option>
+            <option value="in_ordered">In Bestellung</option>
           </select>
           <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
         </div>

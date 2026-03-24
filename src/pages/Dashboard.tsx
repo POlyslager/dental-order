@@ -108,6 +108,9 @@ export default function Dashboard({ user }: Props) {
     return () => clearInterval(interval)
   }, [])
 
+  const SETTINGS_TABS = new Set<Tab>(['shops', 'suppliers', 'categories'])
+  const showSettingsPanel = !sidebarCollapsed && (settingsOpen || SETTINGS_TABS.has(tab))
+
   const bottomTabs: { id: Tab; icon: React.ReactNode; badge?: number }[] = [
     { id: 'stock',  icon: <Package size={26} /> },
     { id: 'orders', icon: <ShoppingCart size={26} />, badge: orderBadge },
@@ -147,14 +150,14 @@ export default function Dashboard({ user }: Props) {
         <div className="flex-1 overflow-hidden relative">
           <div
             className="flex h-full transition-transform duration-220 ease-in-out"
-            style={{ width: '200%', transform: settingsOpen && !sidebarCollapsed ? 'translateX(-50%)' : 'translateX(0)' }}
+            style={{ width: '200%', transform: showSettingsPanel ? 'translateX(-50%)' : 'translateX(0)' }}
           >
             {/* ── Main panel ── */}
             <div className="overflow-y-auto py-2 space-y-0.5 px-2" style={{ width: '50%' }}>
               {sidebarItems.map(item => (
                 <button
                   key={item.id}
-                  onClick={() => setTab(item.id)}
+                  onClick={() => { setTab(item.id); setSettingsOpen(false) }}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm transition-colors rounded-xl ${
                     tab === item.id ? 'bg-sky-50 text-sky-600' : 'text-slate-600 hover:bg-slate-50'
                   } ${sidebarCollapsed ? 'justify-center' : ''}`}
@@ -227,27 +230,22 @@ export default function Dashboard({ user }: Props) {
                     <span className="truncate font-medium">Benachrichtigungen aktiv</span>
                   </div>
                 )}
-                <button
-                  onClick={() => { setTab('shops'); setSettingsOpen(false) }}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-slate-600 hover:bg-slate-50 rounded-xl transition-colors"
-                >
-                  <Store size={18} className="shrink-0" />
-                  <span className="truncate font-medium">Preisvergleich-Shops</span>
-                </button>
-                <button
-                  onClick={() => { setTab('suppliers'); setSettingsOpen(false) }}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-slate-600 hover:bg-slate-50 rounded-xl transition-colors"
-                >
-                  <Users size={18} className="shrink-0" />
-                  <span className="truncate font-medium">Lieferanten</span>
-                </button>
-                <button
-                  onClick={() => { setTab('categories'); setSettingsOpen(false) }}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-slate-600 hover:bg-slate-50 rounded-xl transition-colors"
-                >
-                  <Tag size={18} className="shrink-0" />
-                  <span className="truncate font-medium">Kategorien</span>
-                </button>
+                {([
+                  { id: 'shops' as Tab,      icon: <Store size={18} />,  label: 'Preisvergleich-Shops' },
+                  { id: 'suppliers' as Tab,  icon: <Users size={18} />,  label: 'Lieferanten' },
+                  { id: 'categories' as Tab, icon: <Tag size={18} />,    label: 'Kategorien' },
+                ] as { id: Tab; icon: React.ReactNode; label: string }[]).map(item => (
+                  <button
+                    key={item.id}
+                    onClick={() => setTab(item.id)}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl transition-colors ${
+                      tab === item.id ? 'bg-sky-50 text-sky-600' : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span className="shrink-0">{item.icon}</span>
+                    <span className="truncate font-medium">{item.label}</span>
+                  </button>
+                ))}
               </div>
             </div>
           </div>

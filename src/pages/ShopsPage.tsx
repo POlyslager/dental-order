@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { PriceComparisonShop } from '../lib/types'
-import { Plus, Search, ChevronRight, X, Trash2 } from 'lucide-react'
+import { Plus, Search, X, Trash2, ChevronRight } from 'lucide-react'
 
 const inputCls = 'w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm'
 
@@ -93,25 +93,30 @@ export default function ShopsPage() {
   const panelOpen = isNew || selected != null
 
   return (
-    <div className="max-w-5xl mx-auto p-4 pb-8">
+    <div className="w-full relative">
       {/* Toolbar */}
-      <div className="flex items-center gap-2 mb-4">
-        <div className="relative flex-1">
+      <div className="px-4 pt-3 pb-3 flex gap-2 items-center">
+        <div className="relative w-52 shrink-0">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
-            placeholder="Shop suchen…"
+            placeholder="Suchen…"
             value={query}
             onChange={e => setQuery(e.target.value)}
-            className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+            className="w-full border border-slate-200 rounded-xl pl-8 pr-7 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white"
           />
+          {query && (
+            <button onClick={() => setQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+              <X size={13} />
+            </button>
+          )}
         </div>
         <button
           onClick={openNew}
-          className="flex items-center gap-1.5 px-3 py-2 bg-sky-500 hover:bg-sky-600 text-white rounded-xl text-sm font-medium transition-colors shrink-0"
+          className="ml-auto bg-sky-500 hover:bg-sky-600 text-white px-4 py-2 rounded-xl transition-colors flex items-center gap-2 text-sm font-medium shrink-0"
         >
-          <Plus size={15} />
-          Hinzufügen
+          <Plus size={16} />
+          <span className="hidden sm:inline">Neuer Shop</span>
         </button>
       </div>
 
@@ -121,63 +126,48 @@ export default function ShopsPage() {
         </div>
       ) : (
         <>
-          {/* Desktop table */}
-          <div className="hidden md:block bg-white rounded-2xl border border-slate-100 overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-100">
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">Domain</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">Typ</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">Suchpfade</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">Status</th>
-                  <th className="w-8" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {filtered.map(shop => (
-                  <tr key={shop.id} onClick={() => openExisting(shop)} className="hover:bg-slate-50 cursor-pointer transition-colors">
-                    <td className="px-4 py-3.5 font-medium text-slate-800">{shop.domain}</td>
-                    <td className="px-4 py-3.5 text-slate-500">{shop.type}</td>
-                    <td className="px-4 py-3.5 text-slate-400 text-xs">{shop.search_paths.length}</td>
-                    <td className="px-4 py-3.5">
-                      <span className={`inline-flex text-xs font-medium px-2 py-0.5 rounded-full ${
-                        shop.is_active ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'
-                      }`}>
-                        {shop.is_active ? 'Aktiv' : 'Inaktiv'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3.5 text-slate-300"><ChevronRight size={14} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {filtered.length === 0 && (
-              <p className="text-sm text-slate-400 text-center py-10">Keine Shops gefunden</p>
-            )}
+          {/* Desktop header */}
+          <div className="hidden md:grid border-b border-slate-200 bg-white sticky top-0 z-10" style={{ gridTemplateColumns: '2fr 0.7fr 0.6fr 0.7fr 2rem' }}>
+            {['Domain', 'Basis-URL', 'Typ', 'Status'].map(h => (
+              <div key={h} className="px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">{h}</div>
+            ))}
+            <div />
           </div>
 
-          {/* Mobile cards */}
-          <div className="md:hidden space-y-2">
+          {/* Rows */}
+          <div className="divide-y divide-slate-100">
             {filtered.map(shop => (
-              <div key={shop.id} onClick={() => openExisting(shop)}
-                className="bg-white rounded-2xl border border-slate-100 px-4 py-3.5 flex items-center gap-3 cursor-pointer hover:bg-slate-50 transition-colors"
-              >
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-800 truncate">{shop.domain}</p>
-                  <p className="text-xs text-slate-400 mt-0.5">{shop.type} · {shop.search_paths.length} Pfad(e)</p>
+              <div key={shop.id} onClick={() => openExisting(shop)} className="bg-white hover:bg-slate-50 cursor-pointer transition-colors">
+                {/* Desktop */}
+                <div className="hidden md:grid items-center" style={{ gridTemplateColumns: '2fr 0.7fr 0.6fr 0.7fr 2rem' }}>
+                  <div className="px-4 py-3.5 text-sm font-semibold text-slate-800 truncate">{shop.domain}</div>
+                  <div className="px-4 py-3.5 text-sm text-slate-500 truncate">{shop.base_url.replace(/^https?:\/\//, '')}</div>
+                  <div className="px-4 py-3.5 text-sm text-slate-500">{shop.type}</div>
+                  <div className="px-4 py-3.5">
+                    <span className={`inline-flex text-xs font-medium px-2 py-0.5 rounded-full ${shop.is_active ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                      {shop.is_active ? 'Aktiv' : 'Inaktiv'}
+                    </span>
+                  </div>
+                  <div className="py-3.5 text-slate-300"><ChevronRight size={14} /></div>
                 </div>
-                <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${
-                  shop.is_active ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'
-                }`}>
-                  {shop.is_active ? 'Aktiv' : 'Inaktiv'}
-                </span>
-                <ChevronRight size={14} className="text-slate-300 shrink-0" />
+                {/* Mobile */}
+                <div className="flex md:hidden items-center px-4 py-3.5 gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-slate-800 truncate">{shop.domain}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">{shop.type} · {shop.search_paths.length} Pfad(e)</p>
+                  </div>
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${shop.is_active ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                    {shop.is_active ? 'Aktiv' : 'Inaktiv'}
+                  </span>
+                  <ChevronRight size={14} className="text-slate-300 shrink-0" />
+                </div>
               </div>
             ))}
-            {filtered.length === 0 && (
-              <p className="text-sm text-slate-400 text-center py-10 bg-white rounded-2xl border border-slate-100">Keine Shops gefunden</p>
-            )}
           </div>
+
+          {filtered.length === 0 && (
+            <p className="text-sm text-slate-400 text-center py-16">Keine Shops gefunden</p>
+          )}
         </>
       )}
 
@@ -196,23 +186,18 @@ export default function ShopsPage() {
             <div className="flex-1 overflow-y-auto p-5 space-y-4">
               <Field label="Domain">
                 <input type="text" placeholder="z.B. henryschein-dental.de"
-                  value={form.domain ?? ''}
-                  onChange={e => setForm(f => ({ ...f, domain: e.target.value }))}
-                  className={inputCls}
-                />
+                  value={form.domain ?? ''} onChange={e => setForm(f => ({ ...f, domain: e.target.value }))}
+                  className={inputCls} />
               </Field>
               <Field label="Basis-URL">
                 <input type="url" placeholder="https://www.henryschein-dental.de"
-                  value={form.base_url ?? ''}
-                  onChange={e => setForm(f => ({ ...f, base_url: e.target.value }))}
-                  className={inputCls}
-                />
+                  value={form.base_url ?? ''} onChange={e => setForm(f => ({ ...f, base_url: e.target.value }))}
+                  className={inputCls} />
               </Field>
               <Field label="Typ">
                 <select value={form.type ?? 'html'}
                   onChange={e => setForm(f => ({ ...f, type: e.target.value as 'html' | 'dm' }))}
-                  className={inputCls}
-                >
+                  className={inputCls}>
                   <option value="html">HTML-Scraping</option>
                   <option value="dm">DM API</option>
                 </select>
@@ -222,15 +207,12 @@ export default function ShopsPage() {
                   value={(form.search_paths ?? []).join('\n')}
                   onChange={e => setForm(f => ({ ...f, search_paths: e.target.value.split('\n').map(s => s.trim()).filter(Boolean) }))}
                   className={`${inputCls} resize-none font-mono`}
-                  placeholder="/search?q={q}"
-                />
+                  placeholder="/search?q={q}" />
               </Field>
               <Field label="Status">
                 <label className="flex items-center gap-3 cursor-pointer select-none">
-                  <div
-                    onClick={() => setForm(f => ({ ...f, is_active: !f.is_active }))}
-                    className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${form.is_active ? 'bg-sky-500' : 'bg-slate-200'}`}
-                  >
+                  <div onClick={() => setForm(f => ({ ...f, is_active: !f.is_active }))}
+                    className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${form.is_active ? 'bg-sky-500' : 'bg-slate-200'}`}>
                     <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all ${form.is_active ? 'left-6' : 'left-1'}`} />
                   </div>
                   <span className="text-sm text-slate-700">{form.is_active ? 'Aktiv' : 'Inaktiv'}</span>
@@ -244,20 +226,15 @@ export default function ShopsPage() {
                       <p className="text-sm text-slate-600">Shop wirklich löschen?</p>
                       <div className="flex gap-2">
                         <button onClick={() => setConfirmDelete(false)}
-                          className="flex-1 border border-slate-300 rounded-xl py-2.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
-                          Abbrechen
-                        </button>
+                          className="flex-1 border border-slate-300 rounded-xl py-2.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors">Abbrechen</button>
                         <button onClick={handleDelete}
-                          className="flex-1 bg-red-500 hover:bg-red-600 text-white rounded-xl py-2.5 text-sm font-medium transition-colors">
-                          Löschen
-                        </button>
+                          className="flex-1 bg-red-500 hover:bg-red-600 text-white rounded-xl py-2.5 text-sm font-medium transition-colors">Löschen</button>
                       </div>
                     </div>
                   ) : (
                     <button onClick={() => setConfirmDelete(true)}
                       className="flex items-center gap-2 text-sm text-red-500 hover:text-red-600 transition-colors">
-                      <Trash2 size={14} />
-                      Shop löschen
+                      <Trash2 size={14} /> Shop löschen
                     </button>
                   )}
                 </div>
@@ -266,9 +243,7 @@ export default function ShopsPage() {
 
             <div className="border-t border-slate-100 px-5 py-4 flex gap-3 shrink-0">
               <button onClick={closePanel}
-                className="flex-1 border border-slate-300 rounded-xl py-3 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
-                Abbrechen
-              </button>
+                className="flex-1 border border-slate-300 rounded-xl py-3 text-sm text-slate-600 hover:bg-slate-50 transition-colors">Abbrechen</button>
               <button onClick={handleSave} disabled={saving || !form.domain?.trim() || !form.base_url?.trim()}
                 className="flex-1 bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white rounded-xl py-3 text-sm font-medium transition-colors">
                 {saving ? 'Speichern…' : 'Speichern'}
