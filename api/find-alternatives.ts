@@ -55,8 +55,14 @@ export function nameMatches(query: string, resultName: string | null): boolean {
     if (!/^\d+$/.test(t) && rTokens.has(t)) wordMatches++
   }
   if (wordMatches < 1) return false
-  for (const t of qTokens) {
-    if (/^\d+$/.test(t) && !rTokens.has(t)) return false
+  // Only enforce concentration matching when the result ALSO has numeric tokens.
+  // If the result name has no concentration (shop omits "1:200.000"), allow it.
+  // If the result name has a DIFFERENT concentration, reject it.
+  const rHasNumeric = [...rTokens].some(t => /^\d+$/.test(t))
+  if (rHasNumeric) {
+    for (const t of qTokens) {
+      if (/^\d+$/.test(t) && !rTokens.has(t)) return false
+    }
   }
   return true
 }

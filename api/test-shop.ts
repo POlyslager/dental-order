@@ -25,8 +25,11 @@ function nameMatches(query: string, resultName: string | null): boolean {
     if (!/^\d+$/.test(t) && rTokens.has(t)) wordMatches++
   }
   if (wordMatches < 1) return false
-  for (const t of qTokens) {
-    if (/^\d+$/.test(t) && !rTokens.has(t)) return false
+  const rHasNumeric = [...rTokens].some(t => /^\d+$/.test(t))
+  if (rHasNumeric) {
+    for (const t of qTokens) {
+      if (/^\d+$/.test(t) && !rTokens.has(t)) return false
+    }
   }
   return true
 }
