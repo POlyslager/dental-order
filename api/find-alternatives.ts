@@ -165,8 +165,6 @@ export function extractProductsFromMicrodata(html: string, pageUrl: string): { n
     const url = rawUrl.startsWith('http') ? rawUrl : rawUrl.startsWith('/') ? new URL(rawUrl, pageUrl).href : pageUrl
     found.push({ name, price, url })
   }
-  if (found.length > 0) return found
-
   // Strategy 2: data-price-amount (Magento listing pages) — only finalPrice to skip old/tier prices
   for (const m of html.matchAll(/data-price-amount=["']([0-9.,]+)["'][^>]*data-price-type=["']finalPrice["']/gi)) {
     const price = parseFloat((m[1]).replace(',', '.'))
@@ -182,8 +180,6 @@ export function extractProductsFromMicrodata(html: string, pageUrl: string): { n
     const url = rawUrl.startsWith('http') ? rawUrl : rawUrl.startsWith('/') ? new URL(rawUrl, pageUrl).href : pageUrl
     found.push({ name, price, url })
   }
-  if (found.length > 0) return found
-
   // Strategy 3: <span class="price">27,25 €</span> — Magento when data-price-amount=0
   for (const m of html.matchAll(/<span\s+class="price">([0-9][0-9.,]*\s*€?)<\/span>/gi)) {
     const raw = m[1].replace(/[€\s]/g, '').replace(',', '.')
