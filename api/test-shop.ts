@@ -147,12 +147,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const html = await response.text()
     const pageUrl = response.url
 
-    let products = extractProductsFromHtml(html, pageUrl).filter(p => nameMatches(query, p.name))
+    const rawJsonLd = extractProductsFromHtml(html, pageUrl)
+    let products = rawJsonLd.filter(p => nameMatches(query, p.name))
     if (products.length === 0) {
-      products = extractProductsFromMicrodata(html, pageUrl).filter(p => nameMatches(query, p.name))
+      const rawMicro = extractProductsFromMicrodata(html, pageUrl)
+      products = rawMicro.filter(p => nameMatches(query, p.name))
+      if (products.length === 0) {
+        // Return diagnostic info so the UI can show what went wrong
+        const allRaw = [...rawJsonLd, ...rawMicro]
+        return res.status(200).json({
+          found: false,
+          debug: {
+            fetchedUrl: pageUrl,
+            htmlBytes: html.length,
+            rawProducts: allRaw.slice(0, 5).map(p => ({ name: p.name, price: p.price })),
+          },
+        })
+      }
     }
-
-    if (products.length === 0) return res.status(200).json({ found: false })
 
     products.sort((a, b) => a.price - b.price)
     const best = products[0]

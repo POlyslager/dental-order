@@ -32,7 +32,7 @@ export default function ShopsPage() {
   const [detecting, setDetecting] = useState(false)
   const [testQuery, setTestQuery] = useState('')
   const [testing, setTesting] = useState(false)
-  const [testResult, setTestResult] = useState<{ found: true; name: string | null; price: number; url: string } | { found: false; error?: string } | null>(null)
+  const [testResult, setTestResult] = useState<{ found: true; name: string | null; price: number; url: string } | { found: false; error?: string; debug?: { fetchedUrl: string; htmlBytes: number; rawProducts: { name: string | null; price: number }[] } } | null>(null)
   const [closing, setClosing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
@@ -390,8 +390,17 @@ export default function ShopsPage() {
                         <a href={testResult.url} target="_blank" rel="noopener noreferrer" className="text-xs text-sky-600 hover:underline break-all">{testResult.url}</a>
                       </div>
                     ) : (
-                      <div className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
+                      <div className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 space-y-1">
                         <p className="text-sm text-slate-500">{testResult.error ?? 'Kein Treffer gefunden'}</p>
+                        {!testResult.found && testResult.debug && (
+                          <div className="text-xs text-slate-400 space-y-0.5 mt-1">
+                            <p className="font-mono break-all">↳ {testResult.debug.fetchedUrl}</p>
+                            <p>{testResult.debug.htmlBytes.toLocaleString()} bytes · {testResult.debug.rawProducts.length} Rohprodukte</p>
+                            {testResult.debug.rawProducts.map((p, i) => (
+                              <p key={i} className="font-mono">€{p.price} — {p.name ?? '(kein Name)'}</p>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )
                   )}
