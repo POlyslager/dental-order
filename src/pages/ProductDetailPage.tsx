@@ -217,7 +217,7 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
       const res = await fetch('/api/find-alternatives', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productName: product.name }),
+        body: JSON.stringify({ productName: product.name, brand: product.preferred_supplier }),
       })
       const data = await res.json()
       setAltResults(data.results ?? [])
