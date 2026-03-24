@@ -123,7 +123,7 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
 
   async function handleSave() {
     setSaving(true)
-    const parseNum = (v: unknown) => { const n = parseFloat(String(v)); return isNaN(n) ? null : n }
+    const parseNum = (v: unknown) => { const n = parseFloat(String(v).replace(',', '.')); return isNaN(n) ? null : n }
     const { data, error } = await supabase.from('products').update({
       article_number: form.article_number,
       name: form.name,
@@ -288,7 +288,7 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
           <input
             type={type === 'number' ? 'text' : type}
             inputMode={type === 'number' ? 'decimal' : undefined}
-            pattern={type === 'number' ? '[0-9.]*' : undefined}
+            pattern={type === 'number' ? '[0-9.,]*' : undefined}
             value={String(val ?? '')}
             onChange={e => setForm(p => ({
               ...p,

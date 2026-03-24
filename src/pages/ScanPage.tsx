@@ -170,7 +170,7 @@ export default function ScanPage({ onAddWithBarcode, onSubview }: Props) {
     setRawCode(null)
     setMatchedItem(null)
 
-    const scanner = new Html5Qrcode('qr-reader', { formatsToSupport: FORMATS, verbose: false })
+    const scanner = new Html5Qrcode('qr-reader', { formatsToSupport: FORMATS, verbose: false, experimentalFeatures: { useBarCodeDetectorIfSupported: false } })
     scannerRef.current = scanner
     setScanning(true)
 
@@ -516,9 +516,17 @@ export default function ScanPage({ onAddWithBarcode, onSubview }: Props) {
           </div>
 
           {scanNotFoundMsg && !manualSearch && (
-            <p className="text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-sm">
-              {scanNotFoundMsg}
-            </p>
+            <div className="space-y-2">
+              <p className="text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-sm">
+                {scanNotFoundMsg}
+              </p>
+              {rawCode && (
+                <button onClick={() => onAddWithBarcode(rawCode)}
+                  className="w-full bg-sky-500 hover:bg-sky-600 text-white rounded-xl py-3 text-sm font-medium flex items-center justify-center gap-2">
+                  <Plus size={16} /> Als neuen Artikel hinzufügen
+                </button>
+              )}
+            </div>
           )}
 
           {filteredProducts.length > 0 && !scannedProduct && (

@@ -611,7 +611,7 @@ function CartItemRow({ item, placing, onUpdateQuantity, onPlaceOrder, onRemoveRe
             onClick={e => e.stopPropagation()}
             className="flex items-center gap-1 text-xs text-emerald-600 mt-0.5">
             <ExternalLink size={10} />
-            Günstiger: € {item.product.alternative_price} bei {item.product.alternative_supplier ?? 'Alternativlieferant'}
+            Günstiger: € {Number(item.product.alternative_price).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} bei {item.product.alternative_supplier ?? 'Alternativlieferant'}
           </a>
         )}
       </td>

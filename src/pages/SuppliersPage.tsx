@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { Search, X, Trash2, ChevronRight, ExternalLink } from 'lucide-react'
+import Toast from '../components/Toast'
+import ConfirmDialog from '../components/ConfirmDialog'
 
 interface SupplierRow {
   name: string
   website: string | null
+  notes: string | null
+  min_order_value: number | null
   productCount: number
   lastPurchaseAt: string | null
 }
@@ -16,10 +20,12 @@ export default function SuppliersPage() {
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState<SupplierRow | null>(null)
-  const [form, setForm] = useState<{ website: string }>({ website: '' })
+  const [form, setForm] = useState<{ website: string; notes: string; min_order_value: string }>({ website: '', notes: '', min_order_value: '' })
   const [saving, setSaving] = useState(false)
   const [closing, setClosing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
+  const [undoSupplier, setUndoSupplier] = useState<{ name: string; website: string | null; notes: string | null; min_order_value: number | null; productIds: string[] } | null>(null)
 
   useEffect(() => { load() }, [])
 
@@ -27,7 +33,7 @@ export default function SuppliersPage() {
     // Source of truth for supplier names is products.preferred_supplier
     const [{ data: productRows }, { data: websiteRows }, { data: orderItemRows }] = await Promise.all([
       supabase.from('products').select('preferred_supplier'),
-      supabase.from('suppliers').select('name, website'),
+      supabase.from('suppliers').select('name, website, notes, min_order_value'),
       supabase.from('order_items')
         .select('product_id, orders!inner(created_at)')
         .eq('orders.status', 'received'),
@@ -40,10 +46,14 @@ export default function SuppliersPage() {
         .filter(Boolean) as string[]
     )].sort((a, b) => a.localeCompare(b))
 
-    // Website lookup from suppliers table
+    // Metadata lookup from suppliers table
     const websiteMap: Record<string, string | null> = {}
-    for (const r of (websiteRows ?? []) as { name: string; website: string | null }[]) {
+    const notesMap: Record<string, string | null> = {}
+    const minOrderMap: Record<string, number | null> = {}
+    for (const r of (websiteRows ?? []) as { name: string; website: string | null; notes: string | null; min_order_value: number | null }[]) {
       websiteMap[r.name] = r.website
+      notesMap[r.name] = r.notes
+      minOrderMap[r.name] = r.min_order_value
     }
 
     // Product count per supplier
@@ -72,6 +82,8 @@ export default function SuppliersPage() {
     setSuppliers(names.map(name => ({
       name,
       website: websiteMap[name] ?? null,
+      notes: notesMap[name] ?? null,
+      min_order_value: minOrderMap[name] ?? null,
       productCount: productCounts[name] ?? 0,
       lastPurchaseAt: lastPurchase[name] ?? null,
     })))
@@ -79,7 +91,7 @@ export default function SuppliersPage() {
   }
 
   function openExisting(s: SupplierRow) {
-    setForm({ website: s.website ?? '' })
+    setForm({ website: s.website ?? '', notes: s.notes ?? '', min_order_value: s.min_order_value != null ? String(s.min_order_value) : '' })
     setSelected(s)
     setConfirmDelete(false)
   }
@@ -88,7 +100,7 @@ export default function SuppliersPage() {
     setClosing(true)
     setTimeout(() => {
       setSelected(null)
-      setForm({ website: '' })
+      setForm({ website: '', notes: '', min_order_value: '' })
       setConfirmDelete(false)
       setClosing(false)
     }, 260)
@@ -98,25 +110,42 @@ export default function SuppliersPage() {
     if (!selected) return
     setSaving(true)
     const website = form.website.trim() || null
-    // Upsert into suppliers table (only used for website storage)
+    const notes = form.notes.trim() || null
+    const min_order_value = form.min_order_value.trim() ? parseFloat(form.min_order_value) : null
     await supabase.from('suppliers').upsert(
-      { name: selected.name, website },
+      { name: selected.name, website, notes, min_order_value },
       { onConflict: 'name' }
     )
-    setSuppliers(s => s.map(x => x.name === selected.name ? { ...x, website } : x))
+    setSuppliers(s => s.map(x => x.name === selected.name ? { ...x, website, notes, min_order_value } : x))
+    setToast('Lieferant gespeichert')
     closePanel()
     setSaving(false)
   }
 
-  // "Delete" just clears the preferred_supplier on all products with this name
   async function handleDelete() {
     if (!selected) return
+    const { data: affected } = await supabase.from('products').select('id').eq('preferred_supplier', selected.name)
+    const snapshot = { name: selected.name, website: selected.website, notes: selected.notes, min_order_value: selected.min_order_value, productIds: (affected ?? []).map(p => p.id) }
     await Promise.all([
       supabase.from('products').update({ preferred_supplier: null }).eq('preferred_supplier', selected.name),
       supabase.from('suppliers').delete().eq('name', selected.name),
     ])
+    setUndoSupplier(snapshot)
+    setToast('Lieferant gelöscht')
     await load()
     closePanel()
+  }
+
+  async function handleUndoDelete() {
+    if (!undoSupplier) return
+    await Promise.all([
+      supabase.from('suppliers').upsert({ name: undoSupplier.name, website: undoSupplier.website, notes: undoSupplier.notes, min_order_value: undoSupplier.min_order_value }, { onConflict: 'name' }),
+      undoSupplier.productIds.length > 0
+        ? supabase.from('products').update({ preferred_supplier: undoSupplier.name }).in('id', undoSupplier.productIds)
+        : Promise.resolve(),
+    ])
+    setUndoSupplier(null)
+    await load()
   }
 
   const filtered = suppliers.filter(s =>
@@ -125,6 +154,14 @@ export default function SuppliersPage() {
 
   return (
     <div className="w-full relative">
+      {toast && <Toast message={toast} onClose={() => { setToast(null); setUndoSupplier(null) }} onUndo={undoSupplier ? handleUndoDelete : undefined} />}
+      {confirmDelete && selected && (
+        <ConfirmDialog
+          message={`Lieferant „${selected.name}" löschen? Bei ${selected.productCount} Artikel wird der Lieferant entfernt.`}
+          onConfirm={handleDelete}
+          onCancel={() => setConfirmDelete(false)}
+        />
+      )}
       {/* Toolbar */}
       <div className="px-4 pt-3 pb-3 flex gap-2 items-center">
         <div className="relative w-52 shrink-0">
@@ -238,25 +275,25 @@ export default function SuppliersPage() {
                 </div>
               </div>
 
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Mindestbestellwert (€)</label>
+                <input type="number" min="0" step="0.01" value={form.min_order_value}
+                  onChange={e => setForm(f => ({ ...f, min_order_value: e.target.value }))}
+                  placeholder="z.B. 50.00" className={inputCls} />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Notizen</label>
+                <textarea rows={3} value={form.notes}
+                  onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+                  placeholder="Interne Notizen zum Lieferanten…" className={`${inputCls} resize-none`} />
+              </div>
+
               <div className="pt-4 border-t border-slate-100">
-                {confirmDelete ? (
-                  <div className="space-y-3">
-                    <p className="text-sm text-slate-600">
-                      Lieferant löschen? Bei {selected?.productCount ?? 0} Artikel wird der Lieferant entfernt.
-                    </p>
-                    <div className="flex gap-2">
-                      <button onClick={() => setConfirmDelete(false)}
-                        className="flex-1 border border-slate-300 rounded-xl py-2.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors">Abbrechen</button>
-                      <button onClick={handleDelete}
-                        className="flex-1 bg-red-500 hover:bg-red-600 text-white rounded-xl py-2.5 text-sm font-medium transition-colors">Löschen</button>
-                    </div>
-                  </div>
-                ) : (
-                  <button onClick={() => setConfirmDelete(true)}
-                    className="flex items-center gap-2 text-sm text-red-500 hover:text-red-600 transition-colors">
-                    <Trash2 size={14} /> Lieferant löschen
-                  </button>
-                )}
+                <button onClick={() => setConfirmDelete(true)}
+                  className="flex items-center gap-2 text-sm text-red-500 hover:text-red-600 transition-colors">
+                  <Trash2 size={14} /> Lieferant löschen
+                </button>
               </div>
             </div>
 

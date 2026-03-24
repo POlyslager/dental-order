@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { PriceComparisonShop } from '../lib/types'
 import { Plus, Search, X, Trash2, ChevronRight } from 'lucide-react'
+import Toast from '../components/Toast'
+import ConfirmDialog from '../components/ConfirmDialog'
 
 const inputCls = 'w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm'
 
@@ -14,6 +16,10 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   )
 }
 
+function displayUrl(url: string) {
+  return url.replace(/^https?:\/\//, '').replace(/\/$/, '')
+}
+
 export default function ShopsPage() {
   const [shops, setShops] = useState<PriceComparisonShop[]>([])
   const [loading, setLoading] = useState(true)
@@ -24,17 +30,19 @@ export default function ShopsPage() {
   const [saving, setSaving] = useState(false)
   const [closing, setClosing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
+  const [undoShop, setUndoShop] = useState<PriceComparisonShop | null>(null)
 
   useEffect(() => { load() }, [])
 
   async function load() {
-    const { data } = await supabase.from('price_comparison_shops').select('*').order('domain')
+    const { data } = await supabase.from('price_comparison_shops').select('*').order('base_url')
     setShops((data ?? []) as PriceComparisonShop[])
     setLoading(false)
   }
 
   function openNew() {
-    setForm({ domain: '', base_url: '', search_paths: ['/search?q={q}'], type: 'html', is_active: true })
+    setForm({ base_url: '', search_paths: ['/search?q={q}'], is_active: true, notes: null, min_order_value: null })
     setSelected(null)
     setIsNew(true)
     setConfirmDelete(false)
@@ -59,25 +67,27 @@ export default function ShopsPage() {
   }
 
   async function handleSave() {
-    if (!form.domain?.trim() || !form.base_url?.trim()) return
+    if (!form.base_url?.trim()) return
     setSaving(true)
     const payload = {
-      domain: form.domain.trim(),
       base_url: form.base_url.trim(),
       search_paths: form.search_paths ?? [],
-      type: form.type ?? 'html',
       is_active: form.is_active ?? true,
+      notes: form.notes ?? null,
+      min_order_value: form.min_order_value ?? null,
     }
     if (isNew) {
       const { data } = await supabase.from('price_comparison_shops').insert(payload).select().single()
       if (data) {
-        setShops(s => [...s, data as PriceComparisonShop].sort((a, b) => a.domain.localeCompare(b.domain)))
+        setShops(s => [...s, data as PriceComparisonShop].sort((a, b) => a.base_url.localeCompare(b.base_url)))
+        setToast('Shop hinzugefügt')
         closePanel()
       }
     } else if (selected) {
       const { data } = await supabase.from('price_comparison_shops').update(payload).eq('id', selected.id).select().single()
       if (data) {
         setShops(s => s.map(x => x.id === selected.id ? data as PriceComparisonShop : x))
+        setToast('Shop gespeichert')
         closePanel()
       }
     }
@@ -86,19 +96,38 @@ export default function ShopsPage() {
 
   async function handleDelete() {
     if (!selected) return
+    const snapshot = { ...selected }
     await supabase.from('price_comparison_shops').delete().eq('id', selected.id)
     setShops(s => s.filter(x => x.id !== selected.id))
+    setUndoShop(snapshot)
+    setToast('Shop gelöscht')
     closePanel()
   }
 
+  async function handleUndoDelete() {
+    if (!undoShop) return
+    const { id, created_at, ...payload } = undoShop
+    const { data } = await supabase.from('price_comparison_shops').insert(payload).select().single()
+    if (data) setShops(s => [...s, data as PriceComparisonShop].sort((a, b) => a.base_url.localeCompare(b.base_url)))
+    setUndoShop(null)
+  }
+
   const filtered = shops.filter(s =>
-    query === '' || s.domain.toLowerCase().includes(query.toLowerCase())
+    query === '' || s.base_url.toLowerCase().includes(query.toLowerCase())
   )
 
   const panelOpen = isNew || selected != null
 
   return (
     <div className="w-full relative">
+      {toast && <Toast message={toast} onClose={() => { setToast(null); if (!undoShop) setUndoShop(null) }} onUndo={undoShop ? handleUndoDelete : undefined} />}
+      {confirmDelete && (
+        <ConfirmDialog
+          message="Shop wirklich löschen?"
+          onConfirm={handleDelete}
+          onCancel={() => setConfirmDelete(false)}
+        />
+      )}
       {/* Toolbar */}
       <div className="px-4 pt-3 pb-3 flex gap-2 items-center">
         <div className="relative w-52 shrink-0">
@@ -132,8 +161,8 @@ export default function ShopsPage() {
       ) : (
         <>
           {/* Desktop header */}
-          <div className="hidden md:grid border-b border-slate-200 bg-white sticky top-0 z-10" style={{ gridTemplateColumns: '2fr 0.7fr 0.6fr 0.7fr 2rem' }}>
-            {['Domain', 'Basis-URL', 'Typ', 'Status'].map(h => (
+          <div className="hidden md:grid border-b border-slate-200 bg-white sticky top-0 z-10" style={{ gridTemplateColumns: '2fr 0.7fr 2rem' }}>
+            {['URL', 'Status'].map(h => (
               <div key={h} className="px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">{h}</div>
             ))}
             <div />
@@ -144,10 +173,8 @@ export default function ShopsPage() {
             {filtered.map(shop => (
               <div key={shop.id} onClick={() => openExisting(shop)} className="bg-white hover:bg-slate-50 cursor-pointer transition-colors">
                 {/* Desktop */}
-                <div className="hidden md:grid items-center" style={{ gridTemplateColumns: '2fr 0.7fr 0.6fr 0.7fr 2rem' }}>
-                  <div className="px-4 py-3.5 text-sm font-semibold text-slate-800 truncate">{shop.domain}</div>
-                  <div className="px-4 py-3.5 text-sm text-slate-500 truncate">{shop.base_url.replace(/^https?:\/\//, '')}</div>
-                  <div className="px-4 py-3.5 text-sm text-slate-500">{shop.type}</div>
+                <div className="hidden md:grid items-center" style={{ gridTemplateColumns: '2fr 0.7fr 2rem' }}>
+                  <div className="px-4 py-3.5 text-sm font-semibold text-slate-800 truncate">{displayUrl(shop.base_url)}</div>
                   <div className="px-4 py-3.5">
                     <span className={`inline-flex text-xs font-medium px-2 py-0.5 rounded-full ${shop.is_active ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
                       {shop.is_active ? 'Aktiv' : 'Inaktiv'}
@@ -158,8 +185,8 @@ export default function ShopsPage() {
                 {/* Mobile */}
                 <div className="flex md:hidden items-center px-4 py-3.5 gap-3">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-slate-800 truncate">{shop.domain}</p>
-                    <p className="text-xs text-slate-400 mt-0.5">{shop.type} · {shop.search_paths.length} Pfad(e)</p>
+                    <p className="text-sm font-semibold text-slate-800 truncate">{displayUrl(shop.base_url)}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">{shop.search_paths.length} Pfad(e)</p>
                   </div>
                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${shop.is_active ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
                     {shop.is_active ? 'Aktiv' : 'Inaktiv'}
@@ -182,37 +209,24 @@ export default function ShopsPage() {
           <div className="hidden md:block fixed inset-0 bg-black/30 z-40" onClick={closePanel} />
           <div className={`fixed inset-0 bg-white z-50 flex flex-col overflow-y-auto md:inset-auto md:top-4 md:bottom-4 md:right-4 md:w-[520px] md:rounded-2xl md:shadow-2xl md:overflow-hidden ${closing ? 'animate-slide-out-right' : 'animate-slide-in-right'}`}>
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0">
-              <h2 className="font-semibold text-slate-800">{isNew ? 'Neuer Shop' : (form.domain || 'Shop bearbeiten')}</h2>
+              <h2 className="font-semibold text-slate-800">{isNew ? 'Neuer Shop' : (form.base_url ? displayUrl(form.base_url) : 'Shop bearbeiten')}</h2>
               <button onClick={closePanel} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors">
                 <X size={18} />
               </button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-5 space-y-4">
-              <Field label="Domain">
-                <input type="text" placeholder="z.B. henryschein-dental.de"
-                  value={form.domain ?? ''} onChange={e => setForm(f => ({ ...f, domain: e.target.value }))}
-                  className={inputCls} />
-              </Field>
               <Field label="Basis-URL">
                 <input type="url" placeholder="https://www.henryschein-dental.de"
                   value={form.base_url ?? ''} onChange={e => setForm(f => ({ ...f, base_url: e.target.value }))}
                   className={inputCls} />
               </Field>
-              <Field label="Typ">
-                <select value={form.type ?? 'html'}
-                  onChange={e => setForm(f => ({ ...f, type: e.target.value as 'html' | 'dm' }))}
-                  className={inputCls}>
-                  <option value="html">HTML-Scraping</option>
-                  <option value="dm">DM API</option>
-                </select>
-              </Field>
-              <Field label="Suchpfade (eine pro Zeile, {q} = Suchbegriff)">
+              <Field label="Such-URLs (eine pro Zeile, {q} = Suchbegriff)">
                 <textarea rows={4}
                   value={(form.search_paths ?? []).join('\n')}
                   onChange={e => setForm(f => ({ ...f, search_paths: e.target.value.split('\n').map(s => s.trim()).filter(Boolean) }))}
                   className={`${inputCls} resize-none font-mono`}
-                  placeholder="/search?q={q}" />
+                  placeholder="https://example.com/search?q={q}" />
               </Field>
               <Field label="Status">
                 <label className="flex items-center gap-3 cursor-pointer select-none">
@@ -224,24 +238,25 @@ export default function ShopsPage() {
                 </label>
               </Field>
 
+              <Field label="Mindestbestellwert (€)">
+                <input type="number" min="0" step="0.01"
+                  value={form.min_order_value ?? ''}
+                  onChange={e => setForm(f => ({ ...f, min_order_value: e.target.value ? parseFloat(e.target.value) : null }))}
+                  placeholder="z.B. 50.00" className={inputCls} />
+              </Field>
+              <Field label="Notizen">
+                <textarea rows={3}
+                  value={form.notes ?? ''}
+                  onChange={e => setForm(f => ({ ...f, notes: e.target.value || null }))}
+                  placeholder="Interne Notizen zum Shop…" className={`${inputCls} resize-none`} />
+              </Field>
+
               {!isNew && (
                 <div className="pt-4 border-t border-slate-100">
-                  {confirmDelete ? (
-                    <div className="space-y-3">
-                      <p className="text-sm text-slate-600">Shop wirklich löschen?</p>
-                      <div className="flex gap-2">
-                        <button onClick={() => setConfirmDelete(false)}
-                          className="flex-1 border border-slate-300 rounded-xl py-2.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors">Abbrechen</button>
-                        <button onClick={handleDelete}
-                          className="flex-1 bg-red-500 hover:bg-red-600 text-white rounded-xl py-2.5 text-sm font-medium transition-colors">Löschen</button>
-                      </div>
-                    </div>
-                  ) : (
-                    <button onClick={() => setConfirmDelete(true)}
-                      className="flex items-center gap-2 text-sm text-red-500 hover:text-red-600 transition-colors">
-                      <Trash2 size={14} /> Shop löschen
-                    </button>
-                  )}
+                  <button onClick={() => setConfirmDelete(true)}
+                    className="flex items-center gap-2 text-sm text-red-500 hover:text-red-600 transition-colors">
+                    <Trash2 size={14} /> Shop löschen
+                  </button>
                 </div>
               )}
             </div>
@@ -249,7 +264,7 @@ export default function ShopsPage() {
             <div className="border-t border-slate-100 px-5 py-4 flex gap-3 shrink-0">
               <button onClick={closePanel}
                 className="flex-1 border border-slate-300 rounded-xl py-3 text-sm text-slate-600 hover:bg-slate-50 transition-colors">Abbrechen</button>
-              <button onClick={handleSave} disabled={saving || !form.domain?.trim() || !form.base_url?.trim()}
+              <button onClick={handleSave} disabled={saving || !form.base_url?.trim()}
                 className="flex-1 bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white rounded-xl py-3 text-sm font-medium transition-colors">
                 {saving ? 'Speichern…' : 'Speichern'}
               </button>

@@ -8,6 +8,7 @@ const SCAN_FORMATS = [
   Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8,
   Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.CODE_39,
   Html5QrcodeSupportedFormats.UPC_A, Html5QrcodeSupportedFormats.QR_CODE,
+  Html5QrcodeSupportedFormats.DATA_MATRIX,
 ]
 const SCAN_DIV = 'entnehmen-scanner-div'
 
@@ -45,7 +46,7 @@ export default function EntnehmenScanModal({ onClose, onSuccess }: Props) {
     setScanActive(true)
     await new Promise(r => setTimeout(r, 150))
     try {
-      const s = new Html5Qrcode(SCAN_DIV, { formatsToSupport: SCAN_FORMATS, verbose: false })
+      const s = new Html5Qrcode(SCAN_DIV, { formatsToSupport: SCAN_FORMATS, verbose: false, experimentalFeatures: { useBarCodeDetectorIfSupported: false } })
       scannerRef.current = s
       await s.start(
         { facingMode: 'environment' },

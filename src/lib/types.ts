@@ -20,11 +20,11 @@ export interface Category {
 
 export interface PriceComparisonShop {
   id: string
-  domain: string
   base_url: string
   search_paths: string[]
-  type: 'html' | 'dm'
   is_active: boolean
+  notes: string | null
+  min_order_value: number | null
   created_at: string
 }
 

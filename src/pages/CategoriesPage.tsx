@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { Search, X, Trash2, ChevronRight } from 'lucide-react'
+import Toast from '../components/Toast'
+import ConfirmDialog from '../components/ConfirmDialog'
 
 interface CategoryRow {
   name: string
@@ -21,6 +23,7 @@ export default function CategoriesPage() {
   const [saving, setSaving] = useState(false)
   const [closing, setClosing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
 
   useEffect(() => { load() }, [])
 
@@ -93,6 +96,7 @@ export default function CategoriesPage() {
     if (isNew) {
       // Just upsert description metadata — the category "exists" once a product uses it
       await supabase.from('categories').upsert({ name, description }, { onConflict: 'name' })
+      setToast('Kategorie hinzugefügt')
       closePanel()
     } else if (selected) {
       const oldName = selected.name
@@ -108,6 +112,7 @@ export default function CategoriesPage() {
           ? supabase.from('categories').delete().eq('name', oldName)
           : Promise.resolve(null),
       ])
+      setToast('Kategorie gespeichert')
       await load()
       closePanel()
     }
@@ -115,11 +120,9 @@ export default function CategoriesPage() {
   }
 
   async function handleDelete() {
-    if (!selected) return
-    await Promise.all([
-      supabase.from('products').update({ category: 'Sonstiges' }).eq('category', selected.name),
-      supabase.from('categories').delete().eq('name', selected.name),
-    ])
+    if (!selected || selected.productCount > 0) return
+    await supabase.from('categories').delete().eq('name', selected.name)
+    setToast('Kategorie gelöscht')
     await load()
     closePanel()
   }
@@ -134,6 +137,14 @@ export default function CategoriesPage() {
 
   return (
     <div className="w-full relative">
+      {toast && <Toast message={toast} onClose={() => setToast(null)} />}
+      {confirmDelete && selected && (
+        <ConfirmDialog
+          message={`Kategorie „${selected.name}" wirklich löschen?`}
+          onConfirm={handleDelete}
+          onCancel={() => setConfirmDelete(false)}
+        />
+      )}
       {/* Toolbar */}
       <div className="px-4 pt-3 pb-3 flex gap-2 items-center">
         <div className="relative w-52 shrink-0">
@@ -226,20 +237,8 @@ export default function CategoriesPage() {
 
               {!isNew && (
                 <div className="pt-4 border-t border-slate-100">
-                  {confirmDelete ? (
-                    <div className="space-y-3">
-                      <p className="text-sm text-slate-600">
-                        {(selected?.productCount ?? 0) > 0
-                          ? `Alle ${selected!.productCount} Artikel werden zu „Sonstiges" verschoben.`
-                          : 'Kategorie wirklich löschen?'}
-                      </p>
-                      <div className="flex gap-2">
-                        <button onClick={() => setConfirmDelete(false)}
-                          className="flex-1 border border-slate-300 rounded-xl py-2.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors">Abbrechen</button>
-                        <button onClick={handleDelete}
-                          className="flex-1 bg-red-500 hover:bg-red-600 text-white rounded-xl py-2.5 text-sm font-medium transition-colors">Löschen</button>
-                      </div>
-                    </div>
+                  {(selected?.productCount ?? 0) > 0 ? (
+                    <p className="text-xs text-slate-400">Kategorie kann nicht gelöscht werden, solange noch {selected!.productCount} Artikel zugeordnet sind.</p>
                   ) : (
                     <button onClick={() => setConfirmDelete(true)}
                       className="flex items-center gap-2 text-sm text-red-500 hover:text-red-600 transition-colors">

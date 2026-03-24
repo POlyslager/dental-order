@@ -233,7 +233,7 @@ useEffect(() => {
       ...form,
       current_stock: parseFloat(form.current_stock) || 0,
       min_stock: parseFloat(form.min_stock) || 0,
-      last_price: form.last_price ? parseFloat(form.last_price) : null,
+      last_price: form.last_price ? parseFloat(form.last_price.replace(',', '.')) : null,
       article_number: form.article_number || null,
       barcode: form.barcode || null,
       supplier_url: form.supplier_url || null,
@@ -826,7 +826,7 @@ function Field({ label, value, onChange, type = 'text', required = false, inputM
             onChange={e => onChange(e.target.value)}
             required={required}
             inputMode={inputMode}
-            pattern={inputMode === 'numeric' ? '[0-9]*' : undefined}
+            pattern={inputMode === 'numeric' ? '[0-9]*' : inputMode === 'decimal' ? '[0-9.,]*' : undefined}
             className={cls}
           />
       }

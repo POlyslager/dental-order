@@ -135,12 +135,13 @@ export default function ProductDetailModal({ product, onClose, onUpdated, onDele
           </select>
         ) : (
           <input
-            type={type}
-            step={type === 'number' ? 'any' : undefined}
+            type={type === 'number' ? 'text' : type}
+            inputMode={type === 'number' ? 'decimal' : undefined}
+            pattern={type === 'number' ? '[0-9.,]*' : undefined}
             value={(value as string | number) ?? ''}
             onChange={e => setForm(prev => ({
               ...prev,
-              [field]: type === 'number' ? (parseFloat(e.target.value) || 0) : e.target.value
+              [field]: type === 'number' ? (parseFloat(e.target.value.replace(',', '.')) || 0) : e.target.value
             }))}
             className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
           />

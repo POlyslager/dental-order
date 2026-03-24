@@ -43,8 +43,8 @@ function nameMatches(query: string, resultName: string | null): boolean {
   const rTokens = tokenise(resultName)
   let matches = 0
   for (const t of qTokens) { if (rTokens.has(t)) matches++ }
-  // Require at least 2 matching words, or 1 if the query has fewer than 2 meaningful words
-  return matches >= Math.min(2, qTokens.size)
+  // 1 match is enough — product names are specific and synonyms are common (e.g. Epinephrin/Adrenalin)
+  return matches >= 1
 }
 
 // ── JSON-LD extraction ───────────────────────────────────────────────────────
@@ -128,22 +128,66 @@ async function searchDm(query: string): Promise<Alternative | null> {
   return null
 }
 
+// ── Microdata / class-price fallback ─────────────────────────────────────────
+function extractProductsFromMicrodata(html: string, pageUrl: string): { name: string | null; price: number; url: string }[] {
+  const found: { name: string | null; price: number; url: string }[] = []
+
+  // Strategy 1: itemprop="price" content="..." — works for OXID, Magento, schema.org microdata
+  for (const m of html.matchAll(/itemprop=["']price["'][^>]*content=["']([0-9.,]+)["']/gi)) {
+    const price = parseFloat((m[1]).replace(',', '.'))
+    if (!price || price <= 0) continue
+    // Look backwards up to 3000 chars for the nearest product name and URL
+    const ctx = html.slice(Math.max(0, m.index! - 3000), m.index!)
+    const nameM = [...ctx.matchAll(/itemprop=["']name["'][^>]*(?:content=["']([^"']+)["']|>([^<]{3,80})<)/gi)].pop()
+    const urlM = [...ctx.matchAll(/(?:itemprop=["']url["'][^>]*(?:content|href)=["']|href=["'])([^"']+)["']/gi)].pop()
+    const name = nameM ? (nameM[1] ?? nameM[2] ?? '').trim() || null : null
+    const rawUrl = urlM?.[1] ?? ''
+    const url = rawUrl.startsWith('http') ? rawUrl : rawUrl.startsWith('/') ? new URL(rawUrl, pageUrl).href : pageUrl
+    found.push({ name, price, url })
+  }
+  if (found.length > 0) return found
+
+  // Strategy 2: data-price-amount (Magento listing pages)
+  for (const m of html.matchAll(/data-price-amount=["']([0-9.,]+)["']/gi)) {
+    const price = parseFloat((m[1]).replace(',', '.'))
+    if (!price || price <= 0) continue
+    const ctx = html.slice(Math.max(0, m.index! - 2000), m.index!)
+    const nameM = [...ctx.matchAll(/itemprop=["']name["'][^>]*(?:content=["']([^"']+)["']|>([^<]{3,80})<)/gi)].pop()
+      ?? [...ctx.matchAll(/class=["'][^"']*product[^"']*(?:name|title)[^"']*["'][^>]*>([^<]{3,80})</gi)].pop()
+    const urlM = [...ctx.matchAll(/href=["']([^"']+)["']/gi)].pop()
+    const name = nameM ? (nameM[1] ?? nameM[2] ?? '').trim() || null : null
+    const rawUrl = urlM?.[1] ?? ''
+    const url = rawUrl.startsWith('http') ? rawUrl : rawUrl.startsWith('/') ? new URL(rawUrl, pageUrl).href : pageUrl
+    found.push({ name, price, url })
+  }
+  return found
+}
+
 // ── HTML-scraping sites ───────────────────────────────────────────────────────
-async function searchSite(site: { domain: string; base: string; searches: string[] }, query: string): Promise<Alternative | null> {
+async function searchSite(site: { domain: string; searches: string[] }, query: string): Promise<Alternative | null> {
   const q = encodeURIComponent(query)
   for (const searchPath of site.searches) {
-    const url = site.base + searchPath.replace('{q}', q)
+    const url = searchPath.replace('{q}', q)
     try {
-      const res = await fetch(url, { headers: HTML_HEADERS, redirect: 'follow', signal: AbortSignal.timeout(4000) })
-      if (!res.ok) continue
+      const res = await fetch(url, { headers: HTML_HEADERS, redirect: 'follow', signal: AbortSignal.timeout(6000) })
+      console.log(`[${site.domain}] ${url} → ${res.status} ${res.statusText}`)
+      if (!res.ok) { console.log(`[${site.domain}] skipped: non-OK status`); continue }
       const html = await res.text()
-      const products = extractProductsFromHtml(html, res.url)
-        .filter(p => nameMatches(query, p.name))
+      const hasJsonLd = html.includes('application/ld+json')
+      const hasItemprop = html.includes('itemprop')
+      const hasPrice = /itemprop=.price|class=.price|data-price/i.test(html)
+      console.log(`[${site.domain}] html=${html.length}b json-ld=${hasJsonLd} itemprop=${hasItemprop} price-hint=${hasPrice}`)
+      let products = extractProductsFromHtml(html, res.url).filter(p => nameMatches(query, p.name))
+      console.log(`[${site.domain}] JSON-LD products found: ${products.length}`)
+      if (products.length === 0) {
+        products = extractProductsFromMicrodata(html, res.url).filter(p => nameMatches(query, p.name))
+        console.log(`[${site.domain}] microdata products found: ${products.length}`)
+      }
       if (products.length > 0) {
         products.sort((a, b) => a.price - b.price)
         return { domain: site.domain, name: products[0].name, url: products[0].url, price: products[0].price }
       }
-    } catch { /* timeout or network error — try next pattern */ }
+    } catch (e) { console.log(`[${site.domain}] error: ${e}`) }
   }
   return null
 }
@@ -155,18 +199,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { productName, brand } = req.body as { productName?: string; brand?: string }
   if (!productName?.trim()) return res.status(400).json({ error: 'productName required' })
 
-  // Prepend brand to query so "Mivolis Magnesium + Kalium Direkt-Sticks" is searched, not just the product name
-  const query = [brand?.trim(), productName.trim()].filter(Boolean).join(' ')
+  const name = productName.trim()
+  const brandTrimmed = brand?.trim() ?? ''
+  // Only prepend brand if it's not already part of the product name
+  const query = brandTrimmed && !name.toLowerCase().includes(brandTrimmed.toLowerCase())
+    ? `${brandTrimmed} ${name}`
+    : name
 
   const { data: shopRows } = await adminClient
     .from('price_comparison_shops')
-    .select('domain, base_url, search_paths, type')
+    .select('base_url, search_paths')
     .eq('is_active', true)
 
   const htmlShops = (shopRows ?? [])
-    .filter(r => r.type === 'html')
-    .map(r => ({ domain: r.domain as string, base: r.base_url as string, searches: r.search_paths as string[] }))
-  const hasDm = (shopRows ?? []).some(r => r.type === 'dm')
+    .filter(r => !new URL(r.base_url as string).hostname.includes('dm.de'))
+    .map(r => ({
+      domain: new URL(r.base_url as string).hostname.replace(/^www\./, ''),
+      searches: r.search_paths as string[],
+    }))
+  const hasDm = (shopRows ?? []).some(r => new URL(r.base_url as string).hostname.includes('dm.de'))
 
   const settled = await Promise.allSettled([
     ...htmlShops.map(site => searchSite(site, query)),
