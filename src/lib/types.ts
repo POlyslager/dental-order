@@ -11,6 +11,13 @@ export interface SupplierHistoryEntry {
   source: string | null
 }
 
+export interface Category {
+  id: string
+  name: string
+  description: string | null
+  created_at: string
+}
+
 export interface PriceComparisonShop {
   id: string
   domain: string
