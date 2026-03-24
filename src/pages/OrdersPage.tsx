@@ -744,50 +744,47 @@ function OpenOrderSection({ order, role, isFirstOverall, isFirstInGroup, scanned
   return (
     <>
       {/* Spacer between supplier groups */}
-      {!isFirstOverall && isFirstInGroup && <tr><td colSpan={6} className="h-4 bg-slate-100" /></tr>}
+      {!isFirstOverall && isFirstInGroup && <tr><td colSpan={7} className="h-4 bg-slate-100" /></tr>}
 
-      {/* Supplier header — shown once per group */}
+      {/* Supplier header — shown once per group, includes progress + total */}
       {isFirstInGroup && (
         <tr className="border-t border-slate-200 bg-slate-50">
-          <td colSpan={6} className="px-4 py-2.5">
-            <p className="font-semibold text-slate-800 text-base">{domain}</p>
+          <td colSpan={7} className="px-4 py-2.5">
+            <div className="flex items-center justify-between gap-3">
+              <p className="font-semibold text-slate-800 text-base">{domain}</p>
+              <div className="flex items-center gap-3 shrink-0">
+                <div className="flex items-center gap-2">
+                  <div className="w-20 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                    <div className="h-full bg-emerald-500 rounded-full transition-all duration-300" style={{ width: `${progressPct}%` }} />
+                  </div>
+                  <span className="text-xs text-slate-500 whitespace-nowrap">{doneCount}/{items.length}</span>
+                </div>
+                {order.total_estimate != null && (
+                  <span className="text-sm text-slate-600">
+                    Gesamt: <span className="font-semibold text-slate-800">€ {order.total_estimate.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </span>
+                )}
+              </div>
+            </div>
           </td>
         </tr>
       )}
 
-      {/* Per-order sub-header: date, status, approve, progress */}
+      {/* Per-order sub-header: status + approve */}
       <tr className={`border-t border-slate-200 ${isFirstInGroup ? 'bg-white' : 'bg-slate-50'}`}>
-        <td colSpan={6} className="px-4 py-2">
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <span className="text-sm text-slate-500">
-                {new Date(order.created_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-              </span>
-              {isPending ? (
-                <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">Ausstehend</span>
-              ) : (
-                <span className="text-xs font-medium text-sky-600 bg-sky-50 px-2 py-0.5 rounded-full">Bestellt</span>
-              )}
-              {isPending && role === 'admin' && (
-                <button onClick={onApprove}
-                  className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap">
-                  <CheckCircle size={12} /> Genehmigen
-                </button>
-              )}
-            </div>
-            <div className="flex items-center gap-3 shrink-0">
-              {order.total_estimate != null && (
-                <span className="text-xs text-slate-500 hidden sm:inline">
-                  € <span className="font-semibold text-slate-700">{order.total_estimate.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                </span>
-              )}
-              <div className="flex items-center gap-2">
-                <div className="w-20 h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                  <div className="h-full bg-emerald-500 rounded-full transition-all duration-300" style={{ width: `${progressPct}%` }} />
-                </div>
-                <span className="text-xs text-slate-500 whitespace-nowrap">{doneCount}/{items.length}</span>
-              </div>
-            </div>
+        <td colSpan={7} className="px-4 py-2">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            {isPending ? (
+              <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">Ausstehend</span>
+            ) : (
+              <span className="text-xs font-medium text-sky-600 bg-sky-50 px-2 py-0.5 rounded-full">Bestellt</span>
+            )}
+            {isPending && role === 'admin' && (
+              <button onClick={onApprove}
+                className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap">
+                <CheckCircle size={12} /> Genehmigen
+              </button>
+            )}
           </div>
         </td>
       </tr>
@@ -795,6 +792,7 @@ function OpenOrderSection({ order, role, isFirstOverall, isFirstInGroup, scanned
       {/* Column headers */}
       <tr className="border-b border-slate-200 bg-white">
         <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide px-4 py-3">Artikel</th>
+        <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap hidden sm:table-cell">Datum</th>
         <th className="text-center text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Bestellt</th>
         <th className="text-center text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Gescannt</th>
         <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap hidden sm:table-cell">Preis/Stück</th>
@@ -807,11 +805,13 @@ function OpenOrderSection({ order, role, isFirstOverall, isFirstInGroup, scanned
         const scanned = scannedCounts[item.id] ?? 0
         const done = scanned >= item.quantity
         const rowTotal = item.quantity * (item.estimated_price ?? 0)
+        const orderDate = new Date(order.created_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
         return (
           <tr key={item.id} className={`border-b border-slate-100 transition-colors ${done ? 'bg-emerald-50/50' : 'bg-white hover:bg-slate-50'}`}>
             <td className="px-4 py-3.5">
               <p className={`text-sm font-semibold truncate max-w-[180px] md:max-w-xs ${done ? 'text-slate-400' : 'text-slate-800'}`}>{item.product?.name ?? '—'}</p>
             </td>
+            <td className="px-3 py-3.5 text-sm text-slate-500 whitespace-nowrap hidden sm:table-cell">{orderDate}</td>
             <td className="px-3 py-3.5 text-center text-slate-500">{item.quantity}</td>
             <td className="px-3 py-3.5 text-center">
               {done ? (

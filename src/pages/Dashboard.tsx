@@ -91,9 +91,10 @@ export default function Dashboard({ user }: Props) {
     async function fetchBadge() {
       const [{ data: cartData }, { data: ordersData }] = await Promise.all([
         supabase.from('cart_items').select('id'),
-        supabase.from('orders').select('id').in('status', ['pending_approval', 'ordered']),
+        supabase.from('orders').select('id, items:order_items(id)').in('status', ['pending_approval', 'ordered']),
       ])
-      setOrderBadge((cartData?.length ?? 0) + (ordersData?.length ?? 0))
+      const ordersWithItems = (ordersData ?? []).filter((o: { items?: { id: string }[] }) => (o.items?.length ?? 0) > 0)
+      setOrderBadge((cartData?.length ?? 0) + ordersWithItems.length)
     }
     fetchBadge()
     const interval = setInterval(fetchBadge, 60000)
