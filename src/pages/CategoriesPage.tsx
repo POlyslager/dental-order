@@ -8,6 +8,7 @@ const inputCls = 'w-full border border-slate-300 rounded-lg px-3 py-2 focus:outl
 export default function CategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([])
   const [productCounts, setProductCounts] = useState<Record<string, number>>({})
+  const [supplierCounts, setSupplierCounts] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState<Category | null>(null)
@@ -22,15 +23,22 @@ export default function CategoriesPage() {
   async function load() {
     const [{ data: cats }, { data: products }] = await Promise.all([
       supabase.from('categories').select('*').order('name'),
-      supabase.from('products').select('category'),
+      supabase.from('products').select('category, preferred_supplier'),
     ])
     setCategories((cats ?? []) as Category[])
     const counts: Record<string, number> = {}
-    for (const p of products ?? []) {
+    const suppliers: Record<string, Set<string>> = {}
+    for (const p of (products ?? []) as { category: string; preferred_supplier: string | null }[]) {
       const c = (p.category ?? '').trim()
-      if (c) counts[c] = (counts[c] ?? 0) + 1
+      if (!c) continue
+      counts[c] = (counts[c] ?? 0) + 1
+      if (p.preferred_supplier) {
+        if (!suppliers[c]) suppliers[c] = new Set()
+        suppliers[c].add(p.preferred_supplier)
+      }
     }
     setProductCounts(counts)
+    setSupplierCounts(Object.fromEntries(Object.entries(suppliers).map(([c, s]) => [c, s.size])))
     setLoading(false)
   }
 
@@ -134,8 +142,8 @@ export default function CategoriesPage() {
       ) : (
         <>
           {/* Desktop header */}
-          <div className="hidden md:grid border-b border-slate-200 bg-white sticky top-0 z-10" style={{ gridTemplateColumns: '1.5fr 2fr 0.5fr 2rem' }}>
-            {['Kategorie', 'Beschreibung', 'Artikel'].map(h => (
+          <div className="hidden md:grid border-b border-slate-200 bg-white sticky top-0 z-10" style={{ gridTemplateColumns: '2fr 0.6fr 0.6fr 2rem' }}>
+            {['Kategorie', 'Artikel', 'Lieferanten'].map(h => (
               <div key={h} className="px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">{h}</div>
             ))}
             <div />
@@ -146,10 +154,13 @@ export default function CategoriesPage() {
             {filtered.map(c => (
               <div key={c.id} onClick={() => openExisting(c)} className="bg-white hover:bg-slate-50 cursor-pointer transition-colors">
                 {/* Desktop */}
-                <div className="hidden md:grid items-center" style={{ gridTemplateColumns: '1.5fr 2fr 0.5fr 2rem' }}>
-                  <div className="px-4 py-3.5 text-sm font-semibold text-slate-800 truncate">{c.name}</div>
-                  <div className="px-4 py-3.5 text-sm text-slate-400 truncate">{c.description ?? '—'}</div>
+                <div className="hidden md:grid items-center" style={{ gridTemplateColumns: '2fr 0.6fr 0.6fr 2rem' }}>
+                  <div className="px-4 py-3.5">
+                    <p className="text-sm font-semibold text-slate-800">{c.name}</p>
+                    {c.description && <p className="text-xs text-slate-400 truncate mt-0.5">{c.description}</p>}
+                  </div>
                   <div className="px-4 py-3.5 text-sm text-slate-400">{productCounts[c.name] ?? 0}</div>
+                  <div className="px-4 py-3.5 text-sm text-slate-400">{supplierCounts[c.name] ?? 0}</div>
                   <div className="py-3.5 text-slate-300"><ChevronRight size={14} /></div>
                 </div>
                 {/* Mobile */}
@@ -158,7 +169,7 @@ export default function CategoriesPage() {
                     <p className="text-sm font-semibold text-slate-800">{c.name}</p>
                     {c.description && <p className="text-xs text-slate-400 truncate mt-0.5">{c.description}</p>}
                   </div>
-                  <span className="text-xs text-slate-400 shrink-0">{productCounts[c.name] ?? 0} Artikel</span>
+                  <span className="text-xs text-slate-400 shrink-0">{productCounts[c.name] ?? 0} Artikel · {supplierCounts[c.name] ?? 0} Lief.</span>
                   <ChevronRight size={14} className="text-slate-300 shrink-0" />
                 </div>
               </div>
