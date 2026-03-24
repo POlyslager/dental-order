@@ -91,8 +91,7 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
   }
 
   function updateBadge(cart: CartItem[], openOrders: Order[]) {
-    const pending = openOrders.filter(o => o.status === 'pending_approval').length
-    onBadgeChange(cart.length + pending)
+    onBadgeChange(cart.length + openOrders.length)
   }
 
   // Group cart items by website domain (from supplier_url), fallback to supplier name

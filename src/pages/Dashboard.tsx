@@ -91,7 +91,7 @@ export default function Dashboard({ user }: Props) {
     async function fetchBadge() {
       const [{ count: cartCount }, { count: pendingCount }] = await Promise.all([
         supabase.from('cart_items').select('*', { count: 'exact', head: true }),
-        supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'pending_approval'),
+        supabase.from('orders').select('*', { count: 'exact', head: true }).in('status', ['pending_approval', 'ordered']),
       ])
       setOrderBadge((cartCount ?? 0) + (pendingCount ?? 0))
     }
