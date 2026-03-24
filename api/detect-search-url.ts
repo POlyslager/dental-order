@@ -1,5 +1,10 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { HTML_HEADERS } from './find-alternatives'
+
+const HTML_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+  'Accept-Language': 'de-DE,de;q=0.9,en;q=0.8',
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).end()
@@ -18,7 +23,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const html = await response.text()
     const finalUrl = response.url
 
-    // Find a <form method="get"> with a text/search input that has a name attribute
     for (const formMatch of html.matchAll(/<form\b[^>]*\bmethod=["']get["'][^>]*>([\s\S]*?)<\/form>/gi)) {
       const formTag = formMatch[0]
       const actionM = formTag.match(/\baction=["']([^"']*?)["']/i)
@@ -30,16 +34,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const action = actionM[1].trim()
       const paramName = inputM[1]
-
-      // Skip obviously wrong actions (anchors, javascript, empty)
       if (!action || action.startsWith('#') || action.startsWith('javascript')) continue
 
-      const base = finalUrl ?? baseUrl
-      const fullAction = action.startsWith('http') ? action : new URL(action, base).href
+      const fullAction = action.startsWith('http') ? action : new URL(action, finalUrl ?? baseUrl).href
       const sep = fullAction.includes('?') ? '&' : '?'
-      const detected = `${fullAction}${sep}${paramName}={q}`
-
-      return res.status(200).json({ detected })
+      return res.status(200).json({ detected: `${fullAction}${sep}${paramName}={q}` })
     }
 
     return res.status(200).json({ detected: null, error: 'Kein Suchformular gefunden' })
