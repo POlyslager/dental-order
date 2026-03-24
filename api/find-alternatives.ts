@@ -167,6 +167,22 @@ export function extractProductsFromMicrodata(html: string, pageUrl: string): { n
     const url = rawUrl.startsWith('http') ? rawUrl : rawUrl.startsWith('/') ? new URL(rawUrl, pageUrl).href : pageUrl
     found.push({ name, price, url })
   }
+  if (found.length > 0) return found
+
+  // Strategy 3: <span class="price">27,25 €</span> — Magento when data-price-amount=0
+  for (const m of html.matchAll(/<span\s+class="price">([0-9][0-9.,]*\s*€?)<\/span>/gi)) {
+    const raw = m[1].replace(/[€\s]/g, '').replace(',', '.')
+    const price = parseFloat(raw)
+    if (!price || price <= 0) continue
+    const ctx = html.slice(Math.max(0, m.index! - 2000), m.index!)
+    const nameM = [...ctx.matchAll(/<a[^>]+class="[^"]*product-item-link[^"]*"[^>]*>([^<]{3,80})</gi)].pop()
+      ?? [...ctx.matchAll(/itemprop=["']name["'][^>]*(?:content=["']([^"']+)["']|>([^<]{3,80})<)/gi)].pop()
+    const urlM = [...ctx.matchAll(/href=["']([^"']+)["']/gi)].pop()
+    const name = nameM ? (nameM[1] ?? nameM[2] ?? '').trim() || null : null
+    const rawUrl = urlM?.[1] ?? ''
+    const url = rawUrl.startsWith('http') ? rawUrl : rawUrl.startsWith('/') ? new URL(rawUrl, pageUrl).href : pageUrl
+    found.push({ name, price, url })
+  }
   return found
 }
 
