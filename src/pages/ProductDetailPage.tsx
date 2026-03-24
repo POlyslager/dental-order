@@ -354,8 +354,8 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
                     </div>
                     {form.last_price != null ? (
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs text-slate-400">€ {Number(form.last_price).toFixed(2)} / {form.unit}</p>
-                        <p className="text-sm font-bold text-slate-800">€ {((parseInt(orderQty) || 0) * Number(form.last_price)).toFixed(2)}</p>
+                        <p className="text-xs text-slate-400">€ {Number(form.last_price).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / {form.unit}</p>
+                        <p className="text-sm font-bold text-slate-800">€ {((parseInt(orderQty) || 0) * Number(form.last_price)).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                       </div>
                     ) : <div className="flex-1" />}
                     <button onClick={handleAddToCart}
@@ -438,7 +438,7 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
                 <Info label="Kategorie" value={form.category} />
                 <Info label="Einheit" value={form.unit} />
                 {form.article_number ? <Info label="Artikelnummer" value={form.article_number} /> : null}
-                {form.last_price != null ? <Info label="Stückpreis" value={`€ ${Number(form.last_price).toFixed(2)}`} /> : null}
+                {form.last_price != null ? <Info label="Stückpreis" value={`€ ${Number(form.last_price).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} /> : null}
                 {form.storage_location ? <Info label="Lagerort" value={form.storage_location} /> : null}
                 {lastScan ? <Info label="Zuletzt geprüft" value={new Date(lastScan).toLocaleDateString('de-DE')} /> : null}
               </div>

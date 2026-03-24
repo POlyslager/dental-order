@@ -45,12 +45,14 @@ export default function ProductDetailModal({ product, onClose, onUpdated, onDele
 
   const reorderQty = Math.max(1, Math.ceil(form.min_stock * 1.5))
 
+  const fmt = (n: number) => n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
   const totalPrice = form.last_price
-    ? (form.last_price * reorderQty).toFixed(2)
+    ? fmt(form.last_price * reorderQty)
     : null
 
   const altTotalPrice = form.alternative_price
-    ? (form.alternative_price * reorderQty).toFixed(2)
+    ? fmt(form.alternative_price * reorderQty)
     : null
 
   useEffect(() => {
@@ -268,8 +270,8 @@ export default function ProductDetailModal({ product, onClose, onUpdated, onDele
                 <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 flex items-center justify-between">
                   <span className="text-sm text-emerald-700">Ersparnis pro Einheit</span>
                   <span className="font-bold text-emerald-700">
-                    € {(form.last_price - form.alternative_price).toFixed(2)}
-                    {form.reorder_quantity ? ` (€ ${((form.last_price - form.alternative_price) * form.reorder_quantity).toFixed(2)} gesamt)` : ''}
+                    € {fmt(form.last_price - form.alternative_price)}
+                    {form.reorder_quantity ? ` (€ ${fmt((form.last_price - form.alternative_price) * form.reorder_quantity)} gesamt)` : ''}
                   </span>
                 </div>
               )}

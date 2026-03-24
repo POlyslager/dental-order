@@ -781,10 +781,10 @@ function ReorderCard({ reorderPrompt, addedToCart, addingToCart, onAdd, onDismis
           {reorderPrompt.product.last_price != null && (
             <div className="flex-1">
               <p className="text-xs text-slate-500 mb-1">
-                € {Number(reorderPrompt.product.last_price).toFixed(2)} / {reorderPrompt.product.unit}
+                € {Number(reorderPrompt.product.last_price).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / {reorderPrompt.product.unit}
               </p>
               <p className="text-sm font-bold text-slate-800">
-                € {((parseInt(reorderPrompt.qty) || 0) * Number(reorderPrompt.product.last_price)).toFixed(2)}
+                € {((parseInt(reorderPrompt.qty) || 0) * Number(reorderPrompt.product.last_price)).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
             </div>
           )}

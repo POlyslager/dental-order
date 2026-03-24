@@ -467,7 +467,6 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
                     <OpenOrderSection
                       key={order.id}
                       order={order}
-                      role={role}
                       isFirstOverall={groupIdx === 0 && orderIdx === 0}
                       isFirstInGroup={orderIdx === 0}
                       scannedCounts={scannedCounts}
