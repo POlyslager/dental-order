@@ -1,17 +1,21 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import type { Category } from '../lib/types'
-import { Plus, Search, X, Trash2, ChevronRight } from 'lucide-react'
+import { Search, X, Trash2, ChevronRight } from 'lucide-react'
+
+interface CategoryRow {
+  name: string
+  description: string | null
+  productCount: number
+  supplierCount: number
+}
 
 const inputCls = 'w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm'
 
 export default function CategoriesPage() {
-  const [categories, setCategories] = useState<Category[]>([])
-  const [productCounts, setProductCounts] = useState<Record<string, number>>({})
-  const [supplierCounts, setSupplierCounts] = useState<Record<string, number>>({})
+  const [categories, setCategories] = useState<CategoryRow[]>([])
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState('')
-  const [selected, setSelected] = useState<Category | null>(null)
+  const [selected, setSelected] = useState<CategoryRow | null>(null)
   const [isNew, setIsNew] = useState(false)
   const [form, setForm] = useState<{ name: string; description: string }>({ name: '', description: '' })
   const [saving, setSaving] = useState(false)
@@ -21,14 +25,21 @@ export default function CategoriesPage() {
   useEffect(() => { load() }, [])
 
   async function load() {
-    const [{ data: cats }, { data: products }] = await Promise.all([
-      supabase.from('categories').select('*').order('name'),
+    const [{ data: productRows }, { data: descRows }] = await Promise.all([
       supabase.from('products').select('category, preferred_supplier'),
+      supabase.from('categories').select('name, description'),
     ])
-    setCategories((cats ?? []) as Category[])
+
+    // Description lookup from categories table
+    const descMap: Record<string, string | null> = {}
+    for (const r of (descRows ?? []) as { name: string; description: string | null }[]) {
+      descMap[r.name] = r.description
+    }
+
+    // Aggregate from products
     const counts: Record<string, number> = {}
     const suppliers: Record<string, Set<string>> = {}
-    for (const p of (products ?? []) as { category: string; preferred_supplier: string | null }[]) {
+    for (const p of (productRows ?? []) as { category: string; preferred_supplier: string | null }[]) {
       const c = (p.category ?? '').trim()
       if (!c) continue
       counts[c] = (counts[c] ?? 0) + 1
@@ -37,8 +48,14 @@ export default function CategoriesPage() {
         suppliers[c].add(p.preferred_supplier)
       }
     }
-    setProductCounts(counts)
-    setSupplierCounts(Object.fromEntries(Object.entries(suppliers).map(([c, s]) => [c, s.size])))
+
+    const names = Object.keys(counts).sort((a, b) => a.localeCompare(b))
+    setCategories(names.map(name => ({
+      name,
+      description: descMap[name] ?? null,
+      productCount: counts[name],
+      supplierCount: suppliers[name]?.size ?? 0,
+    })))
     setLoading(false)
   }
 
@@ -49,7 +66,7 @@ export default function CategoriesPage() {
     setConfirmDelete(false)
   }
 
-  function openExisting(c: Category) {
+  function openExisting(c: CategoryRow) {
     setForm({ name: c.name, description: c.description ?? '' })
     setSelected(c)
     setIsNew(false)
@@ -70,38 +87,46 @@ export default function CategoriesPage() {
   async function handleSave() {
     if (!form.name.trim()) return
     setSaving(true)
-    const payload = { name: form.name.trim(), description: form.description.trim() || null }
+    const name = form.name.trim()
+    const description = form.description.trim() || null
+
     if (isNew) {
-      const { data } = await supabase.from('categories').insert(payload).select().single()
-      if (data) {
-        setCategories(c => [...c, data as Category].sort((a, b) => a.name.localeCompare(b.name)))
-        closePanel()
-      }
+      // Just upsert description metadata — the category "exists" once a product uses it
+      await supabase.from('categories').upsert({ name, description }, { onConflict: 'name' })
+      closePanel()
     } else if (selected) {
       const oldName = selected.name
-      const { data } = await supabase.from('categories').update(payload).eq('id', selected.id).select().single()
-      if (data) {
-        if (oldName !== form.name.trim()) {
-          await supabase.from('products').update({ category: form.name.trim() }).eq('category', oldName)
-        }
-        setCategories(c => c.map(x => x.id === selected.id ? data as Category : x).sort((a, b) => a.name.localeCompare(b.name)))
-        closePanel()
-        await load()
-      }
+      await Promise.all([
+        // Update description metadata
+        supabase.from('categories').upsert({ name, description }, { onConflict: 'name' }),
+        // Rename category on all products if name changed
+        oldName !== name
+          ? supabase.from('products').update({ category: name }).eq('category', oldName)
+          : Promise.resolve(null),
+        // Clean up old entry if renamed
+        oldName !== name
+          ? supabase.from('categories').delete().eq('name', oldName)
+          : Promise.resolve(null),
+      ])
+      await load()
+      closePanel()
     }
     setSaving(false)
   }
 
   async function handleDelete() {
     if (!selected) return
-    await supabase.from('products').update({ category: 'Sonstiges' }).eq('category', selected.name)
-    await supabase.from('categories').delete().eq('id', selected.id)
+    await Promise.all([
+      supabase.from('products').update({ category: 'Sonstiges' }).eq('category', selected.name),
+      supabase.from('categories').delete().eq('name', selected.name),
+    ])
     await load()
     closePanel()
   }
 
   const filtered = categories.filter(c =>
-    query === '' || c.name.toLowerCase().includes(query.toLowerCase()) ||
+    query === '' ||
+    c.name.toLowerCase().includes(query.toLowerCase()) ||
     (c.description ?? '').toLowerCase().includes(query.toLowerCase())
   )
 
@@ -126,12 +151,10 @@ export default function CategoriesPage() {
             </button>
           )}
         </div>
-        <button
-          onClick={openNew}
-          className="ml-auto bg-sky-500 hover:bg-sky-600 text-white px-4 py-2 rounded-xl transition-colors flex items-center gap-2 text-sm font-medium shrink-0"
-        >
-          <Plus size={16} />
-          <span className="hidden sm:inline">Neue Kategorie</span>
+        <button onClick={openNew}
+          className="ml-auto bg-sky-500 hover:bg-sky-600 text-white px-4 py-2 rounded-xl transition-colors flex items-center gap-2 text-sm font-medium shrink-0">
+          <span className="hidden sm:inline text-sm">+ Neue Kategorie</span>
+          <span className="sm:hidden text-sm">+</span>
         </button>
       </div>
 
@@ -141,7 +164,6 @@ export default function CategoriesPage() {
         </div>
       ) : (
         <>
-          {/* Desktop header */}
           <div className="hidden md:grid border-b border-slate-200 bg-white sticky top-0 z-10" style={{ gridTemplateColumns: '2fr 0.6fr 0.6fr 2rem' }}>
             {['Kategorie', 'Artikel', 'Lieferanten'].map(h => (
               <div key={h} className="px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">{h}</div>
@@ -149,27 +171,24 @@ export default function CategoriesPage() {
             <div />
           </div>
 
-          {/* Rows */}
           <div className="divide-y divide-slate-100">
             {filtered.map(c => (
-              <div key={c.id} onClick={() => openExisting(c)} className="bg-white hover:bg-slate-50 cursor-pointer transition-colors">
-                {/* Desktop */}
+              <div key={c.name} onClick={() => openExisting(c)} className="bg-white hover:bg-slate-50 cursor-pointer transition-colors">
                 <div className="hidden md:grid items-center" style={{ gridTemplateColumns: '2fr 0.6fr 0.6fr 2rem' }}>
                   <div className="px-4 py-3.5">
                     <p className="text-sm font-semibold text-slate-800">{c.name}</p>
                     {c.description && <p className="text-xs text-slate-400 truncate mt-0.5">{c.description}</p>}
                   </div>
-                  <div className="px-4 py-3.5 text-sm text-slate-400">{productCounts[c.name] ?? 0}</div>
-                  <div className="px-4 py-3.5 text-sm text-slate-400">{supplierCounts[c.name] ?? 0}</div>
+                  <div className="px-4 py-3.5 text-sm text-slate-400">{c.productCount}</div>
+                  <div className="px-4 py-3.5 text-sm text-slate-400">{c.supplierCount}</div>
                   <div className="py-3.5 text-slate-300"><ChevronRight size={14} /></div>
                 </div>
-                {/* Mobile */}
                 <div className="flex md:hidden items-center px-4 py-3.5 gap-3">
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-slate-800">{c.name}</p>
                     {c.description && <p className="text-xs text-slate-400 truncate mt-0.5">{c.description}</p>}
                   </div>
-                  <span className="text-xs text-slate-400 shrink-0">{productCounts[c.name] ?? 0} Artikel · {supplierCounts[c.name] ?? 0} Lief.</span>
+                  <span className="text-xs text-slate-400 shrink-0">{c.productCount} Artikel · {c.supplierCount} Lief.</span>
                   <ChevronRight size={14} className="text-slate-300 shrink-0" />
                 </div>
               </div>
@@ -182,11 +201,10 @@ export default function CategoriesPage() {
         </>
       )}
 
-      {/* Detail panel */}
       {(panelOpen || closing) && (
         <>
           <div className="hidden md:block fixed inset-0 bg-black/30 z-40" onClick={closePanel} />
-          <div className={`fixed inset-0 bg-white z-50 flex flex-col overflow-y-auto md:inset-auto md:top-4 md:bottom-4 md:right-4 md:w-[520px] md:rounded-2xl md:shadow-2xl md:overflow-hidden ${closing ? 'animate-slide-out-right' : 'animate-slide-in-right'}`}>
+          <div className={`fixed inset-0 bg-white z-50 flex flex-col md:inset-auto md:top-4 md:bottom-4 md:right-4 md:w-[520px] md:rounded-2xl md:shadow-2xl ${closing ? 'animate-slide-out-right' : 'animate-slide-in-right'}`}>
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0">
               <h2 className="font-semibold text-slate-800">{isNew ? 'Neue Kategorie' : 'Kategorie bearbeiten'}</h2>
               <button onClick={closePanel} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors">
@@ -203,8 +221,7 @@ export default function CategoriesPage() {
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Beschreibung</label>
                 <textarea rows={3} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                  placeholder="Optionale Beschreibung…"
-                  className={`${inputCls} resize-none`} />
+                  placeholder="Optionale Beschreibung…" className={`${inputCls} resize-none`} />
               </div>
 
               {!isNew && (
@@ -212,8 +229,8 @@ export default function CategoriesPage() {
                   {confirmDelete ? (
                     <div className="space-y-3">
                       <p className="text-sm text-slate-600">
-                        {(productCounts[selected!.name] ?? 0) > 0
-                          ? `Alle ${productCounts[selected!.name]} Artikel werden zu „Sonstiges" verschoben.`
+                        {(selected?.productCount ?? 0) > 0
+                          ? `Alle ${selected!.productCount} Artikel werden zu „Sonstiges" verschoben.`
                           : 'Kategorie wirklich löschen?'}
                       </p>
                       <div className="flex gap-2">
