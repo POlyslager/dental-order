@@ -17,7 +17,7 @@ interface Props {
 }
 
 export default function EntnehmenScanModal({ onClose, onSuccess }: Props) {
-  const [mode, setMode] = useState<'search' | 'scan'>('search')
+  const [mode, setMode] = useState<'scan' | 'search'>('scan')
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<Product[]>([])
   const [selected, setSelected] = useState<Product | null>(null)
@@ -71,9 +71,13 @@ export default function EntnehmenScanModal({ onClose, onSuccess }: Props) {
     setScanActive(false)
   }
 
-  useEffect(() => () => { stopScanner() }, [])
+  // Auto-start scanner when modal opens
+  useEffect(() => {
+    startScanner()
+    return () => { stopScanner() }
+  }, [])
 
-  function switchMode(m: 'search' | 'scan') {
+  function switchMode(m: 'scan' | 'search') {
     if (m === mode) return
     if (scanActive) stopScanner()
     setMode(m)
@@ -141,25 +145,25 @@ export default function EntnehmenScanModal({ onClose, onSuccess }: Props) {
           <div className="shrink-0 flex gap-3 px-4 py-4 border-t border-slate-100">
             <button onClick={() => setSelected(null)}
               className="flex-1 px-4 py-3 rounded-xl border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors">
-              Annuleren
+              Abbrechen
             </button>
             <button onClick={handleEntnehmen} disabled={taking || selected.current_stock <= 0}
               className="flex-1 px-4 py-3 rounded-xl bg-sky-500 hover:bg-sky-600 text-white text-sm font-semibold transition-colors disabled:opacity-50">
-              {taking ? 'Wordt geboekt…' : 'Entnehmen'}
+              {taking ? 'Wird gebucht…' : 'Entnehmen'}
             </button>
           </div>
           </>
         ) : (
           <>
-            {/* Tabs */}
+            {/* Tabs — Scan first (left), Search second (right) */}
             <div className="flex border-b border-slate-100 shrink-0">
-              <button onClick={() => switchMode('search')}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-sm font-medium border-b-2 transition-colors ${mode === 'search' ? 'border-sky-500 text-sky-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
-                <Search size={14} /> Suchen
-              </button>
               <button onClick={() => switchMode('scan')}
                 className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-sm font-medium border-b-2 transition-colors ${mode === 'scan' ? 'border-sky-500 text-sky-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
                 <Camera size={14} /> Scannen
+              </button>
+              <button onClick={() => switchMode('search')}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-sm font-medium border-b-2 transition-colors ${mode === 'search' ? 'border-sky-500 text-sky-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+                <Search size={14} /> Suchen
               </button>
             </div>
 

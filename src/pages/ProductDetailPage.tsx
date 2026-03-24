@@ -29,9 +29,11 @@ interface Props {
   onItemTaken?: (name: string) => void
   onNavigateToOrders?: () => void
   isModal?: boolean
+  availableCategories?: string[]
+  availableSuppliers?: string[]
 }
 
-export default function ProductDetailPage({ product, onBack, onUpdated, onDeleted, onAddToCart, onCartItemAdded, onItemTaken, onNavigateToOrders, isModal }: Props) {
+export default function ProductDetailPage({ product, onBack, onUpdated, onDeleted, onAddToCart, onCartItemAdded, onItemTaken, onNavigateToOrders, isModal, availableCategories, availableSuppliers }: Props) {
   const [form, setForm] = useState(product)
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -81,12 +83,20 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
         setOrderQty(String(Math.max(velocityQty, fallbackQty)))
       })
 
-    supabase.from('products').select('category').then(({ data }) => {
-      if (data) setCategories([...new Set(data.map(p => p.category))].sort())
-    })
-    supabase.from('products').select('preferred_supplier').not('preferred_supplier', 'is', null).then(({ data }) => {
-      if (data) setSuppliers([...new Set(data.map(p => p.preferred_supplier as string))].filter(Boolean).sort())
-    })
+    if (availableCategories) {
+      setCategories(availableCategories)
+    } else {
+      supabase.from('products').select('category').then(({ data }) => {
+        if (data) setCategories([...new Set(data.map(p => p.category))].sort())
+      })
+    }
+    if (availableSuppliers) {
+      setSuppliers(availableSuppliers)
+    } else {
+      supabase.from('products').select('preferred_supplier').not('preferred_supplier', 'is', null).then(({ data }) => {
+        if (data) setSuppliers([...new Set(data.map(p => p.preferred_supplier as string))].filter(Boolean).sort())
+      })
+    }
     // Check cart and open orders
     ;(async () => {
       const [{ data: cartRow }, { data: orderItems }] = await Promise.all([
@@ -153,10 +163,10 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
 
   async function handleAddToCart() {
     await onAddToCart(product.id, parseInt(orderQty) || 1)
-    setInCart(true)
     if (onCartItemAdded) {
       onCartItemAdded(product.name)
     } else {
+      setInCart(true)
       setAdded(true)
       setTimeout(() => setAdded(false), 2000)
     }
@@ -318,7 +328,7 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
                       <ShoppingCart size={14} className="text-sky-500" />
                     </div>
                     <div>
-                      <p className="text-sm text-slate-400">Artikel is al in bestelling of winkelwagen</p>
+                      <p className="text-sm text-slate-400">Artikel bereits in Bestellung oder Warenkorb</p>
                       {onNavigateToOrders && (
                         <button onClick={onNavigateToOrders} className="text-xs text-sky-500 hover:text-sky-600 transition-colors">
                           Zur Bestellung →

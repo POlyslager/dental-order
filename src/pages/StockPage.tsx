@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
 import { supabase, getCurrentUser } from '../lib/supabase'
 import type { Product, Role } from '../lib/types'
 import ProductDetailPage from './ProductDetailPage'
 import CategorySelect from '../components/CategorySelect'
-import { Search, Plus, X, Camera, ChevronLeft, Activity, ChevronUp, ChevronDown, Package, PackageCheck, PackageX, TriangleAlert, Check, ShoppingCart } from 'lucide-react'
+import { Search, Plus, X, Camera, Activity, ChevronUp, ChevronDown, Package, PackageCheck, PackageX, TriangleAlert, Check, ShoppingCart } from 'lucide-react'
 
 const SCAN_FORMATS = [
   Html5QrcodeSupportedFormats.QR_CODE, Html5QrcodeSupportedFormats.DATA_MATRIX,
@@ -49,6 +49,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
   const [scanning, setScanning] = useState(false)
   const [looking, setLooking] = useState(false)
   const [closingProduct, setClosingProduct] = useState(false)
+  const [closingForm, setClosingForm] = useState(false)
   const [duplicateProduct, setDuplicateProduct] = useState<Product | null>(null)
   const [cartToast, setCartToast] = useState<string | null>(null)
   const [cartToastAction, setCartToastAction] = useState<(() => void) | null>(null)
@@ -186,8 +187,19 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
     setCartProductIds(ids)
   }
 
-  useEffect(() => { fetchProducts(); fetchSuppliers(); fetchCartProductIds() }, [])
   useEffect(() => {
+    fetchProducts(); fetchSuppliers(); fetchCartProductIds()
+    let lastFetch = Date.now()
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && Date.now() - lastFetch > 60_000) {
+        lastFetch = Date.now()
+        fetchCartProductIds()
+      }
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [])
+useEffect(() => {
     if (initialBarcode) {
       setForm(f => ({ ...f, barcode: initialBarcode }))
       setShowForm(true)
@@ -242,21 +254,30 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
     setCartToast(`${addedName} wurde zum Inventar hinzugefügt`)
   }
 
-  const categories = ['all', ...Array.from(new Set(products.map(p => p.category))).sort()]
+  const productCategories = useMemo(() => Array.from(new Set(products.map(p => p.category))).sort(), [products])
+  const categories = useMemo(() => ['all', ...productCategories], [productCategories])
   const brands = suppliers
 
-  const stockHealth = {
+  const stockHealth = useMemo(() => ({
     green:  products.filter(p => p.current_stock > p.min_stock * 1.5).length,
     orange: products.filter(p => p.current_stock > p.min_stock && p.current_stock <= p.min_stock * 1.5).length,
     red:    products.filter(p => p.current_stock <= p.min_stock && p.current_stock > 0).length,
     empty:  products.filter(p => p.current_stock <= 0).length,
+  }), [products])
+
+  function stockRank(p: Product) {
+    if (p.current_stock <= 0) return 3
+    if (p.current_stock <= p.min_stock) return 2
+    if (p.current_stock <= p.min_stock * 1.5) return 1
+    return 0
   }
 
-  const filtered = products.filter(p => {
+  const filtered = useMemo(() => products.filter(p => {
+    const q = search.toLowerCase()
     const matchesSearch =
-      p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.category.toLowerCase().includes(search.toLowerCase()) ||
-      (p.article_number?.toLowerCase().includes(search.toLowerCase()) ?? false)
+      p.name.toLowerCase().includes(q) ||
+      p.category.toLowerCase().includes(q) ||
+      (p.article_number?.toLowerCase().includes(q) ?? false)
     const matchesStatus = (() => {
       if (selectedStatus === 'all')      return true
       if (selectedStatus === 'ok')       return p.current_stock > p.min_stock * 1.5
@@ -269,16 +290,9 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
     const matchesCategory = selectedCategory === 'all' || p.category === selectedCategory
     const matchesBrand = selectedBrands.size === 0 || selectedBrands.has(p.preferred_supplier ?? '')
     return matchesSearch && matchesStatus && matchesCategory && matchesBrand
-  })
+  }), [products, search, selectedStatus, selectedCategory, selectedBrands, cartProductIds])
 
-  function stockRank(p: Product) {
-    if (p.current_stock <= 0) return 3
-    if (p.current_stock <= p.min_stock) return 2
-    if (p.current_stock <= p.min_stock * 1.5) return 1
-    return 0
-  }
-
-  const sorted = [...filtered].sort((a, b) => {
+  const sorted = useMemo(() => [...filtered].sort((a, b) => {
     const dir = sortDir === 'asc' ? 1 : -1
     switch (sortKey) {
       case 'name':               return dir * a.name.localeCompare(b.name)
@@ -289,7 +303,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
       case 'status':             return dir * (stockRank(a) - stockRank(b))
       default:                   return 0
     }
-  })
+  }), [filtered, sortKey, sortDir])
 
   function toggleSort(key: typeof sortKey) {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -307,134 +321,12 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
       : <ChevronDown size={12} className="text-sky-500" />
   }
 
-  function closeForm() { stopBarcodeScanner(); setShowForm(false); setForm(EMPTY_FORM) }
+  function closeForm() {
+    stopBarcodeScanner()
+    setClosingForm(true)
+    setTimeout(() => { setShowForm(false); setClosingForm(false); setForm(EMPTY_FORM) }, 260)
+  }
 
-  if (showForm && !selectedProduct) return (
-    <div className="w-full bg-white animate-slide-in-right">
-      {/* Header */}
-      <header className="bg-white border-b border-slate-200 px-4 py-3 flex items-center gap-3 sticky top-0 z-10">
-        {/* Back button — mobile only */}
-        <button onClick={closeForm} className="md:hidden flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-slate-700 p-1 -ml-1">
-          <ChevronLeft size={16} />
-          Zurück
-        </button>
-        <h2 className="font-semibold text-slate-800 flex-1">Neuer Artikel</h2>
-      </header>
-
-      {/* Scanner modal */}
-      {scanning && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60">
-          <div className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
-              <span className="font-semibold text-slate-800 text-sm">Barcode scannen</span>
-              <button type="button" onClick={stopBarcodeScanner}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors">
-                <X size={18} />
-              </button>
-            </div>
-            <div id="barcode-scanner" className="w-full bg-slate-900" style={{ minHeight: 260 }} />
-            <p className="text-center text-xs text-slate-400 py-2 bg-slate-900">Halte barcode voor de camera</p>
-          </div>
-        </div>
-      )}
-
-      {/* Form */}
-      <form onSubmit={handleCreate} className="p-4 pb-10 space-y-4 max-w-2xl">
-          {/* Scan button — primary, at top of form */}
-          <button type="button" onClick={startBarcodeScanner} disabled={scanning}
-            className="w-full flex items-center justify-center gap-2 bg-sky-500 hover:bg-sky-600 disabled:opacity-40 text-white font-medium rounded-xl py-3 text-sm transition-colors">
-            <Camera size={18} />
-            {form.barcode ? 'Barcode gescannt ✓' : 'Barcode scannen'}
-          </button>
-          <Field label="Name *" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} required />
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Kategorie *</label>
-            <CategorySelect value={form.category} onChange={v => setForm(f => ({ ...f, category: v }))} categories={categories.filter(c => c !== 'all')} required />
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            <Field label="Bestand" inputMode="numeric" value={form.current_stock} onChange={v => setForm(f => ({ ...f, current_stock: v }))} />
-            <Field label="Meldebestand *" inputMode="numeric" value={form.min_stock} onChange={v => setForm(f => ({ ...f, min_stock: v }))} required />
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Einheit</label>
-              <select value={form.unit} onChange={e => setForm(f => ({ ...f, unit: e.target.value }))}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500">
-                {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
-              </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Artikelnummer" value={form.article_number} onChange={v => setForm(f => ({ ...f, article_number: v }))} />
-            <Field label="Stückpreis (€)" inputMode="decimal" value={form.last_price} onChange={v => setForm(f => ({ ...f, last_price: v }))} />
-          </div>
-          <Field label="Beschreibung" value={form.notes} onChange={v => setForm(f => ({ ...f, notes: v }))} rows={3} />
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Lagerort</label>
-            <select value={form.storage_location} onChange={e => setForm(f => ({ ...f, storage_location: e.target.value }))}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500">
-              <option value="">— Kein Lagerort —</option>
-              {STORAGE_LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Lieferant / Hersteller</label>
-            <CategorySelect
-              value={form.preferred_supplier}
-              onChange={v => setForm(f => ({ ...f, preferred_supplier: v }))}
-              categories={brands}
-              placeholder="Lieferant suchen…"
-              newLabel="als neuer Lieferant"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Bestell-Website</label>
-            <div className="flex gap-2">
-              <input type="url" value={form.supplier_url}
-                onChange={e => setForm(f => ({ ...f, supplier_url: e.target.value }))}
-                placeholder="https://…"
-                className="flex-1 border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
-              {(form.supplier_url || form.preferred_supplier) && (form.name || form.article_number) && (
-                <button type="button" onClick={lookupProduct} disabled={looking}
-                  className="px-3 py-2 rounded-lg border border-sky-300 text-sky-600 hover:bg-sky-50 disabled:opacity-40 text-xs font-medium whitespace-nowrap transition-colors">
-                  {looking ? '…' : '↗ Nachschlagen'}
-                </button>
-              )}
-            </div>
-          </div>
-          <div className="flex gap-3 pt-2">
-            <button type="button" onClick={closeForm}
-              className="flex-1 border border-slate-300 rounded-xl py-3 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
-              Abbrechen
-            </button>
-            <button type="submit" disabled={saving}
-              className="flex-1 bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white font-medium rounded-xl py-3 text-sm">
-              {saving ? 'Speichern…' : 'Hinzufügen'}
-            </button>
-          </div>
-        </form>
-
-      {/* Duplicate barcode modal */}
-      {duplicateProduct && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 animate-slide-in-up">
-            <h3 className="font-semibold text-slate-800 text-lg mb-1">Artikel bereits vorhanden</h3>
-            <p className="text-sm text-slate-500 mb-5">
-              <span className="font-medium text-slate-700">{duplicateProduct.name}</span> ist bereits in deinem Inventar.
-            </p>
-            <div className="flex gap-3">
-              <button onClick={() => setDuplicateProduct(null)}
-                className="flex-1 border border-slate-300 rounded-xl py-2.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
-                Abbrechen
-              </button>
-              <button onClick={() => { setSelectedProduct(duplicateProduct); setShowForm(false); setDuplicateProduct(null) }}
-                className="flex-1 bg-sky-500 hover:bg-sky-600 text-white rounded-xl py-2.5 text-sm font-medium transition-colors">
-                Zum Artikel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  )
 
   if (loading) return (
     <div className="flex justify-center py-16">
@@ -483,7 +375,8 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
       setCartToast(`${name} wurde entnommen`)
       fetchProducts()
     },
-    onNavigateToOrders: onNavigateToOrders ?? undefined,
+    availableCategories: productCategories,
+    availableSuppliers: suppliers,
   } : null
 
   return (
@@ -586,58 +479,49 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
         </button>
       </div>
 
-      {/* Table */}
-      <table className="w-full table-fixed">
-          <colgroup>
-            <col style={{ width: '20%' }} />
-            <col className="hidden md:table-column" style={{ width: '20%' }} />
-            <col className="hidden md:table-column" style={{ width: '20%' }} />
-            <col style={{ width: '20%' }} />
-            <col style={{ width: '20%' }} />
-          </colgroup>
-          <thead className="sticky top-0 z-10">
-            <tr className="border-b border-slate-200 bg-white">
-              <Th label="Name"      col="name"               onClick={toggleSort} SortIcon={SortIcon} />
-              <Th label="Kategorie" col="category"           onClick={toggleSort} SortIcon={SortIcon} className="hidden md:table-cell" />
-              <Th label="Lieferant" col="preferred_supplier" onClick={toggleSort} SortIcon={SortIcon} className="hidden md:table-cell" />
-              <Th label="Bestand"   col="current_stock"      onClick={toggleSort} SortIcon={SortIcon} align="right" />
-              <Th label="Status"    col="status"             onClick={toggleSort} SortIcon={SortIcon} />
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {paginated.map(p => (
-              <tr
-                key={p.id}
-                onClick={() => setSelectedProduct(p)}
-                className={`bg-white hover:bg-slate-50 cursor-pointer transition-colors ${selectedProduct?.id === p.id ? 'bg-sky-50' : ''}`}
-              >
-                <td className="px-4 py-3.5">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold text-slate-800">{p.name}</p>
-                    {cartProductIds.has(p.id) && (
-                      <span className="hidden sm:inline-flex items-center gap-1 text-xs font-medium bg-sky-50 text-sky-600 px-2 py-0.5 rounded-full shrink-0">
-                        <ShoppingCart size={10} /> In Bestellung
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-slate-400 md:hidden mt-0.5">{p.category}</p>
-                </td>
-                <td className="hidden md:table-cell px-4 py-3.5 text-sm text-slate-500 truncate">{p.category}</td>
-                <td className="hidden md:table-cell px-4 py-3.5 text-sm text-slate-500 truncate">{p.preferred_supplier ?? '—'}</td>
-                <td className="px-4 py-3.5 text-right">
-                  <span className="text-sm font-bold text-slate-800">{p.current_stock}</span>
-                  <span className="text-xs text-slate-400 ml-1">{p.unit}</span>
-                </td>
-                <td className="px-4 py-3.5"><StockStatus product={p} /></td>
-              </tr>
-            ))}
-            {sorted.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-4 py-12 text-center text-slate-400 text-sm">Keine Artikel gefunden</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+      {/* List (flex rows — guaranteed equal-width columns) */}
+      <div>
+        {/* Header */}
+        <div className="flex border-b border-slate-200 bg-white sticky top-0 z-10">
+          <ColHeader label="Name"      col="name"               onClick={toggleSort} SortIcon={SortIcon} />
+          <ColHeader label="Kategorie" col="category"           onClick={toggleSort} SortIcon={SortIcon} className="hidden md:flex" />
+          <ColHeader label="Lieferant" col="preferred_supplier" onClick={toggleSort} SortIcon={SortIcon} className="hidden md:flex" />
+          <ColHeader label="Bestand"   col="current_stock"      onClick={toggleSort} SortIcon={SortIcon} align="right" />
+          <ColHeader label="Status"    col="status"             onClick={toggleSort} SortIcon={SortIcon} />
+        </div>
+        {/* Rows */}
+        <div className="divide-y divide-slate-100">
+          {paginated.map(p => (
+            <div
+              key={p.id}
+              onClick={() => setSelectedProduct(p)}
+              className={`flex items-center bg-white hover:bg-slate-50 cursor-pointer transition-colors ${selectedProduct?.id === p.id ? 'bg-sky-50' : ''}`}
+            >
+              <div className="flex-1 min-w-0 px-4 py-3.5">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-semibold text-slate-800 truncate">{p.name}</p>
+                  {cartProductIds.has(p.id) && (
+                    <span className="hidden sm:inline-flex items-center gap-1 text-xs font-medium bg-sky-50 text-sky-600 px-2 py-0.5 rounded-full shrink-0">
+                      <ShoppingCart size={10} /> In Bestellung
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-400 md:hidden mt-0.5 truncate">{p.category}</p>
+              </div>
+              <div className="hidden md:flex flex-1 min-w-0 px-4 py-3.5 text-sm text-slate-500 truncate">{p.category}</div>
+              <div className="hidden md:flex flex-1 min-w-0 px-4 py-3.5 text-sm text-slate-500 truncate">{p.preferred_supplier ?? '—'}</div>
+              <div className="flex-1 px-4 py-3.5 text-right">
+                <span className="text-sm font-bold text-slate-800">{p.current_stock}</span>
+                <span className="text-xs text-slate-400 ml-1">{p.unit}</span>
+              </div>
+              <div className="flex-1 px-4 py-3.5"><StockStatus product={p} /></div>
+            </div>
+          ))}
+          {sorted.length === 0 && (
+            <p className="px-4 py-12 text-center text-slate-400 text-sm">Keine Artikel gefunden</p>
+          )}
+        </div>
+      </div>
 
       {/* Pagination (md+) */}
       {totalPages > 1 && (
@@ -731,6 +615,112 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
         </div>
       )}
 
+      {/* New article form — slide-in panel */}
+      {(showForm || closingForm) && !selectedProduct && (
+        <>
+          <div className="hidden md:block fixed inset-0 bg-black/30 z-40" onClick={closeForm} />
+          <div className={`fixed inset-0 bg-white z-50 overflow-y-auto md:inset-auto md:top-4 md:bottom-4 md:right-4 md:w-[520px] md:rounded-2xl md:shadow-2xl ${closingForm ? 'animate-slide-out-right' : 'animate-slide-in-right'}`}>
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-4 border-b border-slate-100 sticky top-0 bg-white z-10">
+              <h2 className="font-semibold text-slate-800">Neuer Artikel</h2>
+              <button onClick={closeForm} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Scanner modal */}
+            {scanning && (
+              <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/60">
+                <div className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl shadow-2xl overflow-hidden">
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+                    <span className="font-semibold text-slate-800 text-sm">Barcode scannen</span>
+                    <button type="button" onClick={stopBarcodeScanner}
+                      className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors">
+                      <X size={18} />
+                    </button>
+                  </div>
+                  <div id="barcode-scanner" className="w-full bg-slate-900" style={{ minHeight: 260 }} />
+                  <p className="text-center text-xs text-slate-400 py-2 bg-slate-900">Barcode vor die Kamera halten</p>
+                </div>
+              </div>
+            )}
+
+            {/* Form */}
+            <form onSubmit={handleCreate} className="p-4 pb-10 space-y-4">
+              <button type="button" onClick={startBarcodeScanner} disabled={scanning}
+                className="w-full flex items-center justify-center gap-2 bg-sky-500 hover:bg-sky-600 disabled:opacity-40 text-white font-medium rounded-xl py-3 text-sm transition-colors">
+                <Camera size={18} />
+                {form.barcode ? 'Barcode gescannt ✓' : 'Barcode scannen'}
+              </button>
+              <Field label="Name *" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} required />
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Kategorie *</label>
+                <CategorySelect value={form.category} onChange={v => setForm(f => ({ ...f, category: v }))} categories={productCategories} required />
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <Field label="Bestand" inputMode="numeric" value={form.current_stock} onChange={v => setForm(f => ({ ...f, current_stock: v }))} />
+                <Field label="Meldebestand *" inputMode="numeric" value={form.min_stock} onChange={v => setForm(f => ({ ...f, min_stock: v }))} required />
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Einheit</label>
+                  <select value={form.unit} onChange={e => setForm(f => ({ ...f, unit: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500">
+                    {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Artikelnummer" value={form.article_number} onChange={v => setForm(f => ({ ...f, article_number: v }))} />
+                <Field label="Stückpreis (€)" inputMode="decimal" value={form.last_price} onChange={v => setForm(f => ({ ...f, last_price: v }))} />
+              </div>
+              <Field label="Beschreibung" value={form.notes} onChange={v => setForm(f => ({ ...f, notes: v }))} rows={3} />
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Lagerort</label>
+                <select value={form.storage_location} onChange={e => setForm(f => ({ ...f, storage_location: e.target.value }))}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500">
+                  <option value="">— Kein Lagerort —</option>
+                  {STORAGE_LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Lieferant / Hersteller</label>
+                <CategorySelect
+                  value={form.preferred_supplier}
+                  onChange={v => setForm(f => ({ ...f, preferred_supplier: v }))}
+                  categories={suppliers}
+                  placeholder="Lieferant suchen…"
+                  newLabel="als neuer Lieferant"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Bestell-Website</label>
+                <div className="flex gap-2">
+                  <input type="url" value={form.supplier_url}
+                    onChange={e => setForm(f => ({ ...f, supplier_url: e.target.value }))}
+                    placeholder="https://…"
+                    className="flex-1 border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
+                  {(form.supplier_url || form.preferred_supplier) && (form.name || form.article_number) && (
+                    <button type="button" onClick={lookupProduct} disabled={looking}
+                      className="px-3 py-2 rounded-lg border border-sky-300 text-sky-600 hover:bg-sky-50 disabled:opacity-40 text-xs font-medium whitespace-nowrap transition-colors">
+                      {looking ? '…' : '↗ Nachschlagen'}
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={closeForm}
+                  className="flex-1 border border-slate-300 rounded-xl py-3 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
+                  Abbrechen
+                </button>
+                <button type="submit" disabled={saving}
+                  className="flex-1 bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white font-medium rounded-xl py-3 text-sm">
+                  {saving ? 'Speichern…' : 'Hinzufügen'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </>
+      )}
+
       {/* Product detail — full-screen on mobile, side panel modal on md+ */}
       {(selectedProduct || closingProduct) && productDetailProps && (
         <>
@@ -747,8 +737,8 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
   )
 }
 
-// ── Sortable table header ────────────────────────────────────────────────────
-function Th({ label, col, onClick, SortIcon, align, className = '' }: {
+// ── Sortable column header (flex-based) ──────────────────────────────────────
+function ColHeader({ label, col, onClick, SortIcon, align, className = '' }: {
   label: string
   col: string
   onClick: (col: never) => void
@@ -757,15 +747,13 @@ function Th({ label, col, onClick, SortIcon, align, className = '' }: {
   className?: string
 }) {
   return (
-    <th
+    <button
       onClick={() => onClick(col as never)}
-      className={`${align === 'right' ? 'text-right' : 'text-left'} text-xs font-semibold text-slate-400 uppercase tracking-wide px-4 py-3 cursor-pointer select-none hover:text-slate-600 transition-colors ${className}`}
+      className={`flex-1 flex items-center gap-1 px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide cursor-pointer select-none hover:text-slate-600 transition-colors ${align === 'right' ? 'justify-end' : 'justify-start'} ${className}`}
     >
-      <span className="inline-flex items-center gap-1">
-        {label}
-        <SortIcon col={col as never} />
-      </span>
-    </th>
+      {label}
+      <SortIcon col={col as never} />
+    </button>
   )
 }
 

@@ -1,18 +1,27 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { supabase, getUserRole } from '../lib/supabase'
 import { subscribeToPush, currentPermission, isPushSupported } from '../lib/push'
 import type { Role } from '../lib/types'
-import StockPage from './StockPage'
-import OrdersPage from './OrdersPage'
-import OverviewPage from './OverviewPage'
-import TermsPage from './TermsPage'
 import {
   Package, ScanLine, ShoppingCart, Menu, X, Settings,
   LayoutDashboard, Bell, BellOff, ScrollText, LogOut,
   ChevronLeft, ChevronRight, PackageMinus, PackagePlus, Check,
 } from 'lucide-react'
-import EntnehmenScanModal from '../components/EntnehmenScanModal'
+
+const StockPage          = lazy(() => import('./StockPage'))
+const OrdersPage         = lazy(() => import('./OrdersPage'))
+const OverviewPage       = lazy(() => import('./OverviewPage'))
+const TermsPage          = lazy(() => import('./TermsPage'))
+const EntnehmenScanModal = lazy(() => import('../components/EntnehmenScanModal'))
+
+function PageSpinner() {
+  return (
+    <div className="flex justify-center py-20">
+      <div className="w-6 h-6 border-4 border-sky-500 border-t-transparent rounded-full animate-spin" />
+    </div>
+  )
+}
 
 
 type Tab = 'overview' | 'stock' | 'orders' | 'scan'
@@ -87,9 +96,9 @@ export default function Dashboard({ user }: Props) {
       setOrderBadge((cartCount ?? 0) + (pendingCount ?? 0))
     }
     fetchBadge()
-    const interval = setInterval(fetchBadge, 30000)
+    const interval = setInterval(fetchBadge, 60000)
     return () => clearInterval(interval)
-  }, [tab])
+  }, [])
 
   const bottomTabs: { id: Tab; icon: React.ReactNode; badge?: number }[] = [
     { id: 'stock',  icon: <Package size={26} /> },
@@ -292,15 +301,16 @@ export default function Dashboard({ user }: Props) {
           style={{ overscrollBehavior: 'none' }}
         >
           <div className="pb-20 md:pb-0 min-h-full">
-            {showTerms
-              ? <TermsPage onBack={() => setShowTerms(false)} />
-              : <>
-                  {tab === 'overview' && <OverviewPage />}
-                  {tab === 'stock'    && <StockPage role={role} initialBarcode={pendingBarcode} onBarcodeConsumed={() => setPendingBarcode(null)} onNavigateToOrders={() => setTab('orders')} />}
-
-                  {tab === 'orders'   && <OrdersPage role={role} user={user} onBadgeChange={setOrderBadge} forceOpenTab={forceOrdersOpenTab} forceScanMode={forceOrdersScanMode} />}
-                </>
-            }
+            <Suspense fallback={<PageSpinner />}>
+              {showTerms
+                ? <TermsPage onBack={() => setShowTerms(false)} />
+                : <>
+                    {tab === 'overview' && <OverviewPage />}
+                    {tab === 'stock'    && <StockPage role={role} initialBarcode={pendingBarcode} onBarcodeConsumed={() => setPendingBarcode(null)} onNavigateToOrders={() => setTab('orders')} />}
+                    {tab === 'orders'   && <OrdersPage role={role} user={user} onBadgeChange={setOrderBadge} forceOpenTab={forceOrdersOpenTab} forceScanMode={forceOrdersScanMode} />}
+                  </>
+              }
+            </Suspense>
           </div>
         </main>
 
@@ -376,13 +386,15 @@ export default function Dashboard({ user }: Props) {
 
       {/* ── Entnehmen scan modal ── */}
       {scanMode === 'entnehmen' && (
-        <EntnehmenScanModal
-          onClose={() => setScanMode(null)}
-          onSuccess={(name) => {
-            setScanMode(null)
-            showDashToast(`${name} wurde entnommen`)
-          }}
-        />
+        <Suspense fallback={null}>
+          <EntnehmenScanModal
+            onClose={() => setScanMode(null)}
+            onSuccess={(name) => {
+              setScanMode(null)
+              showDashToast(`${name} wurde entnommen`)
+            }}
+          />
+        </Suspense>
       )}
 
       {/* ── Dash toast ── */}

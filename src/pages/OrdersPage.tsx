@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import type { CartItem, Order, OrderItem, Role } from '../lib/types'
@@ -59,6 +59,9 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
     }
   }, [forceScanMode])
 
+  // Stop scanner on unmount (user navigated to a different main page)
+  useEffect(() => () => { stopInlineScanner() }, [])
+
   // Stop scanner only when tab changes away FROM 'open' (not on initial mount)
   useEffect(() => {
     if (prevTabRef.current === 'open' && tab !== 'open' && scanToggleRef.current) {
@@ -101,6 +104,18 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
   }, {})
 
   const grandTotal = cartItems.reduce((s, i) => s + (i.quantity * (i.product?.last_price ?? 0)), 0)
+
+  const ordersBySupplier = useMemo<[string, Order[]][]>(() => {
+    const grouped: [string, Order[]][] = []
+    const seen: Record<string, number> = {}
+    for (const order of orders) {
+      const items = order.items ?? []
+      const domain = getDomain(items[0]?.product?.supplier_url) ?? order.supplier ?? 'Unbekannter Lieferant'
+      if (seen[domain] === undefined) { seen[domain] = grouped.length; grouped.push([domain, []]) }
+      grouped[seen[domain]][1].push(order)
+    }
+    return grouped
+  }, [orders])
 
   async function updateQuantity(id: string, quantity: number) {
     if (quantity < 1) return removeItem(id)
@@ -203,7 +218,7 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
     const allDone = items.every(i => (counts[i.id] ?? 0) >= i.quantity)
     if (allDone) {
       await supabase.from('orders').update({ status: 'received' }).eq('id', order.id)
-      showToast(`Alle artikelen van ${order.supplier ?? 'Lieferant'} ontvangen en ingeboekt`)
+      showToast(`Alle Artikel von ${order.supplier ?? 'Lieferant'} erhalten und eingebucht`)
       fetchOrders()
     }
   }
@@ -456,17 +471,20 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
           ) : (
             <table className="w-full text-sm">
               <tbody>
-                {orders.map((order, idx) => (
-                  <OpenOrderSection
-                    key={order.id}
-                    order={order}
-                    role={role}
-                    isFirst={idx === 0}
-                    scannedCounts={scannedCounts}
-                    receiving={receiving}
-                    onReceiveItem={(item) => receiveOrderItem(item, order.id)}
-                    onApprove={() => approveOrder(order.id)}
-                  />
+                {ordersBySupplier.map(([, groupOrders], groupIdx) => (
+                  groupOrders.map((order, orderIdx) => (
+                    <OpenOrderSection
+                      key={order.id}
+                      order={order}
+                      role={role}
+                      isFirstOverall={groupIdx === 0 && orderIdx === 0}
+                      isFirstInGroup={orderIdx === 0}
+                      scannedCounts={scannedCounts}
+                      receiving={receiving}
+                      onReceiveItem={(item) => receiveOrderItem(item, order.id)}
+                      onApprove={() => approveOrder(order.id)}
+                    />
+                  ))
                 ))}
               </tbody>
             </table>
@@ -545,23 +563,23 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
           {/* Camera */}
           <div id={EINBUCHEN_SCAN_DIV} className="w-full bg-slate-900" style={{ minHeight: 220 }} />
           {!scanConfirm && (
-            <p className="text-center text-xs text-slate-400 py-2 bg-slate-900">Halte barcode voor de camera</p>
+            <p className="text-center text-xs text-slate-400 py-2 bg-slate-900">Barcode vor die Kamera halten</p>
           )}
 
           {/* Confirm panel */}
           {scanConfirm && (
             <div className="p-4 border-t border-slate-100">
-              <p className="text-xs text-slate-500 mb-1.5">Juist artikel gescand?</p>
+              <p className="text-xs text-slate-500 mb-1.5">Richtiger Artikel?</p>
               <p className="font-semibold text-slate-800 text-sm leading-snug">{scanConfirm.item.product?.name ?? '—'}</p>
               <p className="text-xs text-slate-400 mt-0.5 mb-4">
-                {scanConfirm.order.supplier ?? 'Lieferant'} · gescand: {scannedCounts[scanConfirm.item.id] ?? 0}/{scanConfirm.item.quantity}
+                {scanConfirm.order.supplier ?? 'Lieferant'} · gescannt: {scannedCounts[scanConfirm.item.id] ?? 0}/{scanConfirm.item.quantity}
               </p>
               <div className="flex gap-2">
                 <button
                   onClick={() => setScanConfirm(null)}
                   className="flex-1 px-3 py-2 rounded-xl border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors"
                 >
-                  Niet juist
+                  Nicht korrekt
                 </button>
                 <button
                   onClick={async () => {
@@ -571,7 +589,7 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
                   }}
                   className="flex-1 px-3 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium transition-colors"
                 >
-                  +1 bevestigen
+                  +1 bestätigen
                 </button>
               </div>
             </div>
@@ -605,7 +623,7 @@ function CartItemRow({ item, placing, onUpdateQuantity, onPlaceOrder, onRemoveRe
             onClick={e => e.stopPropagation()}
             className="flex items-center gap-1 text-xs text-emerald-600 mt-0.5">
             <ExternalLink size={10} />
-            Günstiger: € {item.product.alternative_price} bij {item.product.alternative_supplier ?? 'Alternativlieferant'}
+            Günstiger: € {item.product.alternative_price} bei {item.product.alternative_supplier ?? 'Alternativlieferant'}
           </a>
         )}
       </td>
@@ -709,8 +727,9 @@ function TabButton({ active, onClick, badge, children }: {
 }
 
 // ── Open order section ─────────────────────────────────────────────────────
-function OpenOrderSection({ order, role, isFirst, scannedCounts, receiving, onReceiveItem, onApprove }: {
-  order: Order; role: Role | null; isFirst: boolean
+function OpenOrderSection({ order, role, isFirstOverall, isFirstInGroup, scannedCounts, receiving, onReceiveItem, onApprove }: {
+  order: Order; role: Role | null
+  isFirstOverall: boolean; isFirstInGroup: boolean
   scannedCounts: Record<string, number>; receiving: string | null
   onReceiveItem: (item: OrderItem) => void; onApprove: () => void
 }) {
@@ -722,18 +741,31 @@ function OpenOrderSection({ order, role, isFirst, scannedCounts, receiving, onRe
 
   return (
     <>
-      {/* Spacer between orders */}
-      {!isFirst && <tr><td colSpan={6} className="h-4 bg-slate-100" /></tr>}
+      {/* Spacer between supplier groups */}
+      {!isFirstOverall && isFirstInGroup && <tr><td colSpan={6} className="h-4 bg-slate-100" /></tr>}
 
-      {/* Domain / supplier header row */}
-      <tr className="border-t border-slate-200 bg-slate-50">
-        <td colSpan={6} className="px-4 py-2.5">
+      {/* Supplier header — shown once per group */}
+      {isFirstInGroup && (
+        <tr className="border-t border-slate-200 bg-slate-50">
+          <td colSpan={6} className="px-4 py-2.5">
+            <p className="font-semibold text-slate-800 text-base">{domain}</p>
+          </td>
+        </tr>
+      )}
+
+      {/* Per-order sub-header: date, status, approve, progress */}
+      <tr className={`border-t border-slate-200 ${isFirstInGroup ? 'bg-white' : 'bg-slate-50'}`}>
+        <td colSpan={6} className="px-4 py-2">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <p className="font-semibold text-slate-800 text-base">{domain}</p>
-              <span className="text-sm text-slate-400">
+              <span className="text-sm text-slate-500">
                 {new Date(order.created_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}
               </span>
+              {isPending ? (
+                <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">Ausstehend</span>
+              ) : (
+                <span className="text-xs font-medium text-sky-600 bg-sky-50 px-2 py-0.5 rounded-full">Bestellt</span>
+              )}
               {isPending && role === 'admin' && (
                 <button onClick={onApprove}
                   className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap">
@@ -744,7 +776,7 @@ function OpenOrderSection({ order, role, isFirst, scannedCounts, receiving, onRe
             <div className="flex items-center gap-3 shrink-0">
               {order.total_estimate != null && (
                 <span className="text-xs text-slate-500 hidden sm:inline">
-                  Gesamt: <span className="font-semibold text-slate-700">€ {order.total_estimate.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  € <span className="font-semibold text-slate-700">{order.total_estimate.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </span>
               )}
               <div className="flex items-center gap-2">
@@ -761,11 +793,11 @@ function OpenOrderSection({ order, role, isFirst, scannedCounts, receiving, onRe
       {/* Column headers */}
       <tr className="border-b border-slate-200 bg-white">
         <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide px-4 py-3">Artikel</th>
-        <th className="text-center text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Besteld</th>
-        <th className="text-center text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Gescand</th>
-        <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap hidden sm:table-cell">Prijs/stuk</th>
-        <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Totaal</th>
-        <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Actie</th>
+        <th className="text-center text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Bestellt</th>
+        <th className="text-center text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Gescannt</th>
+        <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap hidden sm:table-cell">Preis/Stück</th>
+        <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Gesamt</th>
+        <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Aktion</th>
       </tr>
 
       {/* Item rows */}
@@ -781,13 +813,13 @@ function OpenOrderSection({ order, role, isFirst, scannedCounts, receiving, onRe
             <td className="px-3 py-3.5 text-center text-slate-500">{item.quantity}</td>
             <td className="px-3 py-3.5 text-center">
               {done ? (
-                <span className="inline-flex items-center justify-center gap-1 text-xs text-emerald-600 font-semibold">
-                  <Check size={12} /> {item.quantity}
+                <span className="inline-flex items-center justify-center gap-1 text-slate-500 font-semibold">
+                  <Check size={12} className="text-emerald-600" /> {item.quantity}
                 </span>
               ) : scanned > 0 ? (
-                <span className="text-xs font-semibold text-sky-600">{scanned}/{item.quantity}</span>
+                <span className="font-semibold text-sky-600">{scanned}/{item.quantity}</span>
               ) : (
-                <span className="text-xs text-slate-300">—</span>
+                <span className="text-slate-300">—</span>
               )}
             </td>
             <td className="px-3 py-3.5 text-right text-slate-500 whitespace-nowrap hidden sm:table-cell">

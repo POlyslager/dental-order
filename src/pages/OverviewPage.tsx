@@ -1,93 +1,81 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Product } from '../lib/types'
 import { Euro, Package, ShoppingCart, Activity, TrendingUp } from 'lucide-react'
 
-const TODAY = new Date()
-const THIRTY_DAYS_AGO = new Date(TODAY.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()
-
+type ProductKpi = Pick<Product, 'id' | 'current_stock' | 'min_stock' | 'last_price'>
 type MovementRow = { product_id: string; quantity: number; type: string; created_at: string; products: { name: string } | null }
 type OrderRow = { id: string; status: string; created_at: string }
 
 export default function OverviewPage() {
-  const [products, setProducts] = useState<Product[]>([])
+  const [products, setProducts] = useState<ProductKpi[]>([])
   const [movements, setMovements] = useState<MovementRow[]>([])
-  const [recentMovements, setRecentMovements] = useState<MovementRow[]>([])
   const [orders, setOrders] = useState<OrderRow[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    const ONE_YEAR_AGO = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString()
+    const THIRTY_DAYS_AGO = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
     Promise.all([
-      supabase.from('products').select('*'),
-      supabase.from('stock_movements').select('product_id, quantity, type, created_at, products(name)'),
-      supabase.from('stock_movements').select('product_id, quantity, type, created_at, products(name)')
-        .gte('created_at', THIRTY_DAYS_AGO),
-      supabase.from('orders').select('id, status, created_at'),
-    ]).then(([{ data: p }, { data: m }, { data: rm }, { data: o }]) => {
-      setProducts(p ?? [])
+      supabase.from('products').select('id, current_stock, min_stock, last_price'),
+      supabase.from('stock_movements')
+        .select('product_id, quantity, type, created_at, products(name)')
+        .gte('created_at', ONE_YEAR_AGO)
+        .order('created_at', { ascending: false })
+        .limit(2000),
+      supabase.from('orders').select('id, status, created_at').gte('created_at', THIRTY_DAYS_AGO),
+    ]).then(([{ data: p }, { data: m }, { data: o }]) => {
+      setProducts((p ?? []) as ProductKpi[])
       setMovements((m as unknown as MovementRow[]) ?? [])
-      setRecentMovements((rm as unknown as MovementRow[]) ?? [])
       setOrders(o ?? [])
       setLoading(false)
     })
   }, [])
+
+  const THIRTY_DAYS_AGO = useMemo(() => new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(), [])
+  const totalValue = useMemo(() => products.reduce((sum, p) => sum + (p.current_stock * (p.last_price ?? 0)), 0), [products])
+  const movementsThisMonth = useMemo(() => movements.filter(m => m.created_at >= THIRTY_DAYS_AGO).length, [movements, THIRTY_DAYS_AGO])
+  const stockHealth = useMemo(() => ({
+    green:  products.filter(p => p.current_stock > p.min_stock * 1.5).length,
+    orange: products.filter(p => p.current_stock > p.min_stock && p.current_stock <= p.min_stock * 1.5).length,
+    red:    products.filter(p => p.current_stock <= p.min_stock).length,
+  }), [products])
+  const topProducts = useMemo(() => {
+    const usageCounts: Record<string, { name: string; count: number; quantity: number }> = {}
+    movements.filter(m => m.type === 'scan_out' || m.type === 'manual_out').forEach(m => {
+      const name = m.products?.name ?? m.product_id
+      if (!usageCounts[m.product_id]) usageCounts[m.product_id] = { name, count: 0, quantity: 0 }
+      usageCounts[m.product_id].count++
+      usageCounts[m.product_id].quantity += m.quantity
+    })
+    return Object.entries(usageCounts).sort((a, b) => b[1].quantity - a[1].quantity).slice(0, 10)
+  }, [movements])
+  const dailyData = useMemo(() => {
+    const today = new Date()
+    return Array.from({ length: 14 }, (_, i) => {
+      const day = new Date(today)
+      day.setDate(today.getDate() - (13 - i))
+      day.setHours(0, 0, 0, 0)
+      const nextDay = new Date(day); nextDay.setDate(day.getDate() + 1)
+      const nextTs = nextDay.getTime(); const dayTs = day.getTime()
+      let inQty = 0, outQty = 0
+      for (const m of movements) {
+        const t = new Date(m.created_at).getTime()
+        if (t < dayTs || t >= nextTs) continue
+        if (m.type === 'scan_in' || m.type === 'manual_in') inQty += m.quantity
+        else if (m.type === 'scan_out' || m.type === 'manual_out') outQty += m.quantity
+      }
+      return { label: day.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }), shortLabel: day.toLocaleDateString('de-DE', { day: 'numeric' }), in: inQty, out: outQty }
+    })
+  }, [movements])
+  const maxDaily = useMemo(() => Math.max(...dailyData.map(d => d.in + d.out), 1), [dailyData])
+  const orderStatuses = useMemo(() => orders.reduce<Record<string, number>>((acc, o) => { acc[o.status] = (acc[o.status] ?? 0) + 1; return acc }, {}), [orders])
 
   if (loading) return (
     <div className="flex justify-center py-20">
       <div className="w-6 h-6 border-4 border-sky-500 border-t-transparent rounded-full animate-spin" />
     </div>
   )
-
-  // KPIs
-  const totalValue = products.reduce((sum, p) => sum + (p.current_stock * (p.last_price ?? 0)), 0)
-  const ordersThisMonth = orders.filter(o => o.created_at >= THIRTY_DAYS_AGO).length
-  const movementsThisMonth = recentMovements.length
-  const stockHealth = {
-    green: products.filter(p => p.current_stock > p.min_stock * 1.5).length,
-    orange: products.filter(p => p.current_stock > p.min_stock && p.current_stock <= p.min_stock * 1.5).length,
-    red: products.filter(p => p.current_stock <= p.min_stock).length,
-  }
-
-  // Top 10 most used products (scan_out movements all time)
-  const usageCounts: Record<string, { name: string; count: number; quantity: number }> = {}
-  movements
-    .filter(m => m.type === 'scan_out' || m.type === 'manual_out')
-    .forEach(m => {
-      const name = m.products?.name ?? m.product_id
-      if (!usageCounts[m.product_id]) usageCounts[m.product_id] = { name, count: 0, quantity: 0 }
-      usageCounts[m.product_id].count++
-      usageCounts[m.product_id].quantity += m.quantity
-    })
-  const topProducts = Object.entries(usageCounts)
-    .sort((a, b) => b[1].quantity - a[1].quantity)
-    .slice(0, 10)
-
-  // 14-day daily timeline (in vs out)
-  const dailyData = Array.from({ length: 14 }, (_, i) => {
-    const day = new Date(TODAY)
-    day.setDate(TODAY.getDate() - (13 - i))
-    day.setHours(0, 0, 0, 0)
-    const next = new Date(day); next.setDate(day.getDate() + 1)
-    const dayMovements = movements.filter(m => {
-      const t = new Date(m.created_at)
-      return t >= day && t < next
-    })
-    const inQty = dayMovements.filter(m => m.type === 'scan_in' || m.type === 'manual_in').reduce((s, m) => s + m.quantity, 0)
-    const outQty = dayMovements.filter(m => m.type === 'scan_out' || m.type === 'manual_out').reduce((s, m) => s + m.quantity, 0)
-    return {
-      label: day.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }),
-      shortLabel: day.toLocaleDateString('de-DE', { day: 'numeric' }),
-      in: inQty,
-      out: outQty,
-    }
-  })
-  const maxDaily = Math.max(...dailyData.map(d => d.in + d.out), 1)
-
-  // Order status breakdown
-  const orderStatuses = orders.reduce<Record<string, number>>((acc, o) => {
-    acc[o.status] = (acc[o.status] ?? 0) + 1
-    return acc
-  }, {})
 
   const STATUS_LABELS: Record<string, string> = {
     draft: 'Entwurf', pending_approval: 'Ausstehend', approved: 'Genehmigt',
@@ -112,7 +100,7 @@ export default function OverviewPage() {
           value={String(products.length)} />
         <KpiCard icon={<ShoppingCart size={18} className="text-violet-500" />} bg="bg-violet-50"
           label="Bestellungen (30 Tage)"
-          value={String(ordersThisMonth)} />
+          value={String(orders.length)} />
         <KpiCard icon={<Activity size={18} className="text-emerald-500" />} bg="bg-emerald-50"
           label="Lagerbewegungen (30 Tage)"
           value={String(movementsThisMonth)} />
