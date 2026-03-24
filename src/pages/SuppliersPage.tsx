@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { Search, X, Trash2, ChevronRight, ExternalLink } from 'lucide-react'
+import { Search, X, Trash2, ChevronRight, ExternalLink, Pencil } from 'lucide-react'
 import Toast from '../components/Toast'
 import ConfirmDialog from '../components/ConfirmDialog'
 
@@ -21,6 +21,7 @@ export default function SuppliersPage() {
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState<SupplierRow | null>(null)
   const [form, setForm] = useState<{ website: string; notes: string; min_order_value: string }>({ website: '', notes: '', min_order_value: '' })
+  const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [closing, setClosing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -93,6 +94,7 @@ export default function SuppliersPage() {
   function openExisting(s: SupplierRow) {
     setForm({ website: s.website ?? '', notes: s.notes ?? '', min_order_value: s.min_order_value != null ? String(s.min_order_value) : '' })
     setSelected(s)
+    setEditing(false)
     setConfirmDelete(false)
   }
 
@@ -100,6 +102,7 @@ export default function SuppliersPage() {
     setClosing(true)
     setTimeout(() => {
       setSelected(null)
+      setEditing(false)
       setForm({ website: '', notes: '', min_order_value: '' })
       setConfirmDelete(false)
       setClosing(false)
@@ -237,74 +240,105 @@ export default function SuppliersPage() {
           <div className="hidden md:block fixed inset-0 bg-black/30 z-40" onClick={closePanel} />
           <div className={`fixed inset-0 bg-white z-50 flex flex-col md:inset-auto md:top-4 md:bottom-4 md:right-4 md:w-[520px] md:rounded-2xl md:shadow-2xl ${closing ? 'animate-slide-out-right' : 'animate-slide-in-right'}`}>
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0">
-              <h2 className="font-semibold text-slate-800">{selected?.name}</h2>
-              <button onClick={closePanel} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors">
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-5 space-y-4">
-              {selected && (
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-slate-50 rounded-xl px-4 py-3">
-                    <p className="text-xs text-slate-400 mb-0.5">Artikel</p>
-                    <p className="text-xl font-bold text-slate-800">{selected.productCount}</p>
-                  </div>
-                  <div className="bg-slate-50 rounded-xl px-4 py-3">
-                    <p className="text-xs text-slate-400 mb-0.5">Letzter Einkauf</p>
-                    <p className="text-sm font-semibold text-slate-800">
-                      {selected.lastPurchaseAt
-                        ? new Date(selected.lastPurchaseAt).toLocaleDateString('de-DE')
-                        : '—'}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Website</label>
-                <div className="flex items-center gap-2">
-                  <input type="url" value={form.website} onChange={e => setForm(f => ({ ...f, website: e.target.value }))}
-                    placeholder="https://www.henryschein-dental.de" className={inputCls} />
-                  {form.website && (
-                    <a href={form.website} target="_blank" rel="noopener noreferrer"
-                      className="text-slate-400 hover:text-sky-500 transition-colors shrink-0" onClick={e => e.stopPropagation()}>
-                      <ExternalLink size={16} />
-                    </a>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Mindestbestellwert (€)</label>
-                <input type="number" min="0" step="0.01" value={form.min_order_value}
-                  onChange={e => setForm(f => ({ ...f, min_order_value: e.target.value }))}
-                  placeholder="z.B. 50.00" className={inputCls} />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Notizen</label>
-                <textarea rows={3} value={form.notes}
-                  onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-                  placeholder="Interne Notizen zum Lieferanten…" className={`${inputCls} resize-none`} />
-              </div>
-
-              <div className="pt-4 border-t border-slate-100">
-                <button onClick={() => setConfirmDelete(true)}
-                  className="flex items-center gap-2 text-sm text-red-500 hover:text-red-600 transition-colors">
-                  <Trash2 size={14} /> Lieferant löschen
+              <h2 className="font-semibold text-slate-800 truncate flex-1 mr-2">{selected?.name}</h2>
+              <div className="flex items-center gap-1 shrink-0">
+                {!editing && (
+                  <>
+                    <button onClick={() => setEditing(true)} className="text-slate-400 hover:text-sky-600 p-1.5 transition-colors">
+                      <Pencil size={16} />
+                    </button>
+                    <button onClick={() => setConfirmDelete(true)} className="text-slate-300 hover:text-red-400 p-1.5 transition-colors">
+                      <Trash2 size={16} />
+                    </button>
+                  </>
+                )}
+                <button onClick={editing ? () => { setForm({ website: selected?.website ?? '', notes: selected?.notes ?? '', min_order_value: selected?.min_order_value != null ? String(selected.min_order_value) : '' }); setEditing(false) } : closePanel}
+                  className="text-slate-400 hover:text-slate-600 p-1.5 transition-colors">
+                  <X size={18} />
                 </button>
               </div>
             </div>
 
-            <div className="border-t border-slate-100 px-5 py-4 flex gap-3 shrink-0">
-              <button onClick={closePanel}
-                className="flex-1 border border-slate-300 rounded-xl py-3 text-sm text-slate-600 hover:bg-slate-50 transition-colors">Abbrechen</button>
-              <button onClick={handleSave} disabled={saving}
-                className="flex-1 bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white rounded-xl py-3 text-sm font-medium transition-colors">
-                {saving ? 'Speichern…' : 'Speichern'}
-              </button>
-            </div>
+            {/* View mode */}
+            {!editing ? (
+              <div className="flex-1 overflow-y-auto p-5 space-y-4">
+                {selected && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-slate-50 rounded-xl px-4 py-3">
+                      <p className="text-xs text-slate-400 mb-0.5">Artikel</p>
+                      <p className="text-xl font-bold text-slate-800">{selected.productCount}</p>
+                    </div>
+                    <div className="bg-slate-50 rounded-xl px-4 py-3">
+                      <p className="text-xs text-slate-400 mb-0.5">Letzter Einkauf</p>
+                      <p className="text-sm font-semibold text-slate-800">
+                        {selected.lastPurchaseAt ? new Date(selected.lastPurchaseAt).toLocaleDateString('de-DE') : '—'}
+                      </p>
+                    </div>
+                  </div>
+                )}
+                {selected?.website && (
+                  <div>
+                    <p className="text-xs text-slate-400 mb-0.5">Website</p>
+                    <a href={selected.website} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-sm text-sky-600 hover:underline break-all">
+                      <ExternalLink size={12} /> {selected.website}
+                    </a>
+                  </div>
+                )}
+                {selected?.min_order_value != null && (
+                  <div>
+                    <p className="text-xs text-slate-400 mb-0.5">Mindestbestellwert</p>
+                    <p className="text-sm text-slate-800">€ {Number(selected.min_order_value).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                  </div>
+                )}
+                {selected?.notes && (
+                  <div>
+                    <p className="text-xs text-slate-400 mb-0.5">Notizen</p>
+                    <p className="text-sm text-slate-800 whitespace-pre-wrap">{selected.notes}</p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* Edit mode */
+              <div className="flex-1 overflow-y-auto p-5 space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Website</label>
+                  <div className="flex items-center gap-2">
+                    <input type="url" value={form.website} onChange={e => setForm(f => ({ ...f, website: e.target.value }))}
+                      placeholder="https://www.henryschein-dental.de" className={inputCls} autoFocus />
+                    {form.website && (
+                      <a href={form.website} target="_blank" rel="noopener noreferrer"
+                        className="text-slate-400 hover:text-sky-500 transition-colors shrink-0">
+                        <ExternalLink size={16} />
+                      </a>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Mindestbestellwert (€)</label>
+                  <input type="number" min="0" step="0.01" value={form.min_order_value}
+                    onChange={e => setForm(f => ({ ...f, min_order_value: e.target.value }))}
+                    placeholder="z.B. 50.00" className={inputCls} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Notizen</label>
+                  <textarea rows={3} value={form.notes}
+                    onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+                    placeholder="Interne Notizen zum Lieferanten…" className={`${inputCls} resize-none`} />
+                </div>
+              </div>
+            )}
+
+            {editing && (
+              <div className="border-t border-slate-100 px-5 py-4 flex gap-3 shrink-0">
+                <button onClick={() => { setForm({ website: selected?.website ?? '', notes: selected?.notes ?? '', min_order_value: selected?.min_order_value != null ? String(selected.min_order_value) : '' }); setEditing(false) }}
+                  className="flex-1 border border-slate-300 rounded-xl py-3 text-sm text-slate-600 hover:bg-slate-50 transition-colors">Abbrechen</button>
+                <button onClick={handleSave} disabled={saving}
+                  className="flex-1 bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white rounded-xl py-3 text-sm font-medium transition-colors">
+                  {saving ? 'Speichern…' : 'Speichern'}
+                </button>
+              </div>
+            )}
           </div>
         </>
       )}

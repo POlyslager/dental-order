@@ -160,9 +160,10 @@ export function extractProductsFromMicrodata(html: string, pageUrl: string): { n
     const ctx = html.slice(Math.max(0, m.index! - 2000), m.index!)
     const nameM = [...ctx.matchAll(/itemprop=["']name["'][^>]*(?:content=["']([^"']+)["']|>([^<]{3,80})<)/gi)].pop()
       ?? [...ctx.matchAll(/class=["'][^"']*product[^"']*(?:name|title)[^"']*["'][^>]*>([^<]{3,80})</gi)].pop()
-      ?? [...ctx.matchAll(/<a[^>]+class="[^"]*product-item-link[^"]*"[^>]*>([^<]{3,80})</gi)].pop()
+    const linkName = [...ctx.matchAll(/<a[^>]+class="[^"]*product-item-link[^"]*"[^>]*>([\s\S]*?)<\/a>/gi)]
+      .map(m => m[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()).filter(n => n.length >= 3).pop() ?? null
     const urlM = [...ctx.matchAll(/href=["']([^"']+)["']/gi)].pop()
-    const name = nameM ? (nameM[1] ?? nameM[2] ?? '').trim() || null : null
+    const name = nameM ? (nameM[1] ?? nameM[2] ?? '').trim() || linkName : linkName
     const rawUrl = urlM?.[1] ?? ''
     const url = rawUrl.startsWith('http') ? rawUrl : rawUrl.startsWith('/') ? new URL(rawUrl, pageUrl).href : pageUrl
     found.push({ name, price, url })
@@ -175,10 +176,11 @@ export function extractProductsFromMicrodata(html: string, pageUrl: string): { n
     const price = parseFloat(raw)
     if (!price || price <= 0) continue
     const ctx = html.slice(Math.max(0, m.index! - 2000), m.index!)
-    const nameM = [...ctx.matchAll(/<a[^>]+class="[^"]*product-item-link[^"]*"[^>]*>([^<]{3,80})</gi)].pop()
-      ?? [...ctx.matchAll(/itemprop=["']name["'][^>]*(?:content=["']([^"']+)["']|>([^<]{3,80})<)/gi)].pop()
+    const linkName = [...ctx.matchAll(/<a[^>]+class="[^"]*product-item-link[^"]*"[^>]*>([\s\S]*?)<\/a>/gi)]
+      .map(m => m[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()).filter(n => n.length >= 3).pop() ?? null
+    const nameM = [...ctx.matchAll(/itemprop=["']name["'][^>]*(?:content=["']([^"']+)["']|>([^<]{3,80})<)/gi)].pop()
     const urlM = [...ctx.matchAll(/href=["']([^"']+)["']/gi)].pop()
-    const name = nameM ? (nameM[1] ?? nameM[2] ?? '').trim() || null : null
+    const name = linkName ?? (nameM ? (nameM[1] ?? nameM[2] ?? '').trim() || null : null)
     const rawUrl = urlM?.[1] ?? ''
     const url = rawUrl.startsWith('http') ? rawUrl : rawUrl.startsWith('/') ? new URL(rawUrl, pageUrl).href : pageUrl
     found.push({ name, price, url })

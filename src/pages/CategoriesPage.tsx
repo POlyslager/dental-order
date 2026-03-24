@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { Search, X, Trash2, ChevronRight } from 'lucide-react'
+import { Search, X, Trash2, ChevronRight, Pencil } from 'lucide-react'
 import Toast from '../components/Toast'
 import ConfirmDialog from '../components/ConfirmDialog'
 
@@ -19,6 +19,7 @@ export default function CategoriesPage() {
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState<CategoryRow | null>(null)
   const [isNew, setIsNew] = useState(false)
+  const [editing, setEditing] = useState(false)
   const [form, setForm] = useState<{ name: string; description: string }>({ name: '', description: '' })
   const [saving, setSaving] = useState(false)
   const [closing, setClosing] = useState(false)
@@ -66,6 +67,7 @@ export default function CategoriesPage() {
     setForm({ name: '', description: '' })
     setSelected(null)
     setIsNew(true)
+    setEditing(true)
     setConfirmDelete(false)
   }
 
@@ -73,6 +75,7 @@ export default function CategoriesPage() {
     setForm({ name: c.name, description: c.description ?? '' })
     setSelected(c)
     setIsNew(false)
+    setEditing(false)
     setConfirmDelete(false)
   }
 
@@ -81,6 +84,7 @@ export default function CategoriesPage() {
     setTimeout(() => {
       setSelected(null)
       setIsNew(false)
+      setEditing(false)
       setForm({ name: '', description: '' })
       setConfirmDelete(false)
       setClosing(false)
@@ -217,46 +221,76 @@ export default function CategoriesPage() {
           <div className="hidden md:block fixed inset-0 bg-black/30 z-40" onClick={closePanel} />
           <div className={`fixed inset-0 bg-white z-50 flex flex-col md:inset-auto md:top-4 md:bottom-4 md:right-4 md:w-[520px] md:rounded-2xl md:shadow-2xl ${closing ? 'animate-slide-out-right' : 'animate-slide-in-right'}`}>
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0">
-              <h2 className="font-semibold text-slate-800">{isNew ? 'Neue Kategorie' : 'Kategorie bearbeiten'}</h2>
-              <button onClick={closePanel} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors">
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-5 space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Name</label>
-                <input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                  placeholder="z.B. Desinfektion" autoFocus className={inputCls} />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Beschreibung</label>
-                <textarea rows={3} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                  placeholder="Optionale Beschreibung…" className={`${inputCls} resize-none`} />
-              </div>
-
-              {!isNew && (
-                <div className="pt-4 border-t border-slate-100">
-                  {(selected?.productCount ?? 0) > 0 ? (
-                    <p className="text-xs text-slate-400">Kategorie kann nicht gelöscht werden, solange noch {selected!.productCount} Artikel zugeordnet sind.</p>
-                  ) : (
-                    <button onClick={() => setConfirmDelete(true)}
-                      className="flex items-center gap-2 text-sm text-red-500 hover:text-red-600 transition-colors">
-                      <Trash2 size={14} /> Kategorie löschen
+              <h2 className="font-semibold text-slate-800 truncate flex-1 mr-2">
+                {isNew ? 'Neue Kategorie' : selected?.name}
+              </h2>
+              <div className="flex items-center gap-1 shrink-0">
+                {!isNew && !editing && (
+                  <>
+                    <button onClick={() => setEditing(true)} className="text-slate-400 hover:text-sky-600 p-1.5 transition-colors">
+                      <Pencil size={16} />
                     </button>
-                  )}
-                </div>
-              )}
+                    <button onClick={() => setConfirmDelete(true)} className="text-slate-300 hover:text-red-400 p-1.5 transition-colors">
+                      <Trash2 size={16} />
+                    </button>
+                  </>
+                )}
+                <button onClick={editing && !isNew ? () => { setForm({ name: selected?.name ?? '', description: selected?.description ?? '' }); setEditing(false) } : closePanel}
+                  className="text-slate-400 hover:text-slate-600 p-1.5 transition-colors">
+                  <X size={18} />
+                </button>
+              </div>
             </div>
 
-            <div className="border-t border-slate-100 px-5 py-4 flex gap-3 shrink-0">
-              <button onClick={closePanel}
-                className="flex-1 border border-slate-300 rounded-xl py-3 text-sm text-slate-600 hover:bg-slate-50 transition-colors">Abbrechen</button>
-              <button onClick={handleSave} disabled={saving || !form.name.trim()}
-                className="flex-1 bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white rounded-xl py-3 text-sm font-medium transition-colors">
-                {saving ? 'Speichern…' : 'Speichern'}
-              </button>
-            </div>
+            {/* View mode */}
+            {!editing && !isNew ? (
+              <div className="flex-1 overflow-y-auto p-5 space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-slate-50 rounded-xl px-4 py-3">
+                    <p className="text-xs text-slate-400 mb-0.5">Artikel</p>
+                    <p className="text-xl font-bold text-slate-800">{selected?.productCount}</p>
+                  </div>
+                  <div className="bg-slate-50 rounded-xl px-4 py-3">
+                    <p className="text-xs text-slate-400 mb-0.5">Lieferanten</p>
+                    <p className="text-xl font-bold text-slate-800">{selected?.supplierCount}</p>
+                  </div>
+                </div>
+                {selected?.description && (
+                  <div>
+                    <p className="text-xs text-slate-400 mb-0.5">Beschreibung</p>
+                    <p className="text-sm text-slate-800 whitespace-pre-wrap">{selected.description}</p>
+                  </div>
+                )}
+                {(selected?.productCount ?? 0) === 0 && (
+                  <p className="text-xs text-slate-400 pt-2">Keine Artikel in dieser Kategorie.</p>
+                )}
+              </div>
+            ) : (
+              /* Edit / New mode */
+              <div className="flex-1 overflow-y-auto p-5 space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Name</label>
+                  <input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                    placeholder="z.B. Desinfektion" autoFocus className={inputCls} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Beschreibung</label>
+                  <textarea rows={3} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                    placeholder="Optionale Beschreibung…" className={`${inputCls} resize-none`} />
+                </div>
+              </div>
+            )}
+
+            {(editing || isNew) && (
+              <div className="border-t border-slate-100 px-5 py-4 flex gap-3 shrink-0">
+                <button onClick={isNew ? closePanel : () => { setForm({ name: selected?.name ?? '', description: selected?.description ?? '' }); setEditing(false) }}
+                  className="flex-1 border border-slate-300 rounded-xl py-3 text-sm text-slate-600 hover:bg-slate-50 transition-colors">Abbrechen</button>
+                <button onClick={handleSave} disabled={saving || !form.name.trim()}
+                  className="flex-1 bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white rounded-xl py-3 text-sm font-medium transition-colors">
+                  {saving ? 'Speichern…' : 'Speichern'}
+                </button>
+              </div>
+            )}
           </div>
         </>
       )}
