@@ -2,10 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import type { CartItem, Order, OrderItem, Role } from '../lib/types'
-import { ShoppingCart, Package, Plus, Minus, CheckCircle, AlertCircle, ExternalLink, Check, Trash2, Undo2, ScanLine, X } from 'lucide-react'
+import { ShoppingCart, Package, Plus, Minus, CheckCircle, ExternalLink, Check, Trash2, Undo2, ScanLine, X } from 'lucide-react'
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
-
-const APPROVAL_THRESHOLD = 2000
 
 interface Props { role: Role | null; user: User; onBadgeChange: (n: number) => void; forceOpenTab?: number; forceScanMode?: number }
 
@@ -85,7 +83,7 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
     const { data } = await supabase
       .from('orders')
       .select('id, status, supplier, total_estimate, created_at, items:order_items(id, order_id, product_id, quantity, estimated_price, product:products(id, name, barcode, preferred_supplier, supplier_url))')
-      .in('status', ['pending_approval', 'ordered'])
+      .eq('status', 'ordered')
       .order('created_at', { ascending: false })
     setOrders(((data as unknown as Order[]) ?? []).filter(o => (o.items ?? []).length > 0))
     setLoading(false)
@@ -162,7 +160,6 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
   async function placeOrderForItem(item: CartItem) {
     setPlacingItem(item.id)
     const total = item.quantity * (item.product?.last_price ?? 0)
-    const needsApproval = total >= APPROVAL_THRESHOLD
     const supplier = item.product?.preferred_supplier ?? 'Kein Lieferant'
 
     const { data: order, error } = await supabase
@@ -170,7 +167,7 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
       .insert({
         created_by: user.id,
         supplier,
-        status: needsApproval ? 'pending_approval' : 'ordered',
+        status: 'ordered',
         total_estimate: total,
       })
       .select()
@@ -190,20 +187,12 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
     fetch('/api/send-push', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ total, supplier, needs_approval: needsApproval }),
+      body: JSON.stringify({ total, supplier }),
     }).catch(() => null)
 
     setPlacingItem(null)
-    showToast(needsApproval
-      ? `${item.product?.name ?? 'Artikel'} zur Genehmigung eingereicht`
-      : `${item.product?.name ?? 'Artikel'} als bestellt markiert`
-    )
+    showToast(`${item.product?.name ?? 'Artikel'} als bestellt markiert`)
     await Promise.all([fetchCart(), fetchOrders()])
-  }
-
-  async function approveOrder(orderId: string) {
-    await supabase.from('orders').update({ status: 'ordered', approved_by: user.id }).eq('id', orderId)
-    fetchOrders()
   }
 
   async function addStock(item: OrderItem, qty: number) {
@@ -484,7 +473,6 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
                       scannedCounts={scannedCounts}
                       receiving={receiving}
                       onReceiveItem={(item) => receiveOrderItem(item, order.id)}
-                      onApprove={() => approveOrder(order.id)}
                     />
                   ))
                 ))}
@@ -611,7 +599,6 @@ function CartItemRow({ item, placing, onUpdateQuantity, onPlaceOrder, onRemoveRe
   onRemoveRequest: (item: CartItem) => void
 }) {
   const rowTotal = item.quantity * (item.product?.last_price ?? 0)
-  const needsApproval = rowTotal >= APPROVAL_THRESHOLD
 
   return (
     <tr className="bg-white hover:bg-slate-50 transition-colors border-b border-slate-100">
@@ -686,16 +673,10 @@ function CartItemRow({ item, placing, onUpdateQuantity, onPlaceOrder, onRemoveRe
           <button
             onClick={() => onPlaceOrder(item)}
             disabled={placing}
-            className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap disabled:opacity-50 ${
-              needsApproval
-                ? 'bg-amber-500 hover:bg-amber-600 text-white'
-                : 'bg-sky-500 hover:bg-sky-600 text-white'
-            }`}
+            className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap disabled:opacity-50 bg-sky-500 hover:bg-sky-600 text-white"
           >
             {placing ? (
               <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" />
-            ) : needsApproval ? (
-              <><AlertCircle size={12} /> Zur Genehmigung</>
             ) : (
               <><CheckCircle size={12} /> Als bestellt markieren</>
             )}
@@ -729,13 +710,12 @@ function TabButton({ active, onClick, badge, children }: {
 }
 
 // ── Open order section ─────────────────────────────────────────────────────
-function OpenOrderSection({ order, role, isFirstOverall, isFirstInGroup, scannedCounts, receiving, onReceiveItem, onApprove }: {
-  order: Order; role: Role | null
+function OpenOrderSection({ order, isFirstOverall, isFirstInGroup, scannedCounts, receiving, onReceiveItem }: {
+  order: Order
   isFirstOverall: boolean; isFirstInGroup: boolean
   scannedCounts: Record<string, number>; receiving: string | null
-  onReceiveItem: (item: OrderItem) => void; onApprove: () => void
+  onReceiveItem: (item: OrderItem) => void
 }) {
-  const isPending = order.status === 'pending_approval'
   const items = order.items ?? []
   const domain = getDomain(items[0]?.product?.supplier_url) ?? order.supplier ?? 'Unbekannter Lieferant'
   const doneCount = items.filter(i => (scannedCounts[i.id] ?? 0) >= i.quantity).length
@@ -765,23 +745,6 @@ function OpenOrderSection({ order, role, isFirstOverall, isFirstInGroup, scanned
                   </span>
                 )}
               </div>
-            </div>
-          </td>
-        </tr>
-      )}
-
-      {/* Per-order sub-header: only shown when pending approval */}
-      {isPending && (
-        <tr className={`border-t border-slate-200 ${isFirstInGroup ? 'bg-white' : 'bg-slate-50'}`}>
-          <td colSpan={7} className="px-4 py-2">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">Ausstehend</span>
-              {role === 'admin' && (
-                <button onClick={onApprove}
-                  className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap">
-                  <CheckCircle size={12} /> Genehmigen
-                </button>
-              )}
             </div>
           </td>
         </tr>
@@ -840,7 +803,7 @@ function OpenOrderSection({ order, role, isFirstOverall, isFirstInGroup, scanned
               ) : (
                 <button
                   onClick={() => onReceiveItem(item)}
-                  disabled={receiving === item.id || isPending}
+                  disabled={receiving === item.id}
                   className="flex items-center gap-1.5 bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap ml-auto"
                 >
                   {receiving === item.id

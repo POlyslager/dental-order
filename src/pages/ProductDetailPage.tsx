@@ -43,6 +43,7 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
   const [taken, setTaken] = useState(false)
   const [entnehmenQty, setEntnehmenQty] = useState(1)
   const [inCart, setInCart] = useState(false)
+  const [inOrdered, setInOrdered] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [showDeleteSpinner, setShowDeleteSpinner] = useState(false)
   const deleteSpinnerTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -107,8 +108,8 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
       if (orderItems && orderItems.length > 0) {
         const ids = orderItems.map((r: any) => r.order_id)
         const { data: open } = await supabase
-          .from('orders').select('id').in('id', ids).in('status', ['pending_approval', 'ordered']).limit(1)
-        setInCart(!!(open && open.length > 0))
+          .from('orders').select('id').in('id', ids).eq('status', 'ordered').limit(1)
+        setInOrdered(!!(open && open.length > 0))
       }
     })()
   }, [product.id])
@@ -319,16 +320,18 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
 
               {/* ── Bestellen ── */}
               <div className="px-4 pt-4 pb-3">
-                <p className={`text-xs font-semibold uppercase tracking-wide mb-3 ${inCart ? 'text-slate-300' : status === 'red' ? 'text-red-600' : status === 'orange' ? 'text-amber-600' : 'text-slate-500'}`}>
+                <p className={`text-xs font-semibold uppercase tracking-wide mb-3 ${(inCart || inOrdered) ? 'text-slate-300' : status === 'red' ? 'text-red-600' : status === 'orange' ? 'text-amber-600' : 'text-slate-500'}`}>
                   Bestellen
                 </p>
-                {inCart ? (
+                {(inCart || inOrdered) ? (
                   <div className="flex items-center gap-2 py-2">
                     <div className="w-8 h-8 rounded-full bg-sky-100 flex items-center justify-center shrink-0">
                       <ShoppingCart size={14} className="text-sky-500" />
                     </div>
                     <div>
-                      <p className="text-sm text-slate-400">Artikel bereits in Bestellung oder Warenkorb</p>
+                      <p className="text-sm text-slate-400">
+                        {inCart ? 'Artikel bereits im Warenkorb' : 'Artikel bereits in Bestellung'}
+                      </p>
                       {onNavigateToOrders && (
                         <button onClick={onNavigateToOrders} className="text-xs text-sky-500 hover:text-sky-600 transition-colors">
                           Zur Bestellung →
