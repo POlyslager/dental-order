@@ -770,24 +770,22 @@ function OpenOrderSection({ order, role, isFirstOverall, isFirstInGroup, scanned
         </tr>
       )}
 
-      {/* Per-order sub-header: status + approve */}
-      <tr className={`border-t border-slate-200 ${isFirstInGroup ? 'bg-white' : 'bg-slate-50'}`}>
-        <td colSpan={7} className="px-4 py-2">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            {isPending ? (
+      {/* Per-order sub-header: only shown when pending approval */}
+      {isPending && (
+        <tr className={`border-t border-slate-200 ${isFirstInGroup ? 'bg-white' : 'bg-slate-50'}`}>
+          <td colSpan={7} className="px-4 py-2">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">Ausstehend</span>
-            ) : (
-              <span className="text-xs font-medium text-sky-600 bg-sky-50 px-2 py-0.5 rounded-full">Bestellt</span>
-            )}
-            {isPending && role === 'admin' && (
-              <button onClick={onApprove}
-                className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap">
-                <CheckCircle size={12} /> Genehmigen
-              </button>
-            )}
-          </div>
-        </td>
-      </tr>
+              {role === 'admin' && (
+                <button onClick={onApprove}
+                  className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap">
+                  <CheckCircle size={12} /> Genehmigen
+                </button>
+              )}
+            </div>
+          </td>
+        </tr>
+      )}
 
       {/* Column headers */}
       <tr className="border-b border-slate-200 bg-white">
