@@ -1,5 +1,23 @@
 export type Role = 'employee' | 'admin'
 
+export interface SupplierHistoryEntry {
+  id: string
+  product_id: string
+  supplier_name: string | null
+  supplier_url: string | null
+  price: number | null
+  set_at: string
+  set_by: string | null
+  source: string | null
+}
+
+export interface PriceAlternative {
+  domain: string
+  name: string | null
+  url: string
+  price: number
+}
+
 export interface Profile {
   id: string
   email: string

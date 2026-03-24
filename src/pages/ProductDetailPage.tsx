@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import type { Product } from '../lib/types'
+import type { PriceAlternative, Product, SupplierHistoryEntry } from '../lib/types'
 import CategorySelect from '../components/CategorySelect'
 import {
   ChevronLeft, Pencil, Trash2, ShoppingCart, Check, ExternalLink, X, Minus, Plus,
+  Search, ChevronDown, RotateCcw,
 } from 'lucide-react'
 
 const STORAGE_LOCATIONS = [
@@ -50,6 +51,10 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
   const [lastScan, setLastScan] = useState<string | null>(null)
   const [categories, setCategories] = useState<string[]>([])
   const [suppliers, setSuppliers] = useState<string[]>([])
+  const [altState, setAltState] = useState<'idle' | 'loading' | 'done'>('idle')
+  const [altResults, setAltResults] = useState<PriceAlternative[]>([])
+  const [supplierHistory, setSupplierHistory] = useState<SupplierHistoryEntry[]>([])
+  const [historyOpen, setHistoryOpen] = useState(false)
 
   const status = stockStatus(form)
 
@@ -98,6 +103,8 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
         if (data) setSuppliers([...new Set(data.map(p => p.preferred_supplier as string))].filter(Boolean).sort())
       })
     }
+    fetchHistory()
+
     // Check cart and open orders
     ;(async () => {
       const [{ data: cartRow }, { data: orderItems }] = await Promise.all([
@@ -192,6 +199,65 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
       setTaken(true)
       setTimeout(() => setTaken(false), 2000)
     }
+  }
+
+  async function fetchHistory() {
+    const { data } = await supabase
+      .from('product_supplier_history')
+      .select('*')
+      .eq('product_id', product.id)
+      .order('set_at', { ascending: false })
+    setSupplierHistory((data ?? []) as SupplierHistoryEntry[])
+  }
+
+  async function searchAlternatives() {
+    setAltState('loading')
+    setAltResults([])
+    try {
+      const res = await fetch('/api/find-alternatives', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productName: product.name }),
+      })
+      const data = await res.json()
+      setAltResults(data.results ?? [])
+    } catch { /* network error */ }
+    setAltState('done')
+  }
+
+  async function saveCurrentToHistory(source: string) {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!form.preferred_supplier && !form.supplier_url && form.last_price == null) return
+    await supabase.from('product_supplier_history').insert({
+      product_id: product.id,
+      supplier_name: form.preferred_supplier,
+      supplier_url: form.supplier_url,
+      price: form.last_price,
+      set_by: user?.id ?? null,
+      source,
+    })
+  }
+
+  async function setAsDefault(alt: PriceAlternative) {
+    await saveCurrentToHistory('auto')
+    const { data } = await supabase.from('products').update({
+      preferred_supplier: alt.domain,
+      supplier_url: alt.url,
+      last_price: alt.price,
+    }).eq('id', product.id).select().single()
+    if (data) { onUpdated(data as Product); setForm(data as Product) }
+    fetchHistory()
+  }
+
+  async function restoreSupplier(entry: SupplierHistoryEntry) {
+    await saveCurrentToHistory('manual')
+    const { data } = await supabase.from('products').update({
+      preferred_supplier: entry.supplier_name,
+      supplier_url: entry.supplier_url,
+      last_price: entry.price,
+    }).eq('id', product.id).select().single()
+    if (data) { onUpdated(data as Product); setForm(data as Product) }
+    fetchHistory()
   }
 
   const inputCls = 'w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500'
@@ -466,6 +532,111 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
                       </a>
                     </div>
                   ) : null}
+                </div>
+              )}
+
+              {/* ── Price alternatives ── */}
+              <div className="border-t border-slate-100 pt-4">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Preisvergleich</p>
+                  <button
+                    onClick={searchAlternatives}
+                    disabled={altState === 'loading'}
+                    className="flex items-center gap-1.5 text-xs font-medium text-sky-600 hover:text-sky-700 disabled:opacity-40 transition-colors"
+                  >
+                    {altState === 'loading'
+                      ? <span className="w-3.5 h-3.5 border-2 border-sky-400 border-t-transparent rounded-full animate-spin inline-block" />
+                      : <Search size={12} />
+                    }
+                    {altState === 'idle' ? 'Suchen' : altState === 'loading' ? 'Suche läuft…' : 'Erneut suchen'}
+                  </button>
+                </div>
+
+                {altState === 'done' && altResults.length === 0 && (
+                  <p className="text-sm text-slate-400 py-1">Keine Ergebnisse gefunden</p>
+                )}
+
+                {altResults.map(alt => {
+                  const savings = form.last_price != null && form.last_price > 0
+                    ? ((form.last_price - alt.price) / form.last_price) * 100
+                    : null
+                  const isCheaper = savings != null && savings > 0.5
+                  const isCurrentSupplier = form.supplier_url?.includes(alt.domain)
+                  return (
+                    <div key={alt.url} className="flex items-center gap-2 py-2.5 border-b border-slate-50 last:border-0">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-slate-800">{alt.domain}</p>
+                        {alt.name && <p className="text-xs text-slate-400 truncate mt-0.5">{alt.name}</p>}
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-sm font-bold text-slate-800">
+                          € {alt.price.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                        {savings != null && (
+                          <span className={`text-xs font-medium ${isCheaper ? 'text-emerald-600' : 'text-slate-400'}`}>
+                            {isCheaper ? `−${Math.round(savings)}%` : savings < -0.5 ? `+${Math.round(-savings)}%` : '≈ gleich'}
+                          </span>
+                        )}
+                      </div>
+                      <a href={alt.url} target="_blank" rel="noopener noreferrer"
+                        className="text-slate-300 hover:text-sky-500 p-1 transition-colors shrink-0">
+                        <ExternalLink size={14} />
+                      </a>
+                      {!isCurrentSupplier && (
+                        <button
+                          onClick={() => setAsDefault(alt)}
+                          className="text-xs font-medium bg-sky-50 hover:bg-sky-100 text-sky-600 px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap shrink-0"
+                        >
+                          Standard
+                        </button>
+                      )}
+                      {isCurrentSupplier && (
+                        <span className="text-xs text-slate-400 px-2.5 py-1.5 whitespace-nowrap shrink-0">Aktuell</span>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* ── Supplier history ── */}
+              {supplierHistory.length > 0 && (
+                <div className="border-t border-slate-100 pt-4">
+                  <button
+                    onClick={() => setHistoryOpen(o => !o)}
+                    className="flex items-center gap-2 w-full text-xs font-semibold uppercase tracking-wide text-slate-400 hover:text-slate-600 transition-colors"
+                  >
+                    Verlauf ({supplierHistory.length})
+                    <ChevronDown size={12} className={`ml-auto transition-transform duration-200 ${historyOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  {historyOpen && (
+                    <div className="mt-3 space-y-1">
+                      {supplierHistory.map(entry => (
+                        <div key={entry.id} className="flex items-center gap-2 py-2 border-b border-slate-50 last:border-0">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-slate-700 font-medium truncate">{entry.supplier_name ?? '—'}</p>
+                            <p className="text-xs text-slate-400 mt-0.5">
+                              {entry.price != null
+                                ? `€ ${entry.price.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · `
+                                : ''}
+                              {new Date(entry.set_at).toLocaleDateString('de-DE')}
+                            </p>
+                          </div>
+                          {entry.supplier_url && (
+                            <a href={entry.supplier_url} target="_blank" rel="noopener noreferrer"
+                              className="text-slate-300 hover:text-sky-500 p-1 transition-colors shrink-0">
+                              <ExternalLink size={13} />
+                            </a>
+                          )}
+                          <button
+                            onClick={() => restoreSupplier(entry)}
+                            className="flex items-center gap-1 text-xs text-slate-500 hover:text-sky-600 font-medium px-2.5 py-1.5 rounded-lg hover:bg-sky-50 transition-colors whitespace-nowrap shrink-0"
+                          >
+                            <RotateCcw size={11} /> Wiederherstellen
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
