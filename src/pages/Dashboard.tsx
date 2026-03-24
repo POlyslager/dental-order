@@ -89,11 +89,11 @@ export default function Dashboard({ user }: Props) {
 
   useEffect(() => {
     async function fetchBadge() {
-      const [{ count: cartCount }, { count: pendingCount }] = await Promise.all([
-        supabase.from('cart_items').select('*', { count: 'exact', head: true }),
-        supabase.from('orders').select('*', { count: 'exact', head: true }).in('status', ['pending_approval', 'ordered']),
+      const [{ data: cartData }, { data: ordersData }] = await Promise.all([
+        supabase.from('cart_items').select('id'),
+        supabase.from('orders').select('id').in('status', ['pending_approval', 'ordered']),
       ])
-      setOrderBadge((cartCount ?? 0) + (pendingCount ?? 0))
+      setOrderBadge((cartData?.length ?? 0) + (ordersData?.length ?? 0))
     }
     fetchBadge()
     const interval = setInterval(fetchBadge, 60000)

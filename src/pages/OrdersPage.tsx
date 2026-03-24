@@ -33,6 +33,7 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
   const [scanConfirm, setScanConfirm] = useState<{ item: OrderItem; order: Order } | null>(null)
   const [receiving, setReceiving] = useState<string | null>(null)
   const einbuchenScannerRef = useRef<Html5Qrcode | null>(null)
+  const scannerStartingRef = useRef(false)
   const scanToggleRef = useRef(false)
   const prevTabRef = useRef<'cart' | 'open'>('cart')
   const EINBUCHEN_SCAN_DIV = 'einbuchen-scanner-div'
@@ -250,8 +251,10 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
   }
 
   async function startInlineScanner() {
-    if (einbuchenScannerRef.current) return // already running
+    if (einbuchenScannerRef.current || scannerStartingRef.current) return // already running or starting
+    scannerStartingRef.current = true
     await new Promise(r => setTimeout(r, 150))
+    scannerStartingRef.current = false
     if (!scanToggleRef.current) return // toggle was turned off while waiting
     try {
       const formats = [

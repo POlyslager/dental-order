@@ -437,30 +437,36 @@ useEffect(() => {
         </div>
 
         {/* Status filter */}
-        <select
-          value={selectedStatus}
-          onChange={e => { setSelectedStatus(e.target.value as typeof selectedStatus); setPage(1) }}
-          className="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500 shrink-0"
-        >
-          <option value="all">Alle Status</option>
-          <option value="ok">Verfügbar</option>
-          <option value="low">Knapp</option>
-          <option value="critical">Niedriger Bestand</option>
-          <option value="empty">Kein Bestand</option>
-          <option value="in_order">In Bestellung</option>
-        </select>
+        <div className="relative shrink-0">
+          <select
+            value={selectedStatus}
+            onChange={e => { setSelectedStatus(e.target.value as typeof selectedStatus); setPage(1) }}
+            className="appearance-none border border-slate-200 rounded-xl pl-3 pr-8 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500"
+          >
+            <option value="all">Alle Status</option>
+            <option value="ok">Verfügbar</option>
+            <option value="low">Knapp</option>
+            <option value="critical">Niedriger Bestand</option>
+            <option value="empty">Kein Bestand</option>
+            <option value="in_order">In Bestellung</option>
+          </select>
+          <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+        </div>
 
         {/* Category filter */}
-        <select
-          value={selectedCategory}
-          onChange={e => { setSelectedCategory(e.target.value); setPage(1) }}
-          className="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500 shrink-0"
-        >
-          <option value="all">Alle Kategorien</option>
-          {categories.filter(c => c !== 'all').map(c => (
-            <option key={c} value={c}>{c}</option>
-          ))}
-        </select>
+        <div className="relative shrink-0">
+          <select
+            value={selectedCategory}
+            onChange={e => { setSelectedCategory(e.target.value); setPage(1) }}
+            className="appearance-none border border-slate-200 rounded-xl pl-3 pr-8 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500"
+          >
+            <option value="all">Alle Kategorien</option>
+            {categories.filter(c => c !== 'all').map(c => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+          <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+        </div>
 
         {/* Supplier filter — multi-select */}
         <SupplierMultiSelect
@@ -480,7 +486,7 @@ useEffect(() => {
       </div>
 
       {/* Desktop header (md+) */}
-      <div className="hidden md:grid border-b border-slate-200 bg-white sticky top-0 z-10" style={{ gridTemplateColumns: '2fr 1fr 1fr 0.5fr 1fr' }}>
+      <div className="hidden md:grid border-b border-slate-200 bg-white sticky top-0 z-10" style={{ gridTemplateColumns: '1.7fr 1fr 1fr 0.8fr 1fr' }}>
         <ColHeader label="Name"      col="name"               onClick={toggleSort} SortIcon={SortIcon} className="bg-red-100" />
         <ColHeader label="Kategorie" col="category"           onClick={toggleSort} SortIcon={SortIcon} className="bg-blue-100" />
         <ColHeader label="Lieferant" col="preferred_supplier" onClick={toggleSort} SortIcon={SortIcon} className="bg-green-100" />
@@ -504,7 +510,7 @@ useEffect(() => {
             className={`bg-white hover:bg-slate-50 cursor-pointer transition-colors ${selectedProduct?.id === p.id ? 'bg-sky-50' : ''}`}
           >
             {/* Desktop row */}
-            <div className="hidden md:grid items-center" style={{ gridTemplateColumns: '2fr 1fr 1fr 0.5fr 1fr' }}>
+            <div className="hidden md:grid items-center" style={{ gridTemplateColumns: '1.7fr 1fr 1fr 0.8fr 1fr' }}>
               <div className="min-w-0 px-4 py-3.5 bg-red-50">
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-semibold text-slate-800 truncate">{p.name}</p>
