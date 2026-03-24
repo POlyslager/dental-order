@@ -117,15 +117,25 @@ function extractProductsFromHtml(html: string, pageUrl: string): { name: string 
 }
 
 // ── dm.de — dedicated JSON API ───────────────────────────────────────────────
+// Price lives at product.price.price.current.value as a string e.g. "2,45 €"
 async function searchDm(query: string): Promise<Alternative | null> {
   try {
     const url = `https://product-search.services.dmtech.com/de/search/crawl?query=${encodeURIComponent(query)}&pageSize=5`
-    const res = await fetch(url, { headers: JSON_HEADERS, signal: AbortSignal.timeout(6000) })
+    const res = await fetch(url, { headers: JSON_HEADERS, signal: AbortSignal.timeout(4000) })
     if (!res.ok) return null
-    const data = await res.json() as { products?: { title?: string; brandName?: string; price?: { value?: number }; relativeProductUrl?: string }[] }
+    const data = await res.json() as {
+      products?: {
+        title?: string
+        brandName?: string
+        price?: { price?: { current?: { value?: string } } }
+        relativeProductUrl?: string
+      }[]
+    }
     for (const p of data.products ?? []) {
-      const price = p.price?.value
-      if (price == null || price <= 0) continue
+      const rawPrice = p.price?.price?.current?.value
+      if (!rawPrice) continue
+      const price = parseFloat(rawPrice.replace(',', '.').replace(/[^\d.]/g, ''))
+      if (!price || price <= 0) continue
       const name = [p.brandName, p.title].filter(Boolean).join(' ')
       if (!nameMatches(query, name)) continue
       return {
@@ -145,7 +155,7 @@ async function searchSite(site: typeof SITES[number], query: string): Promise<Al
   for (const searchPath of site.searches) {
     const url = site.base + searchPath.replace('{q}', q)
     try {
-      const res = await fetch(url, { headers: HTML_HEADERS, redirect: 'follow', signal: AbortSignal.timeout(6000) })
+      const res = await fetch(url, { headers: HTML_HEADERS, redirect: 'follow', signal: AbortSignal.timeout(4000) })
       if (!res.ok) continue
       const html = await res.text()
       const products = extractProductsFromHtml(html, res.url)
