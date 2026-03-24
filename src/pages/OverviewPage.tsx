@@ -6,11 +6,13 @@ import { Euro, Package, ShoppingCart, Activity, TrendingUp } from 'lucide-react'
 type ProductKpi = Pick<Product, 'id' | 'current_stock' | 'min_stock' | 'last_price'>
 type MovementRow = { product_id: string; quantity: number; type: string; created_at: string; products: { name: string } | null }
 type OrderRow = { id: string; status: string; created_at: string }
+type PurchaseRow = { product_id: string; estimated_price: number; orders: { created_at: string } }
 
 export default function OverviewPage() {
   const [products, setProducts] = useState<ProductKpi[]>([])
   const [movements, setMovements] = useState<MovementRow[]>([])
   const [orders, setOrders] = useState<OrderRow[]>([])
+  const [lastPurchasePrices, setLastPurchasePrices] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -24,16 +26,32 @@ export default function OverviewPage() {
         .order('created_at', { ascending: false })
         .limit(2000),
       supabase.from('orders').select('id, status, created_at').gte('created_at', THIRTY_DAYS_AGO),
-    ]).then(([{ data: p }, { data: m }, { data: o }]) => {
+      supabase.from('order_items')
+        .select('product_id, estimated_price, orders!inner(created_at)')
+        .eq('orders.status', 'received')
+        .not('estimated_price', 'is', null),
+    ]).then(([{ data: p }, { data: m }, { data: o }, { data: purchases }]) => {
       setProducts((p ?? []) as ProductKpi[])
       setMovements((m as unknown as MovementRow[]) ?? [])
       setOrders(o ?? [])
+      // Build a map of product_id → most recent actual purchase price
+      const rows = (purchases ?? []) as unknown as PurchaseRow[]
+      rows.sort((a, b) => new Date(b.orders.created_at).getTime() - new Date(a.orders.created_at).getTime())
+      const prices: Record<string, number> = {}
+      for (const row of rows) {
+        if (!(row.product_id in prices)) prices[row.product_id] = row.estimated_price
+      }
+      setLastPurchasePrices(prices)
       setLoading(false)
     })
   }, [])
 
   const THIRTY_DAYS_AGO = useMemo(() => new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(), [])
-  const totalValue = useMemo(() => products.reduce((sum, p) => sum + (p.current_stock * (p.last_price ?? 0)), 0), [products])
+  // Use most recent purchase price per product; fall back to last_price if never ordered
+  const totalValue = useMemo(
+    () => products.reduce((sum, p) => sum + p.current_stock * (lastPurchasePrices[p.id] ?? p.last_price ?? 0), 0),
+    [products, lastPurchasePrices]
+  )
   const movementsThisMonth = useMemo(() => movements.filter(m => m.created_at >= THIRTY_DAYS_AGO).length, [movements, THIRTY_DAYS_AGO])
   const stockHealth = useMemo(() => ({
     green:  products.filter(p => p.current_stock > p.min_stock * 1.5).length,
