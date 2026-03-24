@@ -402,12 +402,12 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
                     <div>
                       <p className="text-sm text-slate-400">
                         {inCart ? 'Artikel bereits im Warenkorb' : 'Artikel bereits in Bestellung'}
+                        {onNavigateToOrders && (
+                          <button onClick={onNavigateToOrders} className="ml-2 text-sky-500 hover:text-sky-600 hover:underline transition-colors">
+                            {inCart ? 'Zum Warenkorb →' : 'Zur Bestellung →'}
+                          </button>
+                        )}
                       </p>
-                      {onNavigateToOrders && (
-                        <button onClick={onNavigateToOrders} className="text-xs text-sky-500 hover:text-sky-600 transition-colors">
-                          Zur Bestellung →
-                        </button>
-                      )}
                     </div>
                   </div>
                 ) : (

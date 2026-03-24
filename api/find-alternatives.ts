@@ -8,7 +8,7 @@ export interface Alternative {
   price: number
 }
 
-const HTML_HEADERS = {
+export const HTML_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
   'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
   'Accept-Language': 'de-DE,de;q=0.9,en;q=0.8',
@@ -27,7 +27,7 @@ const adminClient = createClient(
 
 // ── Name relevance check ────────────────────────────────────────────────────
 // Tokenise a string into meaningful lowercase words (4+ chars, non-numeric)
-function tokenise(s: string): Set<string> {
+export function tokenise(s: string): Set<string> {
   return new Set(
     s.toLowerCase()
       .replace(/[^\w\s]/g, ' ')
@@ -37,7 +37,7 @@ function tokenise(s: string): Set<string> {
 }
 
 // Returns true if the result name shares enough tokens with the search query
-function nameMatches(query: string, resultName: string | null): boolean {
+export function nameMatches(query: string, resultName: string | null): boolean {
   if (!resultName) return false
   const qTokens = tokenise(query)
   const rTokens = tokenise(resultName)
@@ -57,7 +57,7 @@ function extractPrice(offers: unknown): number | null {
   return isNaN(n) || n <= 0 ? null : n
 }
 
-function extractProductsFromHtml(html: string, pageUrl: string): { name: string | null; price: number; url: string }[] {
+export function extractProductsFromHtml(html: string, pageUrl: string): { name: string | null; price: number; url: string }[] {
   const found: { name: string | null; price: number; url: string }[] = []
   const blocks = [...html.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)]
   for (const block of blocks) {
@@ -129,7 +129,7 @@ async function searchDm(query: string): Promise<Alternative | null> {
 }
 
 // ── Microdata / class-price fallback ─────────────────────────────────────────
-function extractProductsFromMicrodata(html: string, pageUrl: string): { name: string | null; price: number; url: string }[] {
+export function extractProductsFromMicrodata(html: string, pageUrl: string): { name: string | null; price: number; url: string }[] {
   const found: { name: string | null; price: number; url: string }[] = []
 
   // Strategy 1: itemprop="price" content="..." — works for OXID, Magento, schema.org microdata
@@ -140,20 +140,27 @@ function extractProductsFromMicrodata(html: string, pageUrl: string): { name: st
     const ctx = html.slice(Math.max(0, m.index! - 3000), m.index!)
     const nameM = [...ctx.matchAll(/itemprop=["']name["'][^>]*(?:content=["']([^"']+)["']|>([^<]{3,80})<)/gi)].pop()
     const urlM = [...ctx.matchAll(/(?:itemprop=["']url["'][^>]*(?:content|href)=["']|href=["'])([^"']+)["']/gi)].pop()
-    const name = nameM ? (nameM[1] ?? nameM[2] ?? '').trim() || null : null
+    let name = nameM ? (nameM[1] ?? nameM[2] ?? '').trim() || null : null
+    // Fallback for product detail pages (e.g. Shopware): name is in <h1 itemprop="name"> far above the price
+    if (!name) {
+      const h1M = html.match(/<h1[^>]*itemprop=["']name["'][^>]*>\s*([^<]{3,120})/i)
+             ?? html.match(/itemprop=["']name["'][^>]*>\s*([^<]{3,120})<\/h1>/i)
+      if (h1M) name = h1M[1].trim() || null
+    }
     const rawUrl = urlM?.[1] ?? ''
     const url = rawUrl.startsWith('http') ? rawUrl : rawUrl.startsWith('/') ? new URL(rawUrl, pageUrl).href : pageUrl
     found.push({ name, price, url })
   }
   if (found.length > 0) return found
 
-  // Strategy 2: data-price-amount (Magento listing pages)
-  for (const m of html.matchAll(/data-price-amount=["']([0-9.,]+)["']/gi)) {
+  // Strategy 2: data-price-amount (Magento listing pages) — only finalPrice to skip old/tier prices
+  for (const m of html.matchAll(/data-price-amount=["']([0-9.,]+)["'][^>]*data-price-type=["']finalPrice["']/gi)) {
     const price = parseFloat((m[1]).replace(',', '.'))
     if (!price || price <= 0) continue
     const ctx = html.slice(Math.max(0, m.index! - 2000), m.index!)
     const nameM = [...ctx.matchAll(/itemprop=["']name["'][^>]*(?:content=["']([^"']+)["']|>([^<]{3,80})<)/gi)].pop()
       ?? [...ctx.matchAll(/class=["'][^"']*product[^"']*(?:name|title)[^"']*["'][^>]*>([^<]{3,80})</gi)].pop()
+      ?? [...ctx.matchAll(/<a[^>]+class="[^"]*product-item-link[^"]*"[^>]*>([^<]{3,80})</gi)].pop()
     const urlM = [...ctx.matchAll(/href=["']([^"']+)["']/gi)].pop()
     const name = nameM ? (nameM[1] ?? nameM[2] ?? '').trim() || null : null
     const rawUrl = urlM?.[1] ?? ''
