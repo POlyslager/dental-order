@@ -395,7 +395,7 @@ useEffect(() => {
         })
         const data = await res.json()
         const alts = (data.results ?? []) as PriceAlternative[]
-        const cheaper = alts.filter(a => a.price < product.last_price!)
+        const cheaper = alts.filter(a => a.price < product.last_price! && (product.last_price! - a.price) / product.last_price! <= 0.90)
         return { product, cheaper }
       })
     )

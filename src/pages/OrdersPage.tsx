@@ -133,7 +133,10 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
           body: JSON.stringify({ productName: item.product?.name, brand: item.product?.brand }),
         })
         const data = await res.json()
-        const alternatives = (data.results ?? []) as PriceAlternative[]
+        const currentPrice = item.product?.last_price ?? 0
+        const alternatives = (data.results ?? []).filter((a: PriceAlternative) =>
+          currentPrice <= 0 || (currentPrice - a.price) / currentPrice <= 0.90
+        ) as PriceAlternative[]
         setPriceHits(prev => ({ ...prev, [item.product_id]: alternatives }))
       } catch { /* ignore */ }
     })
