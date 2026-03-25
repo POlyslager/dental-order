@@ -676,8 +676,8 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
                   <div>
                     <p className="text-xs text-slate-400 dark:text-slate-500 mb-0.5">Bestellwebsite</p>
                     <a href={form.supplier_url} target="_blank" rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-sm text-sky-600 hover:underline break-all">
-                      <ExternalLink size={12} /> {form.supplier_url}
+                      className="text-sm text-sky-600 hover:underline break-all">
+                      {form.supplier_url}
                     </a>
                   </div>
                 ) : null}
