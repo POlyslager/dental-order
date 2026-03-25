@@ -680,14 +680,14 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
                     <ExternalLink size={12} />
                     Öffnen
                   </a>
-                  {isCheaper && (
-                    <button
-                      onClick={() => onApply(item, alt)}
-                      className="text-xs font-medium bg-emerald-50 dark:bg-emerald-900/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 px-2.5 py-2 rounded-lg transition-colors whitespace-nowrap shrink-0"
-                    >
-                      Als Standard
-                    </button>
-                  )}
+                  <button
+                    onClick={() => onApply(item, alt)}
+                    className={`text-xs font-medium px-2.5 py-2 rounded-lg transition-colors whitespace-nowrap shrink-0 ${isCheaper
+                      ? 'bg-emerald-50 dark:bg-emerald-900/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400'
+                      : 'bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300'}`}
+                  >
+                    Als Standard
+                  </button>
                 </div>
               )
             })}
