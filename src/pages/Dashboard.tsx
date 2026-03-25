@@ -133,7 +133,7 @@ export default function Dashboard({ user }: Props) {
     return () => { supabase.removeChannel(channel) }
   }, [])
 
-  const SETTINGS_TABS = new Set<Tab>(['suppliers', 'brands', 'categories', 'pin'])
+  const SETTINGS_TABS = new Set<Tab>(['pin'])
   const showSettingsPanel = !sidebarCollapsed && (settingsOpen || SETTINGS_TABS.has(tab))
 
   const bottomTabs: { id: Tab; icon: React.ReactNode; badge?: number }[] = [
@@ -143,9 +143,12 @@ export default function Dashboard({ user }: Props) {
   const activeIndex = bottomTabs.findIndex(t => t.id === tab)
 
   const sidebarItems: { id: Tab; icon: React.ReactNode; label: string; badge?: number }[] = [
-    { id: 'stock',    icon: <Package size={20} />,         label: 'Artikel' },
-    { id: 'orders',   icon: <ShoppingCart size={20} />,    label: 'Bestellungen', badge: orderBadge },
     ...(role === 'admin' ? [{ id: 'overview' as Tab, icon: <LayoutDashboard size={20} />, label: 'Dashboard' }] : []),
+    { id: 'orders',     icon: <ShoppingCart size={20} />,  label: 'Bestellungen', badge: orderBadge },
+    { id: 'stock',      icon: <Package size={20} />,       label: 'Artikel' },
+    { id: 'suppliers',  icon: <Users size={20} />,         label: 'Lieferanten' },
+    { id: 'brands',     icon: <Factory size={20} />,       label: 'Hersteller' },
+    { id: 'categories', icon: <Tag size={20} />,           label: 'Kategorien' },
   ]
 
   return (
@@ -236,10 +239,7 @@ export default function Dashboard({ user }: Props) {
               </button>
               <div className="border-t border-slate-100 dark:border-slate-700 pt-1 space-y-0.5">
                 {([
-                  { id: 'suppliers' as Tab,  icon: <Users size={18} />,     label: 'Lieferanten' },
-                  { id: 'brands' as Tab,     icon: <Factory size={18} />,   label: 'Hersteller' },
-                  { id: 'categories' as Tab, icon: <Tag size={18} />,       label: 'Kategorien' },
-                  { id: 'data' as Tab,       icon: <Database size={18} />,  label: 'Daten & Import' },
+                  { id: 'data' as Tab, icon: <Database size={18} />, label: 'Daten & Import' },
                 ] as { id: Tab; icon: React.ReactNode; label: string }[]).map(item => (
                   <button
                     key={item.id}
@@ -549,14 +549,20 @@ export default function Dashboard({ user }: Props) {
               >
                 {/* Main panel */}
                 <div className="overflow-y-auto py-2" style={{ width: '50%' }}>
-                  <MenuItem icon={<Package size={18} />} label="Artikel"
-                    active={tab === 'stock'} onClick={() => navigate('stock')} />
-                  <MenuItem icon={<ShoppingCart size={18} />} label="Bestellungen"
-                    active={tab === 'orders'} onClick={() => navigate('orders')} />
                   {role === 'admin' && (
                     <MenuItem icon={<LayoutDashboard size={18} />} label="Dashboard"
                       active={tab === 'overview'} onClick={() => navigate('overview')} />
                   )}
+                  <MenuItem icon={<ShoppingCart size={18} />} label="Bestellungen"
+                    active={tab === 'orders'} onClick={() => navigate('orders')} />
+                  <MenuItem icon={<Package size={18} />} label="Artikel"
+                    active={tab === 'stock'} onClick={() => navigate('stock')} />
+                  <MenuItem icon={<Users size={18} />} label="Lieferanten"
+                    active={tab === 'suppliers'} onClick={() => navigate('suppliers')} />
+                  <MenuItem icon={<Factory size={18} />} label="Hersteller"
+                    active={tab === 'brands'} onClick={() => navigate('brands')} />
+                  <MenuItem icon={<Tag size={18} />} label="Kategorien"
+                    active={tab === 'categories'} onClick={() => navigate('categories')} />
                   <MenuItem
                     icon={<Settings size={18} />}
                     label="Einstellungen"
@@ -569,21 +575,6 @@ export default function Dashboard({ user }: Props) {
 
                 {/* Settings panel */}
                 <div className="overflow-y-auto py-2" style={{ width: '50%' }}>
-                  <MenuItem
-                    icon={<Users size={18} />}
-                    label="Lieferanten"
-                    onClick={() => navigate('suppliers')}
-                  />
-                  <MenuItem
-                    icon={<Factory size={18} />}
-                    label="Hersteller"
-                    onClick={() => navigate('brands')}
-                  />
-                  <MenuItem
-                    icon={<Tag size={18} />}
-                    label="Kategorien"
-                    onClick={() => navigate('categories')}
-                  />
                   <MenuItem
                     icon={<Database size={18} />}
                     label="Daten & Import"
