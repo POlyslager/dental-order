@@ -1288,7 +1288,7 @@ function StackedMonthlyBars({ data, buckets, maxTotal }: {
         {data.map((month, i) => (
           (i === 0 || i === Math.floor(data.length / 2) || i === data.length - 1) ? (
             <div key={i} className="flex-1 text-center" style={{ position: 'relative' }}>
-              <span className="text-slate-400 leading-none" style={{ fontSize: 9 }}>{month.label}</span>
+              <span className="text-slate-400 leading-none" style={{ fontSize: 11 }}>{month.label}</span>
             </div>
           ) : <div key={i} className="flex-1" />
         ))}
@@ -1353,7 +1353,7 @@ function VerticalBars({ data, max, barColor, formatValue, empty = 'Keine Daten' 
         <div className="flex gap-1 mt-1.5 border-t border-slate-100 pt-1.5">
           {data.map(({ label }, i) => (
             <div key={i} className="flex-1 text-center overflow-hidden">
-              <span className="text-slate-400 leading-none block truncate" style={{ fontSize: 9 }} title={label}>
+              <span className="text-slate-400 leading-none block truncate" style={{ fontSize: 11 }} title={label}>
                 {label}
               </span>
             </div>
