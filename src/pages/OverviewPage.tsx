@@ -420,18 +420,6 @@ export default function OverviewPage() {
     return Math.round((atZero / tracked.length) * 100)
   }, [products])
 
-  // ── KPI 12: Genehmigungsquote — % of orders approved vs rejected ───────────
-  const _genehmigungsquote = useMemo(() => {
-    const approved = new Set<string>()
-    const rejected = new Set<string>()
-    for (const oi of orderItems) {
-      if (!oi.orders?.id) continue
-      if (oi.orders.status === 'ordered' || oi.orders.status === 'received') approved.add(oi.orders.id)
-      if (oi.orders.status === 'rejected') rejected.add(oi.orders.id)
-    }
-    const total = approved.size + rejected.size
-    return total === 0 ? null : Math.round((approved.size / total) * 100)
-  }, [orderItems])
 
   // ── KPI 13: Wiederbestellquote — % of products ordered more than once ───────
   const wiederbestellquote = useMemo(() => {
@@ -457,17 +445,6 @@ export default function OverviewPage() {
     return Math.round((atZero / productIds.length) * 100)
   }, [orderItems, products])
 
-  // ── KPI 15: Bestellfehlerquote — % of orders rejected or cancelled ─────────
-  const _bestellfehlerquote = useMemo(() => {
-    const all = new Set<string>()
-    const failed = new Set<string>()
-    for (const oi of orderItems) {
-      if (!oi.orders?.id) continue
-      all.add(oi.orders.id)
-      if (oi.orders.status === 'rejected' || oi.orders.status === 'cancelled') failed.add(oi.orders.id)
-    }
-    return all.size === 0 ? null : Math.round((failed.size / all.size) * 100)
-  }, [orderItems])
 
   // ── KPI 22: Monthly spend by category (top 4 + Übrige) ────────────────────
   const categoryMonthlySpend = useMemo(() => {
@@ -839,7 +816,7 @@ export default function OverviewPage() {
                     <div className="min-w-0 text-left flex-1">
                       <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{kpi.label}</p>
                       <p className="text-2xl font-bold text-slate-800 dark:text-slate-100 leading-tight">{kpi.value}</p>
-                      {'sub' in kpi && kpi.sub && <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{kpi.sub as string}</p>}
+                      {'sub' in kpi && typeof kpi.sub === 'string' && kpi.sub && <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{kpi.sub}</p>}
                     </div>
                   </div>
                 ))}
