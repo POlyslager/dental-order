@@ -12,6 +12,15 @@
     <link rel="apple-touch-icon" href="/app-icon.svg" />
     <link rel="manifest" href="/manifest.json" />
     <title>Dental Order</title>
+    <script>
+  try {
+    var t = localStorage.getItem('theme');
+    var sys = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    if (t === 'dark' || (!t && sys) || (t === 'system' && sys)) {
+      document.documentElement.classList.add('dark');
+    }
+  } catch(e) {}
+</script>
   </head>
   <body>
     <div id="root"></div>

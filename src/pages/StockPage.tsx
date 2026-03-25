@@ -19,7 +19,7 @@ interface Props { role: Role | null; initialBarcode?: string | null; onBarcodeCo
 const EMPTY_FORM = {
   article_number: '', name: '', description: '', category: '', barcode: '',
   current_stock: '', min_stock: '', unit: 'pcs', preferred_supplier: '', supplier_url: '',
-  producer_url: '', last_price: '', storage_location: '', notes: '',
+  brand: '', last_price: '', storage_location: '', notes: '',
 }
 const STORAGE_LOCATIONS = [
   'Behandlungsraum 1', 'Behandlungsraum 2', 'Behandlungsraum 3',
@@ -237,7 +237,7 @@ useEffect(() => {
       article_number: form.article_number || null,
       barcode: form.barcode || null,
       supplier_url: form.supplier_url || null,
-      producer_url: form.producer_url || null,
+      brand: form.brand || null,
       preferred_supplier: form.preferred_supplier || null,
       storage_location: form.storage_location || null,
       description: form.description || null,
@@ -723,7 +723,7 @@ useEffect(() => {
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Lieferant / Hersteller</label>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Lieferant</label>
                 <CategorySelect
                   value={form.preferred_supplier}
                   onChange={v => setForm(f => ({ ...f, preferred_supplier: v }))}
@@ -731,6 +731,13 @@ useEffect(() => {
                   placeholder="Lieferant suchen…"
                   newLabel="als neuer Lieferant"
                 />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Hersteller</label>
+                <input type="text" value={form.brand}
+                  onChange={e => setForm(f => ({ ...f, brand: e.target.value }))}
+                  placeholder="z.B. Hager Werken"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Bestell-Website</label>

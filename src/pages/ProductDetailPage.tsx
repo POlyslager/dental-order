@@ -13,11 +13,28 @@ const STORAGE_LOCATIONS = [
   'Steri', 'Rezeption', 'Büro', 'Radiologie', 'Keller',
 ]
 const UNITS = ['Stück', 'Packung', 'Flasche', 'Kanister']
+const TREATMENT_TYPE_OPTIONS = [
+  'Prophylaxe', 'Chirurgie', 'Implantologie', 'Prothetik',
+  'Konservierend', 'Kieferorthopädie', 'Allgemein',
+]
 
 function stockStatus(p: Product): 'red' | 'orange' | 'green' {
   if (p.current_stock <= p.min_stock) return 'red'
   if (p.current_stock <= p.min_stock * 1.5) return 'orange'
   return 'green'
+}
+
+function expiryStatus(dateStr: string | null | undefined): 'expired' | 'soon' | null {
+  if (!dateStr) return null
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const exp = new Date(dateStr)
+  exp.setHours(0, 0, 0, 0)
+  if (exp <= today) return 'expired'
+  const thirtyDays = new Date(today)
+  thirtyDays.setDate(today.getDate() + 30)
+  if (exp <= thirtyDays) return 'soon'
+  return null
 }
 
 interface Props {
@@ -134,11 +151,13 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
       unit: form.unit,
       storage_location: form.storage_location,
       expiry_date: form.expiry_date || null,
+      lot_number: form.lot_number || null,
+      treatment_types: form.treatment_types ?? [],
       notes: form.notes,
       last_price: parseNum(form.last_price),
       preferred_supplier: form.preferred_supplier,
       supplier_url: form.supplier_url,
-      producer_url: form.producer_url,
+      brand: form.brand,
     }).eq('id', product.id).select().single()
     setSaving(false)
     if (!error && data) {
@@ -487,6 +506,68 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
               {editField('Stückpreis (€)', 'last_price', 'number')}
               {editField('Lagerort', 'storage_location', 'select')}
               {editField('Beschreibung', 'notes', 'textarea')}
+              {/* Verfallsdatum */}
+              <div>
+                <label className="flex items-center gap-2 text-xs font-medium text-slate-600 mb-1">
+                  Verfallsdatum
+                  {(() => {
+                    const st = expiryStatus(form.expiry_date)
+                    if (st === 'expired') return <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-600">Abgelaufen</span>
+                    if (st === 'soon') return <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-600">Bald ablaufend</span>
+                    return null
+                  })()}
+                </label>
+                <input
+                  type="date"
+                  value={form.expiry_date ?? ''}
+                  onChange={e => setForm(p => ({ ...p, expiry_date: e.target.value || null }))}
+                  className={inputCls}
+                />
+              </div>
+              {/* Chargennummer */}
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Chargennummer</label>
+                <input
+                  type="text"
+                  value={form.lot_number ?? ''}
+                  placeholder="z.B. LOT-2024-001"
+                  onChange={e => setForm(p => ({ ...p, lot_number: e.target.value || null }))}
+                  className={inputCls}
+                />
+              </div>
+              {/* Behandlungstypen */}
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-2">
+                  Behandlungstypen <span className="text-slate-400 font-normal">(optional)</span>
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {TREATMENT_TYPE_OPTIONS.map(opt => {
+                    const selected = (form.treatment_types ?? []).includes(opt)
+                    return (
+                      <button
+                        key={opt}
+                        type="button"
+                        onClick={() => setForm(p => {
+                          const current = p.treatment_types ?? []
+                          return {
+                            ...p,
+                            treatment_types: selected
+                              ? current.filter(t => t !== opt)
+                              : [...current, opt],
+                          }
+                        })}
+                        className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
+                          selected
+                            ? 'bg-sky-500 border-sky-500 text-white'
+                            : 'bg-slate-100 border-slate-200 text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        {opt}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
               <div className="border-t border-slate-100 pt-3 space-y-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Lieferant</label>
@@ -499,7 +580,7 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
                   />
                 </div>
                 {editField('Bestellwebsite', 'supplier_url', 'url')}
-                {editField('Hersteller-Website', 'producer_url', 'url')}
+                {editField('Hersteller', 'brand')}
               </div>
             </div>
           ) : (
@@ -516,24 +597,55 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
 
               {(form.notes || form.description) ? <Info label="Beschreibung" value={(form.notes || form.description)!} /> : null}
 
-              {(form.preferred_supplier || form.supplier_url || form.producer_url) && (
+              {/* Verfallsdatum / Chargennummer / Behandlungstypen */}
+              {(form.expiry_date || form.lot_number || (form.treatment_types && form.treatment_types.length > 0)) && (
+                <div className="border-t border-slate-100 pt-4 space-y-3">
+                  {form.expiry_date && (() => {
+                    const st = expiryStatus(form.expiry_date)
+                    const formatted = new Date(form.expiry_date + 'T00:00:00').toLocaleDateString('de-DE')
+                    return (
+                      <div>
+                        <p className="text-xs text-slate-400 mb-0.5">Verfallsdatum</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm text-slate-800">{formatted}</p>
+                          {st === 'expired' && (
+                            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-600">Abgelaufen</span>
+                          )}
+                          {st === 'soon' && (
+                            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-600">Bald ablaufend</span>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })()}
+                  {form.lot_number && (
+                    <Info label="Chargennummer" value={form.lot_number} />
+                  )}
+                  {form.treatment_types && form.treatment_types.length > 0 && (
+                    <div>
+                      <p className="text-xs text-slate-400 mb-1.5">Behandlungstypen</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {form.treatment_types.map(t => (
+                          <span key={t} className="text-xs font-medium px-3 py-1 rounded-full bg-sky-100 text-sky-700">
+                            {t}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {(form.preferred_supplier || form.supplier_url || form.brand) && (
                 <div className="border-t border-slate-100 pt-4 space-y-3">
                   {form.preferred_supplier ? <Info label="Lieferant" value={form.preferred_supplier} /> : null}
+                  {form.brand ? <Info label="Hersteller" value={form.brand} /> : null}
                   {form.supplier_url ? (
                     <div>
                       <p className="text-xs text-slate-400 mb-0.5">Bestellwebsite</p>
                       <a href={form.supplier_url} target="_blank" rel="noopener noreferrer"
                         className="flex items-center gap-1 text-sm text-sky-600 hover:underline break-all">
                         <ExternalLink size={12} /> {form.supplier_url}
-                      </a>
-                    </div>
-                  ) : null}
-                  {form.producer_url ? (
-                    <div>
-                      <p className="text-xs text-slate-400 mb-0.5">Hersteller-Website</p>
-                      <a href={form.producer_url} target="_blank" rel="noopener noreferrer"
-                        className="flex items-center gap-1 text-sm text-sky-600 hover:underline break-all">
-                        <ExternalLink size={12} /> {form.producer_url}
                       </a>
                     </div>
                   ) : null}
@@ -653,7 +765,7 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
           <div className="flex gap-3 pt-2">
             <button
               onClick={() => setEditing(true)}
-              className="flex-1 flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 rounded-xl py-3 text-sm font-medium text-slate-700 transition-colors"
+              className="flex-1 flex items-center justify-center gap-2 border border-slate-300 rounded-xl py-3 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
             >
               <Pencil size={15} />
               Bearbeiten

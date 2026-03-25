@@ -37,6 +37,8 @@ export default function ShopsPage() {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [undoShop, setUndoShop] = useState<PriceComparisonShop | null>(null)
+  const [page, setPage] = useState(1)
+  const PAGE_SIZE = 25
 
   useEffect(() => { load() }, [])
 
@@ -154,11 +156,13 @@ export default function ShopsPage() {
   const filtered = shops.filter(s =>
     query === '' || s.base_url.toLowerCase().includes(query.toLowerCase())
   )
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   const panelOpen = isNew || selected != null
 
   return (
-    <div className="w-full relative">
+    <div className="flex-1 flex flex-col overflow-hidden pb-20 md:pb-0 relative">
       {toast && <Toast message={toast} onClose={() => { setToast(null); if (!undoShop) setUndoShop(null) }} onUndo={undoShop ? handleUndoDelete : undefined} />}
       {confirmDelete && (
         <ConfirmDialog
@@ -168,18 +172,18 @@ export default function ShopsPage() {
         />
       )}
       {/* Toolbar */}
-      <div className="px-4 pt-3 pb-3 flex gap-2 items-center">
+      <div className="px-4 pt-3 pb-3 flex gap-2 items-center shrink-0">
         <div className="relative w-52 shrink-0">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
             placeholder="Suchen…"
             value={query}
-            onChange={e => setQuery(e.target.value)}
+            onChange={e => { setQuery(e.target.value); setPage(1) }}
             className="w-full border border-slate-200 rounded-xl pl-8 pr-7 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white"
           />
           {query && (
-            <button onClick={() => setQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+            <button onClick={() => { setQuery(''); setPage(1) }} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
               <X size={13} />
             </button>
           )}
@@ -194,52 +198,90 @@ export default function ShopsPage() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-20">
+        <div className="flex-1 flex justify-center py-20">
           <div className="w-6 h-6 border-4 border-sky-500 border-t-transparent rounded-full animate-spin" />
         </div>
       ) : (
-        <>
-          {/* Desktop header */}
-          <div className="hidden md:grid border-b border-slate-200 bg-white sticky top-0 z-10" style={{ gridTemplateColumns: '2fr 0.7fr 2rem' }}>
-            {['URL', 'Status'].map(h => (
-              <div key={h} className="px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">{h}</div>
-            ))}
-            <div />
-          </div>
-
-          {/* Rows */}
-          <div className="divide-y divide-slate-100">
-            {filtered.map(shop => (
-              <div key={shop.id} onClick={() => openExisting(shop)} className="bg-white hover:bg-slate-50 cursor-pointer transition-colors">
-                {/* Desktop */}
-                <div className="hidden md:grid items-center" style={{ gridTemplateColumns: '2fr 0.7fr 2rem' }}>
-                  <div className="px-4 py-3.5 text-sm font-semibold text-slate-800 truncate">{displayUrl(shop.base_url)}</div>
-                  <div className="px-4 py-3.5">
-                    <span className={`inline-flex text-xs font-medium px-2 py-0.5 rounded-full ${shop.is_active ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Scrollable list */}
+          <div className="flex-1 overflow-y-auto">
+            {/* Desktop header */}
+            <div className="hidden md:grid border-b border-slate-200 bg-white sticky top-0 z-10" style={{ gridTemplateColumns: '2fr 0.9fr 0.7fr 0.7fr 2rem' }}>
+              {['URL', 'Min. Bestellwert', 'Such-Pfade', 'Status'].map(h => (
+                <div key={h} className="px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">{h}</div>
+              ))}
+              <div />
+            </div>
+            <div className="divide-y divide-slate-100">
+              {paginated.map(shop => (
+                <div key={shop.id} onClick={() => openExisting(shop)} className="bg-white hover:bg-slate-50 cursor-pointer transition-colors">
+                  {/* Desktop */}
+                  <div className="hidden md:grid items-center" style={{ gridTemplateColumns: '2fr 0.9fr 0.7fr 0.7fr 2rem' }}>
+                    <div className="px-4 py-3.5 text-sm font-semibold text-slate-800 truncate">{displayUrl(shop.base_url)}</div>
+                    <div className="px-4 py-3.5 text-sm text-slate-400">
+                      {shop.min_order_value != null ? `€ ${shop.min_order_value.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+                    </div>
+                    <div className="px-4 py-3.5 text-sm text-slate-400">
+                      {shop.search_paths.length}
+                    </div>
+                    <div className="px-4 py-3.5">
+                      <span className={`inline-flex text-xs font-medium px-2 py-0.5 rounded-full ${shop.is_active ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                        {shop.is_active ? 'Aktiv' : 'Inaktiv'}
+                      </span>
+                    </div>
+                    <div className="py-3.5 text-slate-300"><ChevronRight size={14} /></div>
+                  </div>
+                  {/* Mobile */}
+                  <div className="flex md:hidden items-center px-4 py-3.5 gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-slate-800 truncate">{displayUrl(shop.base_url)}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">{shop.search_paths.length} Pfad(e)</p>
+                    </div>
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${shop.is_active ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
                       {shop.is_active ? 'Aktiv' : 'Inaktiv'}
                     </span>
+                    <ChevronRight size={14} className="text-slate-300 shrink-0" />
                   </div>
-                  <div className="py-3.5 text-slate-300"><ChevronRight size={14} /></div>
                 </div>
-                {/* Mobile */}
-                <div className="flex md:hidden items-center px-4 py-3.5 gap-3">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-slate-800 truncate">{displayUrl(shop.base_url)}</p>
-                    <p className="text-xs text-slate-400 mt-0.5">{shop.search_paths.length} Pfad(e)</p>
-                  </div>
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${shop.is_active ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
-                    {shop.is_active ? 'Aktiv' : 'Inaktiv'}
-                  </span>
-                  <ChevronRight size={14} className="text-slate-300 shrink-0" />
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
+            {filtered.length === 0 && (
+              <p className="text-sm text-slate-400 text-center py-16">Keine Shops gefunden</p>
+            )}
           </div>
 
-          {filtered.length === 0 && (
-            <p className="text-sm text-slate-400 text-center py-16">Keine Shops gefunden</p>
-          )}
-        </>
+          {/* Pagination — always visible at bottom */}
+          <div className="flex items-center px-4 py-3 border-t border-slate-100 bg-white shrink-0">
+            <p className="text-xs text-slate-400 w-40 shrink-0">
+              {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} von {filtered.length}
+            </p>
+            <div className="flex-1 flex items-center justify-center gap-1">
+              <button onClick={() => setPage(1)} disabled={page === 1} className="px-2 py-1.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">«</button>
+              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="px-3 py-1.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">Zurück</button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter(n => n === 1 || n === totalPages || Math.abs(n - page) <= 1)
+                .reduce<(number | '…')[]>((acc, n, i, arr) => {
+                  if (i > 0 && n - (arr[i - 1] as number) > 1) acc.push('…')
+                  acc.push(n)
+                  return acc
+                }, [])
+                .map((n, i) =>
+                  n === '…' ? (
+                    <span key={`e-${i}`} className="px-2 py-1.5 text-xs text-slate-300">…</span>
+                  ) : (
+                    <button key={n} onClick={() => setPage(n as number)}
+                      className={`w-8 h-7 text-xs rounded-lg transition-colors ${page === n ? 'bg-sky-500 text-white font-semibold' : 'text-slate-600 hover:bg-slate-100'}`}>
+                      {n}
+                    </button>
+                  )
+                )
+              }
+              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="px-3 py-1.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">Weiter</button>
+              <button onClick={() => setPage(totalPages)} disabled={page === totalPages} className="px-2 py-1.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">»</button>
+            </div>
+            <div className="w-40 shrink-0" />
+          </div>
+        </div>
       )}
 
       {/* Detail panel */}
@@ -252,22 +294,10 @@ export default function ShopsPage() {
               <h2 className="font-semibold text-slate-800 truncate flex-1 mr-2">
                 {isNew ? 'Neuer Shop' : (form.base_url ? displayUrl(form.base_url) : 'Shop')}
               </h2>
-              <div className="flex items-center gap-1 shrink-0">
-                {!isNew && !editing && (
-                  <>
-                    <button onClick={() => setEditing(true)} className="text-slate-400 hover:text-sky-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors">
-                      <Pencil size={16} />
-                    </button>
-                    <button onClick={() => setConfirmDelete(true)} className="text-slate-300 hover:text-red-400 p-1.5 rounded-lg hover:bg-slate-100 transition-colors">
-                      <Trash2 size={16} />
-                    </button>
-                  </>
-                )}
-                <button onClick={editing && !isNew ? () => { setForm({ ...selected! }); setEditing(false) } : closePanel}
-                  className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors">
-                  <X size={18} />
-                </button>
-              </div>
+              <button onClick={closePanel}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors">
+                <X size={18} />
+              </button>
             </div>
 
             {/* View mode */}
@@ -337,30 +367,9 @@ export default function ShopsPage() {
                     className={`${inputCls} resize-none font-mono`}
                     placeholder="https://example.com/search?q={q}" />
                 </div>
-                <Field label="Status">
-                  <label className="flex items-center gap-3 cursor-pointer select-none">
-                    <div onClick={() => setForm(f => ({ ...f, is_active: !f.is_active }))}
-                      className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${form.is_active ? 'bg-sky-500' : 'bg-slate-200'}`}>
-                      <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all ${form.is_active ? 'left-6' : 'left-1'}`} />
-                    </div>
-                    <span className="text-sm text-slate-700">{form.is_active ? 'Aktiv' : 'Inaktiv'}</span>
-                  </label>
-                </Field>
-                <Field label="Mindestbestellwert (€)">
-                  <input type="number" min="0" step="0.01"
-                    value={form.min_order_value ?? ''}
-                    onChange={e => setForm(f => ({ ...f, min_order_value: e.target.value ? parseFloat(e.target.value) : null }))}
-                    placeholder="z.B. 50.00" className={inputCls} />
-                </Field>
-                <Field label="Notizen">
-                  <textarea rows={3}
-                    value={form.notes ?? ''}
-                    onChange={e => setForm(f => ({ ...f, notes: e.target.value || null }))}
-                    placeholder="Interne Notizen zum Shop…" className={`${inputCls} resize-none`} />
-                </Field>
 
                 {/* Test section */}
-                <div className="border-t border-slate-100 pt-4 space-y-3">
+                <div className="space-y-3">
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Verbindung testen</p>
                   <div className="flex gap-2">
                     <input
@@ -405,13 +414,47 @@ export default function ShopsPage() {
                     )
                   )}
                 </div>
+
+                <Field label="Status">
+                  <label className="flex items-center gap-3 cursor-pointer select-none">
+                    <div onClick={() => setForm(f => ({ ...f, is_active: !f.is_active }))}
+                      className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${form.is_active ? 'bg-sky-500' : 'bg-slate-200'}`}>
+                      <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all ${form.is_active ? 'left-6' : 'left-1'}`} />
+                    </div>
+                    <span className="text-sm text-slate-700">{form.is_active ? 'Aktiv' : 'Inaktiv'}</span>
+                  </label>
+                </Field>
+                <Field label="Mindestbestellwert (€)">
+                  <input type="number" min="0" step="0.01"
+                    value={form.min_order_value ?? ''}
+                    onChange={e => setForm(f => ({ ...f, min_order_value: e.target.value ? parseFloat(e.target.value) : null }))}
+                    placeholder="z.B. 50.00" className={inputCls} />
+                </Field>
+                <Field label="Notizen">
+                  <textarea rows={3}
+                    value={form.notes ?? ''}
+                    onChange={e => setForm(f => ({ ...f, notes: e.target.value || null }))}
+                    placeholder="Interne Notizen zum Shop…" className={`${inputCls} resize-none`} />
+                </Field>
+
               </div>
             )}
 
             {/* Footer */}
-            {editing && (
+            {!editing && !isNew ? (
               <div className="border-t border-slate-100 px-5 py-4 flex gap-3 shrink-0">
-                <button onClick={isNew ? closePanel : () => { setForm({ ...selected! }); setEditing(false) }}
+                <button onClick={() => setEditing(true)}
+                  className="flex-1 flex items-center justify-center gap-2 border border-slate-300 rounded-xl py-3 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
+                  <Pencil size={14} /> Bearbeiten
+                </button>
+                <button onClick={() => setConfirmDelete(true)}
+                  className="flex-1 flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 text-white rounded-xl py-3 text-sm font-medium transition-colors">
+                  <Trash2 size={14} /> Löschen
+                </button>
+              </div>
+            ) : editing ? (
+              <div className="border-t border-slate-100 px-5 py-4 flex gap-3 shrink-0">
+                <button onClick={closePanel}
                   className="flex-1 border border-slate-300 rounded-xl py-3 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
                   Abbrechen
                 </button>
@@ -420,7 +463,7 @@ export default function ShopsPage() {
                   {saving ? 'Speichern…' : 'Speichern'}
                 </button>
               </div>
-            )}
+            ) : null}
           </div>
         </>
       )}

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import type { CartItem, Order, OrderItem, Role } from '../lib/types'
-import { ShoppingCart, Package, Plus, Minus, CheckCircle, ExternalLink, Check, Trash2, Undo2, ScanLine, X, Pencil } from 'lucide-react'
+import { ShoppingCart, Package, Plus, Minus, CheckCircle, ExternalLink, Check, Trash2, Undo2, ScanLine, X, Pencil, ChevronDown } from 'lucide-react'
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
 
 interface Props { role: Role | null; user: User; onBadgeChange: (n: number) => void; forceOpenTab?: number; forceScanMode?: number }
@@ -17,18 +17,20 @@ function getDomain(url: string | null | undefined): string | null {
   }
 }
 
-export default function OrdersPage({ user, onBadgeChange, forceOpenTab, forceScanMode }: Props) {
-  const [tab, setTab] = useState<'cart' | 'open'>('cart')
+export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, forceScanMode }: Props) {
+  const [tab, setTab] = useState<'cart' | 'open' | 'approval'>('cart')
   const [cartItems, setCartItems] = useState<CartItem[]>([])
   const [orders, setOrders] = useState<Order[]>([])
+  const [pendingOrders, setPendingOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [placingItem, setPlacingItem] = useState<string | null>(null)
   const [editItem, setEditItem] = useState<CartItem | null>(null)
   const [editClosing, setEditClosing] = useState(false)
-  const [editForm, setEditForm] = useState<{ supplier: string; price: string }>({ supplier: '', price: '' })
+  const [editForm, setEditForm] = useState<{ supplier: string; price: string; quantity: number }>({ supplier: '', price: '', quantity: 1 })
   const [editSaving, setEditSaving] = useState(false)
   const [suppliers, setSuppliers] = useState<string[]>([])
   const [deleteConfirm, setDeleteConfirm] = useState<CartItem | null>(null)
+  const [approvingOrder, setApprovingOrder] = useState<string | null>(null)
   const [toast, setToast] = useState<{ message: string; onUndo?: () => void } | null>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [scannedCounts, setScannedCounts] = useState<Record<string, number>>({})
@@ -38,7 +40,7 @@ export default function OrdersPage({ user, onBadgeChange, forceOpenTab, forceSca
   const einbuchenScannerRef = useRef<Html5Qrcode | null>(null)
   const scannerStartingRef = useRef(false)
   const scanToggleRef = useRef(false)
-  const prevTabRef = useRef<'cart' | 'open'>('cart')
+  const prevTabRef = useRef<'cart' | 'open' | 'approval'>('cart')
   const EINBUCHEN_SCAN_DIV = 'einbuchen-scanner-div'
   const [dragPos, setDragPos] = useState(() => ({
     x: typeof window !== 'undefined' ? Math.max(16, Math.floor(window.innerWidth / 2) - 160) : 16,
@@ -48,7 +50,7 @@ export default function OrdersPage({ user, onBadgeChange, forceOpenTab, forceSca
   const dragOrigin = useRef({ mouseX: 0, mouseY: 0, posX: 0, posY: 0 })
 
   useEffect(() => {
-    Promise.all([fetchCart(), fetchOrders()])
+    Promise.all([fetchCart(), fetchOrders(), fetchPendingOrders()])
   }, [])
 
   useEffect(() => {
@@ -77,25 +79,36 @@ export default function OrdersPage({ user, onBadgeChange, forceOpenTab, forceSca
   }, [tab])
 
   async function fetchCart() {
-    const [{ data }, { data: supData }] = await Promise.all([
+    const [{ data }, { data: prodSupData }] = await Promise.all([
       supabase
         .from('cart_items')
-        .select('id, product_id, quantity, created_at, product:products(id, name, current_stock, unit, last_price, alternative_price, alternative_url, alternative_supplier, supplier_url, preferred_supplier)')
+        .select('id, product_id, quantity, created_at, is_edited, product:products(id, name, current_stock, unit, last_price, alternative_price, alternative_url, alternative_supplier, supplier_url, preferred_supplier, brand)')
         .order('created_at'),
-      supabase.from('suppliers').select('name').order('name'),
+      supabase.from('products').select('preferred_supplier').not('preferred_supplier', 'is', null).limit(10000),
     ])
     setCartItems((data as unknown as CartItem[]) ?? [])
-    setSuppliers((supData ?? []).map((s: { name: string }) => s.name))
+    setSuppliers(
+      [...new Set((prodSupData ?? []).map((p: { preferred_supplier: string }) => p.preferred_supplier?.trim()).filter(Boolean) as string[])].sort((a, b) => a.localeCompare(b))
+    )
   }
 
   async function fetchOrders() {
     const { data } = await supabase
       .from('orders')
-      .select('id, status, supplier, total_estimate, created_at, items:order_items(id, order_id, product_id, quantity, estimated_price, product:products(id, name, barcode, preferred_supplier, supplier_url))')
+      .select('id, status, supplier, total_estimate, created_at, items:order_items(id, order_id, product_id, quantity, estimated_price, product:products(id, name, barcode, preferred_supplier, supplier_url, brand))')
       .eq('status', 'ordered')
       .order('created_at', { ascending: false })
     setOrders(((data as unknown as Order[]) ?? []).filter(o => (o.items ?? []).length > 0))
     setLoading(false)
+  }
+
+  async function fetchPendingOrders() {
+    const { data } = await supabase
+      .from('orders')
+      .select('id, status, supplier, total_estimate, created_at, items:order_items(id, order_id, product_id, quantity, estimated_price, product:products(id, name, barcode, preferred_supplier, supplier_url, brand))')
+      .eq('status', 'pending_approval')
+      .order('created_at', { ascending: false })
+    setPendingOrders(((data as unknown as Order[]) ?? []).filter(o => (o.items ?? []).length > 0))
   }
 
   function updateBadge(cart: CartItem[], openOrders: Order[]) {
@@ -153,6 +166,7 @@ export default function OrdersPage({ user, onBadgeChange, forceOpenTab, forceSca
       price: item.product?.last_price != null
         ? item.product.last_price.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
         : '',
+      quantity: item.quantity,
     })
   }
 
@@ -166,10 +180,17 @@ export default function OrdersPage({ user, onBadgeChange, forceOpenTab, forceSca
     setEditSaving(true)
     const n = parseFloat(editForm.price.replace(',', '.'))
     const price = isNaN(n) || n < 0 ? null : n
-    await supabase.from('products').update({
-      preferred_supplier: editForm.supplier.trim() || null,
-      last_price: price,
-    }).eq('id', editItem.product_id)
+    const newSupplier = editForm.supplier.trim()
+    const supplierChanged = newSupplier !== (editItem.product?.preferred_supplier ?? '')
+    const productUpdates: Record<string, unknown> = { preferred_supplier: newSupplier || null, last_price: price }
+    if (supplierChanged) {
+      const { data: sup } = await supabase.from('suppliers').select('website').eq('name', newSupplier).single()
+      productUpdates.supplier_url = sup?.website ?? null
+    }
+    await Promise.all([
+      supabase.from('products').update(productUpdates).eq('id', editItem.product_id),
+      supabase.from('cart_items').update({ is_edited: true, quantity: editForm.quantity }).eq('id', editItem.id),
+    ])
     await fetchCart()
     setEditSaving(false)
     closeEditPanel()
@@ -202,13 +223,14 @@ export default function OrdersPage({ user, onBadgeChange, forceOpenTab, forceSca
     const price = item.product?.last_price ?? null
     const supplier = item.product?.preferred_supplier || 'Kein Lieferant'
     const total = item.quantity * (price ?? 0)
+    const needsApproval = total > 2000
 
     const { data: order, error } = await supabase
       .from('orders')
       .insert({
         created_by: user.id,
         supplier,
-        status: 'ordered',
+        status: needsApproval ? 'pending_approval' : 'ordered',
         total_estimate: total,
       })
       .select()
@@ -225,15 +247,40 @@ export default function OrdersPage({ user, onBadgeChange, forceOpenTab, forceSca
 
     await supabase.from('cart_items').delete().eq('id', item.id)
 
-    fetch('/api/send-push', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ total, supplier }),
-    }).catch(() => null)
+    if (needsApproval) {
+      supabase.functions.invoke('send-push', {
+        body: { total, supplier, needs_approval: true },
+      }).catch(() => null)
+      const fmtTotal = total.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      setPlacingItem(null)
+      showToast(`Bestellung zur Freigabe eingereicht (€ ${fmtTotal})`)
+      await Promise.all([fetchCart(), fetchOrders(), fetchPendingOrders()])
+    } else {
+      fetch('/api/send-push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ total, supplier }),
+      }).catch(() => null)
+      setPlacingItem(null)
+      showToast(`${item.product?.name ?? 'Artikel'} als bestellt markiert`)
+      await Promise.all([fetchCart(), fetchOrders()])
+    }
+  }
 
-    setPlacingItem(null)
-    showToast(`${item.product?.name ?? 'Artikel'} als bestellt markiert`)
-    await Promise.all([fetchCart(), fetchOrders()])
+  async function approveOrder(orderId: string) {
+    setApprovingOrder(orderId)
+    await supabase.from('orders').update({ status: 'ordered', approved_by: user.id }).eq('id', orderId)
+    setApprovingOrder(null)
+    showToast('Bestellung freigegeben')
+    await Promise.all([fetchOrders(), fetchPendingOrders()])
+  }
+
+  async function rejectOrder(orderId: string) {
+    setApprovingOrder(orderId)
+    await supabase.from('orders').update({ status: 'rejected' }).eq('id', orderId)
+    setApprovingOrder(null)
+    showToast('Bestellung abgelehnt')
+    await fetchPendingOrders()
   }
 
   async function addStock(item: OrderItem, qty: number) {
@@ -247,7 +294,7 @@ export default function OrdersPage({ user, onBadgeChange, forceOpenTab, forceSca
     const items = order.items ?? []
     const allDone = items.every(i => (counts[i.id] ?? 0) >= i.quantity)
     if (allDone) {
-      await supabase.from('orders').update({ status: 'received' }).eq('id', order.id)
+      await supabase.from('orders').update({ status: 'received', received_at: new Date().toISOString() }).eq('id', order.id)
       showToast(`Alle Artikel von ${order.supplier ?? 'Lieferant'} erhalten und eingebucht`)
       fetchOrders()
     }
@@ -386,6 +433,7 @@ export default function OrdersPage({ user, onBadgeChange, forceOpenTab, forceSca
 
   const openCount = orders.length
   const cartCount = cartItems.length
+  const pendingCount = pendingOrders.length
 
   return (
     <div className="w-full relative">
@@ -397,6 +445,11 @@ export default function OrdersPage({ user, onBadgeChange, forceOpenTab, forceSca
         <TabButton active={tab === 'open'} onClick={() => setTab('open')} badge={openCount}>
           Offen
         </TabButton>
+        {role === 'admin' && (
+          <TabButton active={tab === 'approval'} onClick={() => setTab('approval')} badge={pendingCount}>
+            Zur Freigabe
+          </TabButton>
+        )}
         {tab === 'open' && (
           <div className="ml-auto flex items-center gap-2 shrink-0">
             <ScanLine size={14} className={scanToggle ? 'text-emerald-500' : 'text-slate-400'} />
@@ -489,6 +542,56 @@ export default function OrdersPage({ user, onBadgeChange, forceOpenTab, forceSca
           )
         )}
 
+        {/* ── Approval tab (admin only) ── */}
+        {tab === 'approval' && role === 'admin' && (
+          pendingOrders.length === 0 ? (
+            <div className="text-center py-16 px-4">
+              <CheckCircle size={36} className="mx-auto text-slate-200 mb-3" />
+              <p className="text-slate-400 text-sm">Keine Bestellungen zur Freigabe</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {pendingOrders.map(order => {
+                const items = order.items ?? []
+                const total = order.total_estimate ?? items.reduce((s, i) => s + (i.quantity * (i.estimated_price ?? 0)), 0)
+                const supplier = getDomain(items[0]?.product?.supplier_url) ?? order.supplier ?? 'Unbekannter Lieferant'
+                const busy = approvingOrder === order.id
+                return (
+                  <div key={order.id} className="px-4 py-4">
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div>
+                        <p className="font-semibold text-slate-800 text-base">{supplier}</p>
+                        <p className="text-sm text-slate-500 mt-0.5">
+                          {items.length} {items.length === 1 ? 'Artikel' : 'Artikel'} · Gesamt: <span className="font-semibold text-slate-700">€ {total.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </p>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          {new Date(order.created_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => rejectOrder(order.id)}
+                        disabled={busy}
+                        className="flex-1 px-4 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 disabled:opacity-40 text-white text-sm font-medium transition-colors"
+                      >
+                        {busy ? <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : 'Ablehnen'}
+                      </button>
+                      <button
+                        onClick={() => approveOrder(order.id)}
+                        disabled={busy}
+                        className="flex-1 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 text-white text-sm font-medium transition-colors"
+                      >
+                        {busy ? <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : 'Freigeben'}
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )
+        )}
+
         {/* ── Open orders tab ── */}
         {tab === 'open' && (
           <>
@@ -538,30 +641,68 @@ export default function OrdersPage({ user, onBadgeChange, forceOpenTab, forceSca
             <div className="flex-1 overflow-y-auto p-5 space-y-4">
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Lieferant</label>
-                <select
+                <SupplierSelect
                   value={editForm.supplier}
-                  onChange={e => setEditForm(f => ({ ...f, supplier: e.target.value }))}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white"
-                >
-                  <option value="">— Kein Lieferant —</option>
-                  {suppliers.map(s => <option key={s} value={s}>{s}</option>)}
-                  {editForm.supplier && !suppliers.includes(editForm.supplier) && (
-                    <option value={editForm.supplier}>{editForm.supplier}</option>
-                  )}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Preis pro Einheit (€)</label>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={editForm.price}
-                  onChange={e => setEditForm(f => ({ ...f, price: e.target.value }))}
-                  onFocus={e => e.target.select()}
-                  placeholder="0,00"
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  onChange={v => setEditForm(f => ({ ...f, supplier: v }))}
+                  options={suppliers}
                 />
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Menge</label>
+                  <div className="flex items-center gap-1">
+                    <button type="button" onClick={() => setEditForm(f => ({ ...f, quantity: Math.max(1, f.quantity - 1) }))}
+                      className="w-8 h-9 flex items-center justify-center rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors shrink-0">
+                      <Minus size={13} />
+                    </button>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={editForm.quantity}
+                      onChange={e => { const n = parseInt(e.target.value); if (!isNaN(n) && n > 0) setEditForm(f => ({ ...f, quantity: n })) }}
+                      onFocus={e => e.target.select()}
+                      className="w-full text-center border border-slate-300 rounded-lg py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    />
+                    <button type="button" onClick={() => setEditForm(f => ({ ...f, quantity: f.quantity + 1 }))}
+                      className="w-8 h-9 flex items-center justify-center rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors shrink-0">
+                      <Plus size={13} />
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Preis pro Einheit (€)</label>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={editForm.price}
+                    onChange={e => setEditForm(f => ({ ...f, price: e.target.value }))}
+                    onFocus={e => e.target.select()}
+                    placeholder="0,00"
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  />
+                </div>
+              </div>
+
+              {/* Pricing summary */}
+              {(() => {
+                const prevTotal = (editItem?.quantity ?? 0) * (editItem?.product?.last_price ?? 0)
+                const newPrice = parseFloat(editForm.price.replace(',', '.'))
+                const newTotal = editForm.quantity * (isNaN(newPrice) ? 0 : newPrice)
+                const diff = newTotal - prevTotal
+                const fmt = (n: number) => `€ ${Math.abs(n).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                return (
+                  <div className="bg-slate-50 rounded-xl px-4 py-3 space-y-2 text-sm">
+                    <div className="flex justify-between text-slate-500">
+                      <span>Vorher</span>
+                      <span>{fmt(prevTotal)}</span>
+                    </div>
+                    <div className="flex justify-between font-medium text-slate-800">
+                      <span>Neu</span>
+                      <span>{fmt(newTotal)}</span>
+                    </div>
+                  </div>
+                )
+              })()}
             </div>
             <div className="border-t border-slate-100 px-5 py-4 flex gap-3 shrink-0">
               <button onClick={closeEditPanel}
@@ -699,7 +840,15 @@ function CartItemRow({ item, placing, onUpdateQuantity, onPlaceOrder, onRemoveRe
   return (
     <tr className="bg-white hover:bg-slate-50 transition-colors border-b border-slate-100">
       <td className="px-4 py-3">
-        <p className="text-sm font-semibold text-slate-800 truncate max-w-[180px] md:max-w-xs">{item.product?.name}</p>
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-semibold text-slate-800 truncate max-w-[160px] md:max-w-xs">{item.product?.name}</p>
+          {item.is_edited && (
+            <span className="shrink-0 text-xs font-medium px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">Aktualisiert</span>
+          )}
+        </div>
+        {item.product?.brand && (
+          <p className="text-xs text-slate-400 mt-0.5">{item.product.brand}</p>
+        )}
         {item.product?.alternative_price != null &&
          item.product?.last_price != null &&
          item.product.alternative_price < item.product.last_price && (
@@ -710,9 +859,6 @@ function CartItemRow({ item, placing, onUpdateQuantity, onPlaceOrder, onRemoveRe
             <ExternalLink size={10} />
             Günstiger: € {Number(item.product.alternative_price).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} bei {item.product.alternative_supplier ?? 'Alternativlieferant'}
           </a>
-        )}
-        {item.product?.preferred_supplier && (
-          <p className="text-xs text-slate-400 mt-0.5">{item.product.preferred_supplier}</p>
         )}
       </td>
       {/* Current stock */}
@@ -761,20 +907,20 @@ function CartItemRow({ item, placing, onUpdateQuantity, onPlaceOrder, onRemoveRe
       </td>
       {/* Actions */}
       <td className="px-3 py-3 text-right">
-        <div className="flex items-center justify-end gap-1">
+        <div className="flex items-center justify-end gap-2">
           <button onClick={() => onEdit(item)} title="Bearbeiten"
-            className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-sky-600 hover:bg-sky-50 transition-colors">
-            <Pencil size={14} />
+            className="w-9 h-9 flex items-center justify-center rounded-xl bg-sky-100 text-sky-600 hover:bg-sky-200 transition-colors">
+            <Pencil size={16} />
           </button>
           <button onClick={() => onRemoveRequest(item)} title="Entfernen"
-            className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors">
-            <Trash2 size={14} />
+            className="w-9 h-9 flex items-center justify-center rounded-xl bg-red-100 text-red-500 hover:bg-red-200 transition-colors">
+            <Trash2 size={16} />
           </button>
           <button onClick={() => onPlaceOrder(item)} disabled={placing} title="Als bestellt markieren"
-            className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors disabled:opacity-40">
+            className="w-9 h-9 flex items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 hover:bg-emerald-200 transition-colors disabled:opacity-40">
             {placing
-              ? <span className="w-3.5 h-3.5 border-2 border-slate-400 border-t-transparent rounded-full animate-spin inline-block" />
-              : <CheckCircle size={14} />
+              ? <span className="w-4 h-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin inline-block" />
+              : <CheckCircle size={16} />
             }
           </button>
         </div>
@@ -846,16 +992,18 @@ function OpenOrderSection({ order, isFirstOverall, isFirstInGroup, scannedCounts
         </tr>
       )}
 
-      {/* Column headers */}
-      <tr className="border-b border-slate-200 bg-white">
-        <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide px-4 py-3">Artikel</th>
-        <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap hidden sm:table-cell">Datum</th>
-        <th className="text-center text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Bestellt</th>
-        <th className="text-center text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Gescannt</th>
-        <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap hidden sm:table-cell">Preis/Stück</th>
-        <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Gesamt</th>
-        <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Aktion</th>
-      </tr>
+      {/* Column headers — only once per supplier group */}
+      {isFirstInGroup && (
+        <tr className="border-b border-slate-200 bg-white">
+          <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide px-4 py-3">Artikel</th>
+          <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap hidden sm:table-cell">Datum</th>
+          <th className="text-center text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Bestellt</th>
+          <th className="text-center text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Gescannt</th>
+          <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap hidden sm:table-cell">Preis/Stück</th>
+          <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Gesamt</th>
+          <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Aktion</th>
+        </tr>
+      )}
 
       {/* Item rows */}
       {items.map(item => {
@@ -867,6 +1015,7 @@ function OpenOrderSection({ order, isFirstOverall, isFirstInGroup, scannedCounts
           <tr key={item.id} className={`border-b border-slate-100 transition-colors ${done ? 'bg-emerald-50/50' : 'bg-white hover:bg-slate-50'}`}>
             <td className="px-4 py-3.5">
               <p className={`text-sm font-semibold truncate max-w-[180px] md:max-w-xs ${done ? 'text-slate-400' : 'text-slate-800'}`}>{item.product?.name ?? '—'}</p>
+              {item.product?.brand && <p className="text-xs text-slate-400 mt-0.5">{item.product.brand}</p>}
             </td>
             <td className="px-3 py-3.5 text-sm text-slate-500 whitespace-nowrap hidden sm:table-cell">{orderDate}</td>
             <td className="px-3 py-3.5 text-center text-slate-500">{item.quantity}</td>
@@ -900,13 +1049,13 @@ function OpenOrderSection({ order, isFirstOverall, isFirstInGroup, scannedCounts
                 <button
                   onClick={() => onReceiveItem(item)}
                   disabled={receiving === item.id}
-                  className="flex items-center gap-1.5 bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap ml-auto"
+                  title="Lieferung erhalten"
+                  className="w-9 h-9 flex items-center justify-center rounded-xl bg-sky-100 text-sky-600 hover:bg-sky-200 transition-colors disabled:opacity-40 ml-auto"
                 >
                   {receiving === item.id
-                    ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" />
-                    : <Package size={12} />
+                    ? <span className="w-4 h-4 border-2 border-sky-600 border-t-transparent rounded-full animate-spin inline-block" />
+                    : <Package size={16} />
                   }
-                  Lieferung erhalten
                 </button>
               )}
             </td>
@@ -914,5 +1063,71 @@ function OpenOrderSection({ order, isFirstOverall, isFirstInGroup, scannedCounts
         )
       })}
     </>
+  )
+}
+
+// ── Supplier single-select dropdown ──────────────────────────────────────────
+function SupplierSelect({ value, onChange, options }: {
+  value: string
+  onChange: (v: string) => void
+  options: string[]
+}) {
+  const [open, setOpen] = useState(false)
+  const [q, setQ] = useState('')
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  const allOptions = value && !options.includes(value) ? [value, ...options] : options
+  const filtered = allOptions.filter(o => o.toLowerCase().includes(q.toLowerCase()))
+
+  function select(v: string) {
+    onChange(v)
+    setOpen(false)
+    setQ('')
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => { setOpen(o => !o); setQ('') }}
+        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 flex items-center justify-between gap-2 text-left"
+      >
+        <span className={`truncate ${value ? 'text-slate-800' : 'text-slate-400'}`}>{value || 'Lieferant wählen…'}</span>
+        <ChevronDown size={14} className="text-slate-400 shrink-0" />
+      </button>
+      {open && (
+        <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-30 w-full animate-slide-in-up">
+          <div className="p-2 border-b border-slate-100">
+            <input
+              autoFocus
+              type="text"
+              value={q}
+              onChange={e => setQ(e.target.value)}
+              placeholder="Suchen…"
+              className="w-full text-sm px-2 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500"
+            />
+          </div>
+          <ul className="max-h-56 overflow-y-auto py-1">
+            {filtered.map(o => (
+              <li key={o}>
+                <button type="button" onClick={() => select(o)}
+                  className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-50 ${o === value ? 'text-sky-600 font-medium bg-sky-50' : 'text-slate-700'}`}>
+                  {o}
+                </button>
+              </li>
+            ))}
+            {filtered.length === 0 && <li className="px-3 py-2 text-sm text-slate-400">Keine Ergebnisse</li>}
+          </ul>
+        </div>
+      )}
+    </div>
   )
 }

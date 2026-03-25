@@ -40,3 +40,15 @@ export async function subscribeToPush(userId: string): Promise<'granted' | 'deni
     return 'denied'
   }
 }
+
+export async function unsubscribeFromPush(userId: string): Promise<void> {
+  try {
+    const reg = await navigator.serviceWorker.ready
+    const sub = await reg.pushManager.getSubscription()
+    if (sub) await sub.unsubscribe()
+    const { supabase } = await import('./supabase')
+    await supabase.from('push_subscriptions').delete().eq('user_id', userId)
+  } catch {
+    // ignore
+  }
+}

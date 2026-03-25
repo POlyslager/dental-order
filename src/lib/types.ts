@@ -60,11 +60,14 @@ export interface Product {
   image_url: string | null
   notes: string | null
   expiry_date: string | null
+  lot_number: string | null
+  treatment_types: string[]
   storage_location: string | null
   reorder_quantity: number | null
   alternative_price: number | null
   alternative_url: string | null
   alternative_supplier: string | null
+  brand: string | null
   created_at: string
 }
 
@@ -85,10 +88,11 @@ export interface CartItem {
   quantity: number
   added_by: string | null
   created_at: string
+  is_edited?: boolean
   product?: Product
 }
 
-export type OrderStatus = 'draft' | 'pending_approval' | 'approved' | 'ordered' | 'received' | 'cancelled'
+export type OrderStatus = 'draft' | 'pending_approval' | 'approved' | 'ordered' | 'received' | 'cancelled' | 'rejected'
 
 export interface Order {
   id: string

@@ -121,3 +121,51 @@ create policy "orders_update" on orders for update to authenticated using (true)
 create policy "order_items_select" on order_items for select to authenticated using (true);
 create policy "order_items_insert" on order_items for insert to authenticated with check (true);
 create policy "order_items_update" on order_items for update to authenticated using (true);
+
+-- ── Feature additions ─────────────────────────────────────────────────────
+
+-- Verfallsdatum-Tracking & Lot-Nummern auf Produkten
+alter table products add column if not exists expiry_date date;
+alter table products add column if not exists lot_number text;
+
+-- Behandlungstypen (multi-select tags)
+alter table products add column if not exists treatment_types text[] default '{}';
+
+-- Lieferantenperformance: Zeitstempel wenn Bestellung erhalten wurde
+alter table orders add column if not exists received_at timestamptz;
+
+-- 2FA PIN (gehashed)
+alter table profiles add column if not exists pin_hash text;
+alter table profiles add column if not exists pin_enabled boolean not null default false;
+
+-- Produkt-Lagerort
+alter table products add column if not exists brand text;
+
+-- ── Role-based PIN login ───────────────────────────────────────────────────
+
+-- Settings table (stores PIN hashes for shared role accounts)
+create table if not exists settings (
+  key text primary key,
+  value text not null,
+  updated_at timestamptz default now()
+);
+
+-- Initial rows: SHA-256 of '000000' as placeholder
+insert into settings (key, value) values
+  ('employee_pin_hash', 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'),
+  ('admin_pin_hash',    'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855')
+on conflict do nothing;
+
+-- RLS: only authenticated admin role can read/update
+alter table settings enable row level security;
+create policy "admin_manage_settings" on settings for all using (
+  exists (select 1 from profiles where id = auth.uid() and role = 'admin')
+);
+
+-- Credential storage rows (filled in via PIN-Verwaltung UI)
+insert into settings (key, value) values
+  ('employee_email',    ''),
+  ('employee_password', ''),
+  ('admin_email',       ''),
+  ('admin_password',    '')
+on conflict do nothing;
