@@ -27,25 +27,20 @@ const adminClient = createClient(
 
 // ── Name relevance check ────────────────────────────────────────────────────
 // Tokenise a string into meaningful lowercase words (4+ chars, non-numeric)
-// Also extracts large numeric tokens like concentrations: "1:200.000" → "200000"
+// and ALL digit sequences (so "5" from "5L", "12" from pack-of-12, "333" from model numbers).
 export function tokenise(s: string): Set<string> {
   const words = s.toLowerCase()
     .replace(/[^\w\s]/g, ' ')
     .split(/\s+/)
     .filter(w => w.length >= 4 && !/^\d+$/.test(w))
-  // Extract concentration-style numbers: "1:200.000" → "200000", "1:100.000" → "100000"
-  const nums: string[] = []
-  for (const m of s.matchAll(/\d[\d.,]+/g)) {
-    const n = m[0].replace(/[.,]/g, '')
-    if (n.length >= 5) nums.push(n)
-  }
+  const nums = [...s.matchAll(/\d+/g)].map(m => m[0])
   return new Set([...words, ...nums])
 }
 
 // Returns true if the result name shares enough tokens with the search query.
 // Word tokens: at least 1 must match.
-// Numeric tokens (concentrations like 200000): ALL must match — prevents returning
-// the wrong concentration variant (e.g. 1:100.000 when query asks for 1:200.000).
+// Numeric tokens: ALL numbers in the query must appear in the result — prevents
+// matching "5L" product to a "wipes" variant, or a pack of 12 to a single unit.
 export function nameMatches(query: string, resultName: string | null): boolean {
   if (!resultName) return false
   const qTokens = tokenise(query)
@@ -55,14 +50,8 @@ export function nameMatches(query: string, resultName: string | null): boolean {
     if (!/^\d+$/.test(t) && rTokens.has(t)) wordMatches++
   }
   if (wordMatches < 1) return false
-  // Only enforce concentration matching when the result ALSO has numeric tokens.
-  // If the result name has no concentration (shop omits "1:200.000"), allow it.
-  // If the result name has a DIFFERENT concentration, reject it.
-  const rHasNumeric = [...rTokens].some(t => /^\d+$/.test(t))
-  if (rHasNumeric) {
-    for (const t of qTokens) {
-      if (/^\d+$/.test(t) && !rTokens.has(t)) return false
-    }
+  for (const t of qTokens) {
+    if (/^\d+$/.test(t) && !rTokens.has(t)) return false
   }
   return true
 }

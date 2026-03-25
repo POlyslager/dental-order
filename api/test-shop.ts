@@ -8,11 +8,7 @@ const HTML_HEADERS = {
 
 function tokenise(s: string): Set<string> {
   const words = s.toLowerCase().replace(/[^\w\s]/g, ' ').split(/\s+/).filter(w => w.length >= 4 && !/^\d+$/.test(w))
-  const nums: string[] = []
-  for (const m of s.matchAll(/\d[\d.,]+/g)) {
-    const n = m[0].replace(/[.,]/g, '')
-    if (n.length >= 5) nums.push(n)
-  }
+  const nums = [...s.matchAll(/\d+/g)].map(m => m[0])
   return new Set([...words, ...nums])
 }
 
@@ -25,11 +21,8 @@ function nameMatches(query: string, resultName: string | null): boolean {
     if (!/^\d+$/.test(t) && rTokens.has(t)) wordMatches++
   }
   if (wordMatches < 1) return false
-  const rHasNumeric = [...rTokens].some(t => /^\d+$/.test(t))
-  if (rHasNumeric) {
-    for (const t of qTokens) {
-      if (/^\d+$/.test(t) && !rTokens.has(t)) return false
-    }
+  for (const t of qTokens) {
+    if (/^\d+$/.test(t) && !rTokens.has(t)) return false
   }
   return true
 }
