@@ -691,7 +691,9 @@ export default function OverviewPage() {
               </div>
             </Card>
 
-            {/* Ausgaben nach Lieferant */}
+            {/* Ausgaben nach Lieferant + Lieferanten-Konzentration side by side */}
+            <div className="col-span-2 grid grid-cols-2 gap-4">
+
             <Card title="Ausgaben nach Lieferant" tooltip="Gesamtausgaben pro Lieferant für alle erhaltenen Bestellungen.">
               <div className="px-4 pb-4">
                 <VerticalBars
@@ -733,6 +735,8 @@ export default function OverviewPage() {
                 )}
               </div>
             </Card>
+
+            </div>{/* end side-by-side wrapper */}
 
             {/* Lieferantenperformance */}
             <Card title="Lieferantenperformance" className="col-span-2 lg:col-span-3" tooltip="Durchschnittliche Lieferzeit und Erfüllungsrate pro Lieferant, basierend auf abgeschlossenen Bestellungen.">

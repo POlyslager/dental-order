@@ -704,9 +704,6 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
             <div>
               {pendingOrders.map(order => {
                 const items = order.items ?? []
-                const total = order.total_estimate ?? items.reduce((s, i) => s + (i.quantity * (i.estimated_price ?? 0)), 0)
-                const busy = approvingOrder === order.id
-
                 const byDomain = items.reduce<Record<string, OrderItem[]>>((acc, item) => {
                   const domain = getDomain(item.product?.supplier_url) ?? item.product?.preferred_supplier ?? 'Kein Lieferant'
                   if (!acc[domain]) acc[domain] = []
