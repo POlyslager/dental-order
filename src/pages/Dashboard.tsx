@@ -240,6 +240,15 @@ export default function Dashboard({ user }: Props) {
                     <span className="truncate font-medium">{item.label}</span>
                   </button>
                 ))}
+                {role === 'admin' && (
+                  <button
+                    onClick={() => setTab('pin')}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl transition-colors ${tab === 'pin' ? 'bg-sky-50 text-sky-600' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
+                  >
+                    <span className="shrink-0"><KeyRound size={18} /></span>
+                    <span className="truncate font-medium">PIN-Verwaltung</span>
+                  </button>
+                )}
                 {isPushSupported() && (
                   <button
                     onClick={toggleNotifications}
@@ -250,15 +259,6 @@ export default function Dashboard({ user }: Props) {
                     <div className={`relative w-9 h-5 rounded-full transition-colors shrink-0 ${pushPermission === 'granted' ? 'bg-sky-500' : 'bg-slate-200 dark:bg-slate-600'}`}>
                       <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${pushPermission === 'granted' ? 'left-4' : 'left-0.5'}`} />
                     </div>
-                  </button>
-                )}
-                {role === 'admin' && (
-                  <button
-                    onClick={() => setTab('pin')}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl transition-colors ${tab === 'pin' ? 'bg-sky-50 text-sky-600' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
-                  >
-                    <span className="shrink-0"><KeyRound size={18} /></span>
-                    <span className="truncate font-medium">PIN-Verwaltung</span>
                   </button>
                 )}
               </div>
@@ -557,6 +557,13 @@ export default function Dashboard({ user }: Props) {
                     label="Daten & Import"
                     onClick={() => navigate('data')}
                   />
+                  {role === 'admin' && (
+                    <MenuItem
+                      icon={<KeyRound size={18} />}
+                      label="PIN-Verwaltung"
+                      onClick={() => navigate('pin')}
+                    />
+                  )}
                   {isPushSupported() && (
                     <button
                       onClick={toggleNotifications}
@@ -568,13 +575,6 @@ export default function Dashboard({ user }: Props) {
                         <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${pushPermission === 'granted' ? 'left-4' : 'left-0.5'}`} />
                       </div>
                     </button>
-                  )}
-                  {role === 'admin' && (
-                    <MenuItem
-                      icon={<KeyRound size={18} />}
-                      label="PIN-Verwaltung"
-                      onClick={() => navigate('pin')}
-                    />
                   )}
                 </div>
               </div>
