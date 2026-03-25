@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
-import type { CartItem, Order, OrderItem, Role } from '../lib/types'
-import { ShoppingCart, Package, Plus, Minus, CheckCircle, ExternalLink, Check, Trash2, Undo2, ScanLine, X, Pencil, ChevronDown, Clock, XCircle } from 'lucide-react'
+import type { CartItem, Order, OrderItem, PriceAlternative, Role } from '../lib/types'
+import { ShoppingCart, Package, Plus, Minus, CheckCircle, ExternalLink, Check, Trash2, Undo2, ScanLine, X, Pencil, ChevronDown, Clock, XCircle, TrendingDown } from 'lucide-react'
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
 
 interface Props { role: Role | null; user: User; onBadgeChange: (n: number) => void; forceOpenTab?: number; forceScanMode?: number }
@@ -52,6 +52,8 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
   }))
   const isDragging = useRef(false)
   const dragOrigin = useRef({ mouseX: 0, mouseY: 0, posX: 0, posY: 0 })
+  const [priceHits, setPriceHits] = useState<Record<string, PriceAlternative[]>>({})
+  const [priceModal, setPriceModal] = useState<CartItem | null>(null)
 
   useEffect(() => {
     Promise.all([fetchCart(), fetchOrders(), fetchPendingOrders(), fetchRejectedOrders()])
@@ -107,7 +109,9 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
       supabase.from('products').select('preferred_supplier').not('preferred_supplier', 'is', null).limit(10000),
       supabase.from('suppliers').select('name, website').not('website', 'is', null),
     ])
-    setCartItems((data as unknown as CartItem[]) ?? [])
+    const loadedItems = (data as unknown as CartItem[]) ?? []
+    setCartItems(loadedItems)
+    if (loadedItems.length > 0) fetchPriceHits(loadedItems)
     setSuppliers(
       [...new Set((prodSupData ?? []).map((p: { preferred_supplier: string }) => p.preferred_supplier?.trim()).filter(Boolean) as string[])].sort((a, b) => a.localeCompare(b))
     )
@@ -117,6 +121,39 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
       if (domain) map[domain] = r.name
     }
     setDomainToSupplier(map)
+  }
+
+  async function fetchPriceHits(items: CartItem[]) {
+    if (items.length === 0) return
+    const results = await Promise.allSettled(
+      items.map(async item => {
+        const res = await fetch('/api/find-alternatives', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ productName: item.product?.name, brand: item.product?.brand }),
+        })
+        const data = await res.json()
+        return { productId: item.product_id, alternatives: (data.results ?? []) as PriceAlternative[] }
+      })
+    )
+    const hits: Record<string, PriceAlternative[]> = {}
+    for (const r of results) {
+      if (r.status === 'fulfilled') {
+        hits[r.value.productId] = r.value.alternatives
+      }
+    }
+    setPriceHits(hits)
+  }
+
+  async function applyAlternative(item: CartItem, alt: PriceAlternative) {
+    await supabase.from('products').update({
+      preferred_supplier: alt.domain,
+      supplier_url: alt.url,
+      last_price: alt.price,
+    }).eq('id', item.product_id)
+    await supabase.from('cart_items').update({ is_edited: true }).eq('id', item.id)
+    setPriceModal(null)
+    fetchCart()
   }
 
   async function fetchOrders() {
@@ -579,6 +616,93 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
   const cartCount = cartItems.length
   const pendingCount = pendingLoaded ? pendingOrders.reduce((s, o) => s + (o.items ?? []).length, 0) : null
 
+  function PriceCompareModal({ item, alternatives, onClose, onApply }: {
+    item: CartItem
+    alternatives: PriceAlternative[]
+    onClose: () => void
+    onApply: (item: CartItem, alt: PriceAlternative) => void
+  }) {
+    const currentPrice = item.product?.last_price ?? null
+    const sorted = [...alternatives].sort((a, b) => a.price - b.price)
+
+    return (
+      <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
+        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
+          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
+            <h2 className="font-semibold text-slate-800 dark:text-slate-100 truncate flex-1 mr-2">{item.product?.name}</h2>
+            <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-1.5 transition-colors">
+              <X size={18} />
+            </button>
+          </div>
+          <div className="p-5 space-y-2">
+            {/* Current supplier row */}
+            <div className="flex items-center gap-2 py-2.5 border-b border-slate-100 dark:border-slate-700">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-slate-800 dark:text-slate-100">{item.product?.preferred_supplier ?? getDomain(item.product?.supplier_url) ?? '—'}</p>
+                <span className="text-xs text-slate-400 dark:text-slate-500">Aktuell</span>
+              </div>
+              <div className="text-right shrink-0">
+                {currentPrice != null && (
+                  <p className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                    € {currentPrice.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                )}
+              </div>
+              {item.product?.supplier_url && (
+                <a href={item.product.supplier_url} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-xs font-medium text-sky-600 dark:text-sky-400 hover:text-sky-700 bg-sky-50 dark:bg-sky-900/30 hover:bg-sky-100 dark:hover:bg-sky-900/50 px-3 py-2 rounded-lg transition-colors shrink-0 whitespace-nowrap">
+                  <ExternalLink size={12} />
+                  Öffnen
+                </a>
+              )}
+            </div>
+            {/* Alternative rows */}
+            {sorted.map(alt => {
+              const savings = currentPrice != null && currentPrice > 0
+                ? ((currentPrice - alt.price) / currentPrice) * 100
+                : null
+              const isCheaper = savings != null && savings > 0.5
+              const euroSavings = currentPrice != null ? currentPrice - alt.price : null
+              return (
+                <div key={alt.url} className="flex items-center gap-2 py-2.5 border-b border-slate-100 dark:border-slate-700 last:border-0">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-800 dark:text-slate-100">{alt.domain}</p>
+                    {alt.name && <p className="text-xs text-slate-400 dark:text-slate-500 truncate mt-0.5">{alt.name}</p>}
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                      € {alt.price.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
+                    {savings != null && euroSavings != null && (
+                      <span className={`text-xs font-medium ${isCheaper ? 'text-emerald-600' : 'text-slate-400 dark:text-slate-500'}`}>
+                        {isCheaper
+                          ? `−€ ${Math.abs(euroSavings).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${Math.round(savings)}%)`
+                          : savings < -0.5 ? `+${Math.round(-savings)}%` : '≈ gleich'}
+                      </span>
+                    )}
+                  </div>
+                  <a href={alt.url} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 text-xs font-medium text-sky-600 dark:text-sky-400 hover:text-sky-700 bg-sky-50 dark:bg-sky-900/30 hover:bg-sky-100 dark:hover:bg-sky-900/50 px-3 py-2 rounded-lg transition-colors shrink-0 whitespace-nowrap">
+                    <ExternalLink size={12} />
+                    Öffnen
+                  </a>
+                  {isCheaper && (
+                    <button
+                      onClick={() => onApply(item, alt)}
+                      className="text-xs font-medium bg-emerald-50 dark:bg-emerald-900/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 px-2.5 py-2 rounded-lg transition-colors whitespace-nowrap shrink-0"
+                    >
+                      Als Standard
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="w-full relative flex flex-col h-full">
       {/* Tab switcher */}
@@ -669,6 +793,8 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
                             onPlaceOrder={placeOrderForItem}
                             onRemoveRequest={setDeleteConfirm}
                             onEdit={openEditPanel}
+                            alternatives={priceHits[item.product_id]}
+                            onShowAlternatives={item => setPriceModal(item)}
                           />
                         ))}
                       </React.Fragment>
@@ -1092,6 +1218,16 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
         </div></div>
       )}
 
+      {/* Price compare modal */}
+      {priceModal && (
+        <PriceCompareModal
+          item={priceModal}
+          alternatives={priceHits[priceModal.product_id] ?? []}
+          onClose={() => setPriceModal(null)}
+          onApply={applyAlternative}
+        />
+      )}
+
       {/* ── Draggable scan modal ── */}
       {scanToggle && (
         <div
@@ -1159,7 +1295,7 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
 }
 
 // ── Cart item row ───────────────────────────────────────────────────────────
-function CartItemRow({ item, placing, requiresApproval, onUpdateQuantity, onPlaceOrder, onRemoveRequest, onEdit }: {
+function CartItemRow({ item, placing, requiresApproval, onUpdateQuantity, onPlaceOrder, onRemoveRequest, onEdit, alternatives, onShowAlternatives }: {
   item: CartItem
   placing: boolean
   requiresApproval: boolean
@@ -1167,9 +1303,13 @@ function CartItemRow({ item, placing, requiresApproval, onUpdateQuantity, onPlac
   onPlaceOrder: (item: CartItem) => void
   onRemoveRequest: (item: CartItem) => void
   onEdit: (item: CartItem) => void
+  alternatives?: PriceAlternative[]
+  onShowAlternatives?: (item: CartItem) => void
 }) {
   const price = item.product?.last_price ?? null
   const rowTotal = item.quantity * (price ?? 0)
+  const currentPrice = item.product?.last_price ?? null
+  const cheaperAlts = (alternatives ?? []).filter(a => currentPrice != null && a.price < currentPrice)
 
   return (
     <tr className="bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors border-b border-slate-100 dark:border-slate-800">
@@ -1183,16 +1323,14 @@ function CartItemRow({ item, placing, requiresApproval, onUpdateQuantity, onPlac
         {item.product?.brand && (
           <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{item.product.brand}</p>
         )}
-        {item.product?.alternative_price != null &&
-         item.product?.last_price != null &&
-         item.product.alternative_price < item.product.last_price && (
-          <a href={item.product.alternative_url ?? undefined}
-            target="_blank" rel="noopener noreferrer"
-            onClick={e => e.stopPropagation()}
-            className="flex items-center gap-1 text-xs text-emerald-600 mt-0.5">
-            <ExternalLink size={10} />
-            Günstiger: € {Number(item.product.alternative_price).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} bei {item.product.alternative_supplier ?? 'Alternativlieferant'}
-          </a>
+        {cheaperAlts.length > 0 && (
+          <button
+            onClick={() => onShowAlternatives?.(item)}
+            className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 px-2.5 py-1.5 rounded-lg transition-colors"
+          >
+            <TrendingDown size={13} />
+            {cheaperAlts.length === 1 ? 'Günstiger verfügbar' : `${cheaperAlts.length}× günstiger verfügbar`}
+          </button>
         )}
       </td>
       {/* Current stock */}

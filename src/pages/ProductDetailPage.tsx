@@ -725,8 +725,9 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
                         )}
                       </div>
                       <a href={alt.url} target="_blank" rel="noopener noreferrer"
-                        className="text-slate-300 dark:text-slate-600 hover:text-sky-500 p-1 transition-colors shrink-0">
-                        <ExternalLink size={14} />
+                        className="flex items-center gap-1.5 text-xs font-medium text-sky-600 dark:text-sky-400 hover:text-sky-700 bg-sky-50 dark:bg-sky-900/30 hover:bg-sky-100 dark:hover:bg-sky-900/50 px-3 py-2 rounded-lg transition-colors shrink-0 whitespace-nowrap">
+                        <ExternalLink size={12} />
+                        Öffnen
                       </a>
                       {!isCurrentSupplier && (
                         <button
