@@ -126,14 +126,6 @@ export default function OverviewPage() {
   const noSupplierCount = useMemo(() => products.filter(p => !p.preferred_supplier).length, [products])
   const noBarcodeCount = useMemo(() => products.filter(p => !p.barcode).length, [products])
 
-  // ── Stock health ───────────────────────────────────────────────────────────
-  const _stockHealth = useMemo(() => ({
-    green:  products.filter(p => p.current_stock > p.min_stock * 1.5).length,
-    orange: products.filter(p => p.current_stock > p.min_stock && p.current_stock <= p.min_stock * 1.5).length,
-    red:    products.filter(p => p.current_stock <= p.min_stock && p.current_stock > 0).length,
-    empty:  products.filter(p => p.current_stock <= 0).length,
-  }), [products])
-
   // ── Lagergesundheit bidirectional: in/out quantities per month ─────────────
   const lagerData = useMemo(() => {
     const inMap: Record<string, number> = {}
