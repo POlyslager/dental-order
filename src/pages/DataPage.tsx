@@ -133,10 +133,10 @@ export default function DataPage() {
 
         if (existing) {
           const { error } = await supabase.from('products').update(product).eq('id', existing.id)
-          if (error) errors++ else updated++
+          if (error) { errors++ } else { updated++ }
         } else {
           const { error } = await supabase.from('products').insert({ ...product, current_stock: 0 })
-          if (error) errors++ else created++
+          if (error) { errors++ } else { created++ }
         }
       }
       showToast(`Import abgeschlossen: ${created} neu, ${updated} aktualisiert${errors > 0 ? `, ${errors} Fehler` : ''}.`)
