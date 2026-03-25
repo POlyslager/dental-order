@@ -19,7 +19,7 @@ interface Props { role: Role | null; initialBarcode?: string | null; onBarcodeCo
 const EMPTY_FORM = {
   article_number: '', name: '', description: '', category: '', barcode: '',
   current_stock: '', min_stock: '', unit: 'pcs', preferred_supplier: '', supplier_url: '',
-  brand: '', last_price: '', storage_location: '', notes: '',
+  brand: '', last_price: '', storage_location: '', notes: '', lot_number: '',
 }
 const STORAGE_LOCATIONS = [
   'Behandlungsraum 1', 'Behandlungsraum 2', 'Behandlungsraum 3',
@@ -33,8 +33,8 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [selectedStatus, setSelectedStatus] = useState<StatusFilter>('all')
-  const [sortKey, setSortKey] = useState<'name' | 'category' | 'article_number' | 'preferred_supplier' | 'current_stock' | 'status'>('name')
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  const [sortKey, setSortKey] = useState<'name' | 'category' | 'article_number' | 'preferred_supplier' | 'current_stock' | 'status'>('status')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [page, setPage] = useState(1)
   const PAGE_SIZE = 20
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
@@ -103,7 +103,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
       return
     }
 
-    setForm(f => ({ ...f, barcode, notes: f.notes || notes }))
+    setForm(f => ({ ...f, barcode, lot_number: lot?.[1] ?? f.lot_number, notes: f.notes || notes }))
 
     // Best-effort product lookup via GTIN (proxied to avoid CORS)
     if (barcode.length >= 8) {

@@ -9,8 +9,6 @@ import {
   ChevronLeft, ChevronRight, PackageMinus, PackagePlus, Check,
   Store, Users, Tag, KeyRound, Database,
 } from 'lucide-react'
-import PinSettingsModal from '../components/PinSettingsModal'
-
 const StockPage          = lazy(() => import('./StockPage'))
 const OrdersPage         = lazy(() => import('./OrdersPage'))
 const OverviewPage       = lazy(() => import('./OverviewPage'))
@@ -20,6 +18,7 @@ const ShopsPage          = lazy(() => import('./ShopsPage'))
 const SuppliersPage      = lazy(() => import('./SuppliersPage'))
 const CategoriesPage     = lazy(() => import('./CategoriesPage'))
 const DataPage           = lazy(() => import('./DataPage'))
+const PinSettingsPage    = lazy(() => import('../components/PinSettingsModal'))
 
 function PageSpinner() {
   return (
@@ -30,7 +29,7 @@ function PageSpinner() {
 }
 
 
-type Tab = 'overview' | 'stock' | 'orders' | 'scan' | 'shops' | 'suppliers' | 'categories' | 'data'
+type Tab = 'overview' | 'stock' | 'orders' | 'scan' | 'shops' | 'suppliers' | 'categories' | 'data' | 'pin'
 
 interface Props { user: User }
 
@@ -43,6 +42,7 @@ const PAGE_TITLES: Record<Tab, string> = {
   suppliers: 'Lieferanten',
   categories: 'Kategorien',
   data: 'Daten & Import',
+  pin: 'PIN-Verwaltung',
 }
 
 export default function Dashboard({ user }: Props) {
@@ -75,8 +75,6 @@ export default function Dashboard({ user }: Props) {
   const [forceOrdersScanMode, setForceOrdersScanMode] = useState(0)
   const [dashToast, setDashToast] = useState<string | null>(null)
   const dashToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [pinModalOpen, setPinModalOpen] = useState(false)
-
   function showDashToast(msg: string) {
     if (dashToastTimer.current) clearTimeout(dashToastTimer.current)
     setDashToast(msg)
@@ -103,21 +101,27 @@ export default function Dashboard({ user }: Props) {
     getUserRole().then(setRole)
   }, [])
 
+  async function fetchBadge() {
+    const [{ data: cartData }, { data: ordersData }] = await Promise.all([
+      supabase.from('cart_items').select('id'),
+      supabase.from('orders').select('id, supplier, items:order_items(id)').eq('status', 'ordered'),
+    ])
+    const ordersWithItems = (ordersData ?? []).filter((o: { supplier?: string; items?: { id: string }[] }) => (o.items?.length ?? 0) > 0)
+    const uniqueSuppliers = new Set(ordersWithItems.map(o => o.supplier ?? 'Unbekannter Lieferant')).size
+    setOrderBadge((cartData?.length ?? 0) + uniqueSuppliers)
+  }
+
   useEffect(() => {
-    async function fetchBadge() {
-      const [{ data: cartData }, { data: ordersData }] = await Promise.all([
-        supabase.from('cart_items').select('id'),
-        supabase.from('orders').select('id, items:order_items(id)').eq('status', 'ordered'),
-      ])
-      const ordersWithItems = (ordersData ?? []).filter((o: { items?: { id: string }[] }) => (o.items?.length ?? 0) > 0)
-      setOrderBadge((cartData?.length ?? 0) + ordersWithItems.length)
-    }
     fetchBadge()
-    const interval = setInterval(fetchBadge, 60000)
-    return () => clearInterval(interval)
+    const channel = supabase
+      .channel('badge-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'cart_items' }, fetchBadge)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, fetchBadge)
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
   }, [])
 
-  const SETTINGS_TABS = new Set<Tab>(['shops', 'suppliers', 'categories', 'data'])
+  const SETTINGS_TABS = new Set<Tab>(['shops', 'suppliers', 'categories', 'pin'])
   const showSettingsPanel = !sidebarCollapsed && (settingsOpen || SETTINGS_TABS.has(tab))
 
   const bottomTabs: { id: Tab; icon: React.ReactNode; badge?: number }[] = [
@@ -250,11 +254,11 @@ export default function Dashboard({ user }: Props) {
                 )}
                 {role === 'admin' && (
                   <button
-                    onClick={() => setPinModalOpen(true)}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl transition-colors"
+                    onClick={() => setTab('pin')}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl transition-colors ${tab === 'pin' ? 'bg-sky-50 text-sky-600' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
                   >
-                    <KeyRound size={18} className="shrink-0" />
-                    <span className="flex-1 truncate font-medium">PIN-Verwaltung</span>
+                    <span className="shrink-0"><KeyRound size={18} /></span>
+                    <span className="truncate font-medium">PIN-Verwaltung</span>
                   </button>
                 )}
               </div>
@@ -338,7 +342,7 @@ export default function Dashboard({ user }: Props) {
           className={`flex-1 ${menuOpen ? 'overflow-hidden' : 'overflow-y-auto'}`}
           style={{ overscrollBehavior: 'none' }}
         >
-          <div className={SETTINGS_TABS.has(tab) ? 'h-full flex flex-col' : 'pb-20 md:pb-0 min-h-full'}>
+          <div className={(SETTINGS_TABS.has(tab) || tab === 'orders') ? 'h-full flex flex-col' : 'pb-20 md:pb-0 min-h-full'}>
             <Suspense fallback={<PageSpinner />}>
               {showTerms
                 ? <TermsPage onBack={() => setShowTerms(false)} />
@@ -350,6 +354,7 @@ export default function Dashboard({ user }: Props) {
                     {tab === 'suppliers'   && <SuppliersPage />}
                     {tab === 'categories'  && <CategoriesPage />}
                     {tab === 'data'        && <DataPage />}
+                    {tab === 'pin'         && <PinSettingsPage onClose={() => setTab('stock')} />}
                   </>
               }
             </Suspense>
@@ -568,7 +573,7 @@ export default function Dashboard({ user }: Props) {
                     <MenuItem
                       icon={<KeyRound size={18} />}
                       label="PIN-Verwaltung"
-                      onClick={() => { setPinModalOpen(true); closeMenu() }}
+                      onClick={() => navigate('pin')}
                     />
                   )}
                 </div>
@@ -595,10 +600,6 @@ export default function Dashboard({ user }: Props) {
         </>
       )}
 
-      {/* ── PIN settings modal ── */}
-      {pinModalOpen && (
-        <PinSettingsModal onClose={() => setPinModalOpen(false)} />
-      )}
     </div>
   )
 }

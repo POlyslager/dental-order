@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import type { CartItem, Order, OrderItem, Role } from '../lib/types'
-import { ShoppingCart, Package, Plus, Minus, CheckCircle, ExternalLink, Check, Trash2, Undo2, ScanLine, X, Pencil, ChevronDown } from 'lucide-react'
+import { ShoppingCart, Package, Plus, Minus, CheckCircle, ExternalLink, Check, Trash2, Undo2, ScanLine, X, Pencil, ChevronDown, Clock } from 'lucide-react'
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
 
 interface Props { role: Role | null; user: User; onBadgeChange: (n: number) => void; forceOpenTab?: number; forceScanMode?: number }
@@ -22,6 +22,7 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
   const [cartItems, setCartItems] = useState<CartItem[]>([])
   const [orders, setOrders] = useState<Order[]>([])
   const [pendingOrders, setPendingOrders] = useState<Order[]>([])
+  const [rejectedOrders, setRejectedOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [placingItem, setPlacingItem] = useState<string | null>(null)
   const [editItem, setEditItem] = useState<CartItem | null>(null)
@@ -31,12 +32,13 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
   const [suppliers, setSuppliers] = useState<string[]>([])
   const [deleteConfirm, setDeleteConfirm] = useState<CartItem | null>(null)
   const [approvingOrder, setApprovingOrder] = useState<string | null>(null)
-  const [toast, setToast] = useState<{ message: string; onUndo?: () => void } | null>(null)
+  const [toast, setToast] = useState<{ message: string; onUndo?: () => void; variant?: 'error' } | null>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [scannedCounts, setScannedCounts] = useState<Record<string, number>>({})
   const [scanToggle, setScanToggle] = useState(false)
-  const [scanConfirm, setScanConfirm] = useState<{ item: OrderItem; order: Order } | null>(null)
+  const [scanConfirm, setScanConfirm] = useState<{ item: OrderItem; order: Order; lot?: string } | null>(null)
   const [receiving, setReceiving] = useState<string | null>(null)
+  const rejectedOrdersRef = useRef<Order[]>([])
   const einbuchenScannerRef = useRef<Html5Qrcode | null>(null)
   const scannerStartingRef = useRef(false)
   const scanToggleRef = useRef(false)
@@ -50,7 +52,19 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
   const dragOrigin = useRef({ mouseX: 0, mouseY: 0, posX: 0, posY: 0 })
 
   useEffect(() => {
-    Promise.all([fetchCart(), fetchOrders(), fetchPendingOrders()])
+    Promise.all([fetchCart(), fetchOrders(), fetchPendingOrders(), fetchRejectedOrders()])
+  }, [])
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('orders-realtime')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, () => {
+        fetchPendingOrders()
+        fetchRejectedOrders()
+        fetchOrders()
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
   }, [])
 
   useEffect(() => {
@@ -65,8 +79,12 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
     }
   }, [forceScanMode])
 
-  // Stop scanner on unmount (user navigated to a different main page)
-  useEffect(() => () => { stopInlineScanner() }, [])
+  // Stop scanner on unmount + cancel any unread rejected orders
+  useEffect(() => () => {
+    stopInlineScanner()
+    const ids = rejectedOrdersRef.current.map(o => o.id)
+    if (ids.length > 0) void supabase.from('orders').update({ status: 'cancelled' }).in('id', ids)
+  }, [])
 
   // Stop scanner only when tab changes away FROM 'open' (not on initial mount)
   useEffect(() => {
@@ -111,9 +129,26 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
     setPendingOrders(((data as unknown as Order[]) ?? []).filter(o => (o.items ?? []).length > 0))
   }
 
-  function updateBadge(cart: CartItem[], openOrders: Order[]) {
-    onBadgeChange(cart.length + openOrders.length)
+  async function fetchRejectedOrders() {
+    const { data } = await supabase
+      .from('orders')
+      .select('id, notes')
+      .eq('status', 'rejected')
+      .order('created_at', { ascending: false })
+    const orders = (data as unknown as Order[]) ?? []
+    rejectedOrdersRef.current = orders
+    setRejectedOrders(orders)
   }
+
+  function updateBadge(cart: CartItem[]) {
+    onBadgeChange(cart.length + ordersBySupplier.length)
+  }
+
+  useEffect(() => {
+    if (rejectedOrders.length === 0) return
+    const reason = rejectedOrders[0].notes?.trim()
+    setToast({ message: `Bestellung abgelehnt${reason ? ` – ${reason}` : ''}`, variant: 'error' })
+  }, [rejectedOrders])
 
   // Group cart items by website domain (from supplier_url), fallback to supplier name
   const cartByDomain = cartItems.reduce<Record<string, CartItem[]>>((acc, item) => {
@@ -137,25 +172,48 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
     return grouped
   }, [orders])
 
+  useEffect(() => {
+    if (loading) return
+    onBadgeChange(cartItems.length + ordersBySupplier.length)
+  }, [cartItems, ordersBySupplier, loading])
+
+  async function cancelPendingOnCartChange(newCartItems: CartItem[]) {
+    // Clear rejection toast and state when cart is modified
+    setToast(prev => prev?.variant === 'error' ? null : prev)
+    const rejectedIds = rejectedOrdersRef.current.map(o => o.id)
+    rejectedOrdersRef.current = []
+    setRejectedOrders([])
+    if (rejectedIds.length > 0) {
+      try { await supabase.from('orders').update({ status: 'cancelled' }).in('id', rejectedIds) } catch { /* ignore */ }
+    }
+    if (pendingOrders.length === 0) return
+    await supabase.from('orders').update({ status: 'cancelled' }).in('id', pendingOrders.map(o => o.id))
+    setPendingOrders([])
+    const newTotal = newCartItems.reduce((s, i) => s + (i.quantity * (i.product?.last_price ?? 0)), 0)
+    if (newTotal < 2000) showToast('Freigabe nicht mehr erforderlich – Bestellung zurückgezogen')
+  }
+
   async function updateQuantity(id: string, quantity: number) {
-    if (quantity < 1) return removeItem(id)
+    if (quantity < 0) return
     await supabase.from('cart_items').update({ quantity }).eq('id', id)
     const updated = cartItems.map(i => i.id === id ? { ...i, quantity } : i)
     setCartItems(updated)
-    updateBadge(updated, orders)
+    updateBadge(updated)
+    await cancelPendingOnCartChange(updated)
   }
 
   async function removeItem(id: string) {
     await supabase.from('cart_items').delete().eq('id', id)
     const updated = cartItems.filter(i => i.id !== id)
     setCartItems(updated)
-    updateBadge(updated, orders)
+    updateBadge(updated)
+    await cancelPendingOnCartChange(updated)
   }
 
-  function showToast(message: string, onUndo?: () => void) {
+  function showToast(message: string, onUndo?: () => void, variant?: 'error') {
     if (toastTimer.current) clearTimeout(toastTimer.current)
-    setToast({ message, onUndo })
-    toastTimer.current = setTimeout(() => setToast(null), 5000)
+    setToast({ message, onUndo, variant })
+    if (!variant) toastTimer.current = setTimeout(() => setToast(null), 5000)
   }
 
   function openEditPanel(item: CartItem) {
@@ -210,7 +268,7 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
       if (restored) {
         const updated = [...cartItems.filter(i => i.id !== item.id), restored as unknown as CartItem]
         setCartItems(updated)
-        updateBadge(updated, orders)
+        updateBadge(updated)
       } else {
         await fetchCart()
       }
@@ -248,8 +306,10 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
     await supabase.from('cart_items').delete().eq('id', item.id)
 
     if (needsApproval) {
-      supabase.functions.invoke('send-push', {
-        body: { total, supplier, needs_approval: true },
+      fetch('/api/send-push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ total, supplier, needs_approval: true }),
       }).catch(() => null)
       const fmtTotal = total.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
       setPlacingItem(null)
@@ -267,20 +327,72 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
     }
   }
 
-  async function approveOrder(orderId: string) {
-    setApprovingOrder(orderId)
-    await supabase.from('orders').update({ status: 'ordered', approved_by: user.id }).eq('id', orderId)
-    setApprovingOrder(null)
-    showToast('Bestellung freigegeben')
-    await Promise.all([fetchOrders(), fetchPendingOrders()])
+  const [submittingApproval, setSubmittingApproval] = useState(false)
+
+  async function submitCartForApproval() {
+    setSubmittingApproval(true)
+    const { data: order, error } = await supabase
+      .from('orders')
+      .insert({ created_by: user.id, supplier: 'Warenkorb', status: 'pending_approval', total_estimate: grandTotal })
+      .select()
+      .single()
+    if (error || !order) { setSubmittingApproval(false); return }
+    await supabase.from('order_items').insert(
+      cartItems.map(item => ({
+        order_id: order.id,
+        product_id: item.product_id,
+        quantity: item.quantity,
+        estimated_price: item.product?.last_price ?? null,
+      }))
+    )
+    // Keep cart items visible — they display as locked in the cart until approved/rejected
+    fetch('/api/send-push', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ total: grandTotal, supplier: 'Warenkorb', needs_approval: true }),
+    }).catch(() => null)
+    setSubmittingApproval(false)
+    const fmt = grandTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    showToast(`Warenkorb zur Freigabe eingereicht (€ ${fmt})`)
+    await fetchPendingOrders()
   }
 
-  async function rejectOrder(orderId: string) {
+  async function approveOrder(orderId: string) {
     setApprovingOrder(orderId)
-    await supabase.from('orders').update({ status: 'rejected' }).eq('id', orderId)
+    const order = pendingOrders.find(o => o.id === orderId)
+    await supabase.from('orders').update({ status: 'ordered', approved_by: user.id }).eq('id', orderId)
+    // Clear the cart items that were part of this order
+    if (order?.items?.length) {
+      const productIds = order.items.map(i => i.product_id)
+      await supabase.from('cart_items').delete().in('product_id', productIds)
+    }
+    setPendingOrders(prev => prev.filter(o => o.id !== orderId))
     setApprovingOrder(null)
-    showToast('Bestellung abgelehnt')
-    await fetchPendingOrders()
+    showToast('Bestellung freigegeben')
+    await Promise.all([fetchCart(), fetchOrders(), fetchPendingOrders()])
+  }
+
+  const [rejectModal, setRejectModal] = useState<{ orderId: string; orderItems: OrderItem[]; supplier: string } | null>(null)
+  const [rejectReason, setRejectReason] = useState('')
+  const [rejecting, setRejecting] = useState(false)
+
+  function openRejectModal(order: Order) {
+    setRejectModal({ orderId: order.id, orderItems: order.items ?? [], supplier: order.supplier ?? 'Lieferant' })
+    setRejectReason('')
+  }
+
+  async function confirmReject() {
+    if (!rejectModal) return
+    setRejecting(true)
+    const { orderId } = rejectModal
+    await supabase.from('orders')
+      .update({ status: 'rejected', ...(rejectReason.trim() ? { notes: rejectReason.trim() } : {}) })
+      .eq('id', orderId)
+    // Cart items were never removed — they remain in the cart automatically
+    setPendingOrders(prev => prev.filter(o => o.id !== orderId))
+    setRejecting(false)
+    setRejectModal(null)
+    await Promise.all([fetchCart(), fetchPendingOrders(), fetchRejectedOrders()])
   }
 
   async function addStock(item: OrderItem, qty: number) {
@@ -295,19 +407,30 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
     const allDone = items.every(i => (counts[i.id] ?? 0) >= i.quantity)
     if (allDone) {
       await supabase.from('orders').update({ status: 'received', received_at: new Date().toISOString() }).eq('id', order.id)
-      showToast(`Alle Artikel von ${order.supplier ?? 'Lieferant'} erhalten und eingebucht`)
+      // Only show "Alle Artikel" toast if no other orders from the same supplier remain
+      const supplierKey = getDomain(items[0]?.product?.supplier_url ?? null) ?? order.supplier ?? 'Unbekannter Lieferant'
+      const remainingFromSupplier = orders.filter(o => {
+        if (o.id === order.id) return false
+        const key = getDomain((o.items ?? [])[0]?.product?.supplier_url ?? null) ?? o.supplier ?? 'Unbekannter Lieferant'
+        return key === supplierKey
+      })
+      if (remainingFromSupplier.length === 0) {
+        showToast(`Alle Artikel von ${order.supplier ?? 'Lieferant'} erhalten und eingebucht`)
+      }
       fetchOrders()
     }
   }
 
   // Called by scan confirm modal — increments by 1 unit
-  async function scanReceiveUnit(item: OrderItem, order: Order) {
+  async function scanReceiveUnit(item: OrderItem, order: Order, lot?: string) {
     const current = scannedCounts[item.id] ?? 0
     const next = current + 1
     const newCounts = { ...scannedCounts, [item.id]: next }
     setScannedCounts(newCounts)
     showToast(`${item.product?.name ?? 'Artikel'}: ${next}/${item.quantity} gescannt`)
-    // When item fully scanned: update stock
+    if (lot && item.product_id) {
+      await supabase.from('products').update({ lot_number: lot }).eq('id', item.product_id)
+    }
     if (next >= item.quantity) {
       setReceiving(item.id)
       await addStock(item, item.quantity)
@@ -324,6 +447,7 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
     const newCounts = { ...scannedCounts, [item.id]: item.quantity }
     setScannedCounts(newCounts)
     const order = orders.find(o => o.id === orderId)
+    showToast(`${item.product?.name ?? 'Artikel'} eingebucht`)
     if (order) await checkOrderComplete(order, newCounts)
   }
 
@@ -350,11 +474,13 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
           const clean = raw.replace(/^\][A-Za-z][0-9]/, '').replace(/[^\x20-\x7E]/g, '').trim()
           const gtin = clean.match(/^01(\d{14})/)
           const barcode = gtin ? gtin[1] : clean
+          const lotMatch = clean.match(/10([^\x1d]{1,20})/)
+          const lot = lotMatch?.[1]
           // Find matching order item
           for (const order of orders) {
             const item = (order.items ?? []).find(i => i.product?.barcode === barcode && (scannedCounts[i.id] ?? 0) < i.quantity)
             if (item) {
-              setScanConfirm({ item, order })
+              setScanConfirm({ item, order, lot })
               return
             }
           }
@@ -431,12 +557,12 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
     }
   }, [scanConfirm])
 
-  const openCount = orders.length
+  const openCount = ordersBySupplier.length
   const cartCount = cartItems.length
   const pendingCount = pendingOrders.length
 
   return (
-    <div className="w-full relative">
+    <div className="w-full relative flex flex-col h-full">
       {/* Tab switcher */}
       <div className="flex items-center border-b border-slate-200 bg-white sticky top-0 z-10 px-4">
         <TabButton active={tab === 'cart'} onClick={() => setTab('cart')} badge={cartCount}>
@@ -469,10 +595,10 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
         )}
       </div>
 
-      <div>
+      <div className="flex-1 overflow-y-auto min-h-0">
         {/* ── Cart tab ── */}
         {tab === 'cart' && (
-          cartItems.length === 0 ? (
+          cartItems.length === 0 && pendingOrders.length === 0 ? (
             <div className="text-center py-16 px-4">
               <ShoppingCart size={36} className="mx-auto text-slate-200 mb-3" />
               <p className="text-slate-400 text-sm">Warenkorb ist leer</p>
@@ -517,6 +643,7 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
                             key={item.id}
                             item={item}
                             placing={placingItem === item.id}
+                            requiresApproval={grandTotal > 2000}
                             onUpdateQuantity={updateQuantity}
                             onPlaceOrder={placeOrderForItem}
                             onRemoveRequest={setDeleteConfirm}
@@ -529,15 +656,39 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
                 </tbody>
               </table>
 
-              {/* Grand total — only when multiple domains */}
-              {Object.keys(cartByDomain).length > 1 && (
-                <div className="px-4 py-3 flex items-center justify-between border-t border-slate-200">
-                  <p className="text-sm font-medium text-slate-600">Gesamtsumme Warenkorb</p>
-                  <p className="text-lg font-bold text-slate-800">
-                    € {grandTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </p>
-                </div>
-              )}
+              {/* Pending approval orders — shown as locked section in cart */}
+              {pendingOrders.map(order => {
+                const orderTotal = order.total_estimate ?? (order.items ?? []).reduce((s, i) => s + i.quantity * (i.estimated_price ?? 0), 0)
+                return (
+                  <div key={order.id} className="border-t-2 border-amber-200">
+                    <div className="px-4 py-3 bg-amber-50 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <Clock size={14} className="text-amber-500 shrink-0" />
+                        <span className="text-sm font-semibold text-amber-700">Wartet auf Freigabe</span>
+                        <span className="text-xs text-amber-500">· {(order.items ?? []).length} Artikel</span>
+                      </div>
+                      <span className="text-sm font-semibold text-amber-700">
+                        € {orderTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    <table className="w-full text-sm">
+                      <tbody>
+                        {(order.items ?? []).map(item => (
+                          <tr key={item.id} className="border-b border-amber-50 bg-white opacity-60">
+                            <td className="px-4 py-3">
+                              <p className="text-sm font-semibold text-slate-600">{item.product?.name ?? '—'}</p>
+                            </td>
+                            <td className="text-center px-3 py-3 text-slate-400 whitespace-nowrap">{item.quantity}×</td>
+                            <td className="text-right px-3 py-3 text-slate-500 whitespace-nowrap">
+                              {item.estimated_price != null ? `€ ${(item.estimated_price * item.quantity).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )
+              })}
             </div>
           )
         )}
@@ -550,41 +701,85 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
               <p className="text-slate-400 text-sm">Keine Bestellungen zur Freigabe</p>
             </div>
           ) : (
-            <div className="divide-y divide-slate-100">
+            <div>
               {pendingOrders.map(order => {
                 const items = order.items ?? []
                 const total = order.total_estimate ?? items.reduce((s, i) => s + (i.quantity * (i.estimated_price ?? 0)), 0)
-                const supplier = getDomain(items[0]?.product?.supplier_url) ?? order.supplier ?? 'Unbekannter Lieferant'
                 const busy = approvingOrder === order.id
+
+                const byDomain = items.reduce<Record<string, OrderItem[]>>((acc, item) => {
+                  const domain = getDomain(item.product?.supplier_url) ?? item.product?.preferred_supplier ?? 'Kein Lieferant'
+                  if (!acc[domain]) acc[domain] = []
+                  acc[domain].push(item)
+                  return acc
+                }, {})
+
                 return (
-                  <div key={order.id} className="px-4 py-4">
-                    <div className="flex items-start justify-between gap-3 mb-3">
-                      <div>
-                        <p className="font-semibold text-slate-800 text-base">{supplier}</p>
-                        <p className="text-sm text-slate-500 mt-0.5">
-                          {items.length} {items.length === 1 ? 'Artikel' : 'Artikel'} · Gesamt: <span className="font-semibold text-slate-700">€ {total.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                        </p>
-                        <p className="text-xs text-slate-400 mt-0.5">
-                          {new Date(order.created_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                        </p>
-                      </div>
+                  <div key={order.id} className="border-b-4 border-slate-100">
+                    {/* Submission date header */}
+                    <div className="px-4 py-2 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
+                      <Clock size={13} className="text-amber-500 shrink-0" />
+                      <span className="text-xs text-amber-700 font-medium">
+                        Eingereicht am {new Date(order.created_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </span>
                     </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => rejectOrder(order.id)}
-                        disabled={busy}
-                        className="flex-1 px-4 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 disabled:opacity-40 text-white text-sm font-medium transition-colors"
-                      >
-                        {busy ? <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : 'Ablehnen'}
-                      </button>
-                      <button
-                        onClick={() => approveOrder(order.id)}
-                        disabled={busy}
-                        className="flex-1 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 text-white text-sm font-medium transition-colors"
-                      >
-                        {busy ? <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : 'Freigeben'}
-                      </button>
-                    </div>
+
+                    <table className="w-full text-sm">
+                      <tbody>
+                        {Object.entries(byDomain).map(([domain, domainItems], idx) => {
+                          const domainTotal = domainItems.reduce((s, i) => s + (i.quantity * (i.estimated_price ?? 0)), 0)
+                          return (
+                            <>
+                              {idx > 0 && (
+                                <tr key={`spacer-${domain}`}><td colSpan={4} className="h-4 bg-slate-100" /></tr>
+                              )}
+                              <tr key={`domain-${domain}`} className="border-t border-slate-200 bg-slate-50">
+                                <td colSpan={4} className="px-4 py-2.5">
+                                  <div className="flex items-center justify-between gap-3">
+                                    <p className="font-semibold text-slate-800 text-base">{domain}</p>
+                                    <span className="text-xs text-slate-500 hidden sm:inline">
+                                      Gesamt: <span className="font-semibold text-slate-700">€ {domainTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                    </span>
+                                  </div>
+                                </td>
+                              </tr>
+                              <tr key={`cols-${domain}`} className="border-b border-slate-200 bg-white">
+                                <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide px-4 py-3">Artikel</th>
+                                <th className="text-center text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Menge</th>
+                                <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap hidden sm:table-cell">Preis/Einheit</th>
+                                <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Gesamt</th>
+                              </tr>
+                              {domainItems.map(item => {
+                                const price = item.estimated_price
+                                const rowTotal = item.quantity * (price ?? 0)
+                                return (
+                                  <tr key={item.id} className="bg-white hover:bg-slate-50 transition-colors border-b border-slate-100">
+                                    <td className="px-4 py-3">
+                                      <p className="text-sm font-semibold text-slate-800 truncate max-w-[160px] md:max-w-xs">{item.product?.name ?? '—'}</p>
+                                      {item.product?.brand && (
+                                        <p className="text-xs text-slate-400 mt-0.5">{item.product.brand}</p>
+                                      )}
+                                    </td>
+                                    <td className="px-3 py-3 text-center">
+                                      <span className="font-semibold text-slate-800">{item.quantity}</span>
+                                    </td>
+                                    <td className="px-3 py-3 text-right hidden sm:table-cell">
+                                      <span className="text-sm text-slate-600">
+                                        {price != null ? `€ ${price.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+                                      </span>
+                                    </td>
+                                    <td className="px-3 py-3 text-right font-semibold text-slate-800 whitespace-nowrap">
+                                      {price != null ? `€ ${rowTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+                                    </td>
+                                  </tr>
+                                )
+                              })}
+                            </>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+
                   </div>
                 )
               })}
@@ -605,27 +800,107 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
               <p className="text-slate-400 text-sm">Keine offenen Bestellungen</p>
             </div>
           ) : (
-            <table className="w-full text-sm">
-              <tbody>
-                {ordersBySupplier.map(([, groupOrders], groupIdx) => (
-                  groupOrders.map((order, orderIdx) => (
-                    <OpenOrderSection
-                      key={order.id}
-                      order={order}
-                      isFirstOverall={groupIdx === 0 && orderIdx === 0}
-                      isFirstInGroup={orderIdx === 0}
-                      scannedCounts={scannedCounts}
-                      receiving={receiving}
-                      onReceiveItem={(item) => receiveOrderItem(item, order.id)}
-                    />
-                  ))
-                ))}
-              </tbody>
-            </table>
+            <>
+              <table className="w-full text-sm">
+                <tbody>
+                  {ordersBySupplier.map(([, groupOrders], groupIdx) => (
+                    groupOrders.map((order, orderIdx) => (
+                      <OpenOrderSection
+                        key={order.id}
+                        order={order}
+                        isFirstOverall={groupIdx === 0 && orderIdx === 0}
+                        isFirstInGroup={orderIdx === 0}
+                        scannedCounts={scannedCounts}
+                        receiving={receiving}
+                        onReceiveItem={(item) => receiveOrderItem(item, order.id)}
+                      />
+                    ))
+                  ))}
+                </tbody>
+              </table>
+            </>
           )}
           </>
         )}
       </div>
+
+      {/* ── Sticky footer ── */}
+      {tab === 'cart' && cartItems.length > 0 && grandTotal > 2000 && (
+        <div className="shrink-0 bg-white border-t border-slate-200">
+          <div className="px-4 py-4 flex items-center justify-between gap-4">
+            <button
+              onClick={submitCartForApproval}
+              disabled={submittingApproval || pendingOrders.length > 0 || rejectedOrders.length > 0}
+              className="shrink-0 flex items-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-sm font-medium transition-colors"
+            >
+              {submittingApproval
+                ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                : pendingOrders.length > 0 ? <Clock size={16} /> : <CheckCircle size={16} />
+              }
+              {pendingOrders.length > 0 ? 'Wartet auf Freigabe' : 'Zur Freigabe einreichen'}
+            </button>
+            <p className="text-lg font-bold text-slate-800 shrink-0">
+              € {grandTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </p>
+          </div>
+          <div className="h-20 md:hidden" />
+        </div>
+      )}
+      {tab === 'cart' && cartItems.length > 0 && grandTotal <= 2000 && Object.keys(cartByDomain).length > 1 && (
+        <div className="shrink-0 bg-white border-t border-slate-200">
+          <div className="px-4 py-3 flex items-center justify-between">
+            <p className="text-sm font-medium text-slate-600">Gesamtsumme Warenkorb</p>
+            <p className="text-lg font-bold text-slate-800">
+              € {grandTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </p>
+          </div>
+          <div className="h-20 md:hidden" />
+        </div>
+      )}
+      {tab === 'approval' && role === 'admin' && pendingOrders.length > 0 && (() => {
+        const order = pendingOrders[0]
+        const total = order.total_estimate ?? (order.items ?? []).reduce((s, i) => s + (i.quantity * (i.estimated_price ?? 0)), 0)
+        const busy = approvingOrder === order.id
+        return (
+          <div className="shrink-0 bg-white border-t border-slate-200">
+            <div className="px-4 py-4 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => openRejectModal(order)}
+                  disabled={busy}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-red-500 hover:bg-red-600 disabled:opacity-40 text-white text-sm font-medium transition-colors"
+                >
+                  Ablehnen
+                </button>
+                <button
+                  onClick={() => approveOrder(order.id)}
+                  disabled={busy}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 text-white text-sm font-medium transition-colors"
+                >
+                  {busy ? <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : 'Freigeben'}
+                </button>
+              </div>
+              <p className="text-lg font-bold text-slate-800 shrink-0">
+                € {total.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
+            </div>
+            <div className="h-20 md:hidden" />
+          </div>
+        )
+      })()}
+      {tab === 'open' && orders.length > 0 && (() => {
+        const openTotal = orders.reduce((s, o) => s + (o.total_estimate ?? (o.items ?? []).reduce((si, i) => si + i.quantity * (i.estimated_price ?? 0), 0)), 0)
+        return (
+          <div className="shrink-0 bg-white border-t border-slate-200">
+            <div className="px-4 py-3 flex items-center justify-end">
+              <p className="text-lg font-bold text-slate-800">
+                € {openTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
+            </div>
+            <div className="h-20 md:hidden" />
+          </div>
+        )
+      })()}
 
       {/* Edit cart item panel */}
       {(editItem || editClosing) && (
@@ -717,6 +992,45 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
         </>
       )}
 
+      {/* Reject order modal */}
+      {rejectModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => !rejecting && setRejectModal(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="font-semibold text-slate-800 text-base mb-1">Bestellung ablehnen</h3>
+            <p className="text-sm text-slate-500 mb-4">
+              Die Artikel werden zurück in den Warenkorb gelegt. Optional können Sie einen Grund angeben.
+            </p>
+            <textarea
+              value={rejectReason}
+              onChange={e => setRejectReason(e.target.value)}
+              placeholder="Begründung (optional)…"
+              rows={3}
+              className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-red-300 resize-none mb-4"
+              autoFocus
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={() => setRejectModal(null)}
+                disabled={rejecting}
+                className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors disabled:opacity-40"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={confirmReject}
+                disabled={rejecting}
+                className="flex-1 px-4 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 disabled:opacity-40 text-white text-sm font-medium transition-colors"
+              >
+                {rejecting
+                  ? <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  : 'Ablehnen & zurück'
+                }
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Delete confirmation modal */}
       {deleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => setDeleteConfirm(null)}>
@@ -745,7 +1059,7 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
 
       {/* Toast */}
       {toast && (
-        <div className="fixed top-4 left-4 right-4 z-50 flex justify-center pointer-events-none"><div className="pointer-events-auto flex items-center gap-3 bg-slate-800 text-white text-sm font-medium px-4 py-3 rounded-2xl shadow-lg max-w-[calc(100vw-2rem)]">
+        <div className="fixed top-4 left-4 right-4 z-50 flex justify-center pointer-events-none"><div className={`pointer-events-auto flex items-center gap-3 ${toast.variant === 'error' ? 'bg-red-500' : 'bg-slate-800'} text-white text-sm font-medium px-4 py-3 rounded-2xl shadow-lg max-w-[calc(100vw-2rem)]`}>
           <span>{toast.message}</span>
           {toast.onUndo && (
             <button
@@ -807,9 +1121,9 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
                 </button>
                 <button
                   onClick={async () => {
-                    const { item, order } = scanConfirm
+                    const { item, order, lot } = scanConfirm
                     setScanConfirm(null)
-                    await scanReceiveUnit(item, order)
+                    await scanReceiveUnit(item, order, lot)
                   }}
                   className="flex-1 px-3 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium transition-colors"
                 >
@@ -825,9 +1139,10 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
 }
 
 // ── Cart item row ───────────────────────────────────────────────────────────
-function CartItemRow({ item, placing, onUpdateQuantity, onPlaceOrder, onRemoveRequest, onEdit }: {
+function CartItemRow({ item, placing, requiresApproval, onUpdateQuantity, onPlaceOrder, onRemoveRequest, onEdit }: {
   item: CartItem
   placing: boolean
+  requiresApproval: boolean
   onUpdateQuantity: (id: string, qty: number) => void
   onPlaceOrder: (item: CartItem) => void
   onRemoveRequest: (item: CartItem) => void
@@ -868,8 +1183,8 @@ function CartItemRow({ item, placing, onUpdateQuantity, onPlaceOrder, onRemoveRe
       {/* Order quantity */}
       <td className="px-3 py-3">
         <div className="flex items-center gap-1 justify-center">
-          <button onClick={() => onUpdateQuantity(item.id, item.quantity - 1)}
-            className="w-6 h-6 flex items-center justify-center rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors">
+          <button onClick={() => onUpdateQuantity(item.id, item.quantity - 1)} disabled={item.quantity === 0}
+            className="w-6 h-6 flex items-center justify-center rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors disabled:opacity-30">
             <Minus size={11} />
           </button>
           <span className="w-7 text-center font-semibold text-slate-800">{item.quantity}</span>
@@ -915,13 +1230,15 @@ function CartItemRow({ item, placing, onUpdateQuantity, onPlaceOrder, onRemoveRe
             className="w-9 h-9 flex items-center justify-center rounded-xl bg-red-100 text-red-500 hover:bg-red-200 transition-colors">
             <Trash2 size={16} />
           </button>
-          <button onClick={() => onPlaceOrder(item)} disabled={placing} title="Als bestellt markieren"
-            className="w-9 h-9 flex items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 hover:bg-emerald-200 transition-colors disabled:opacity-40">
-            {placing
-              ? <span className="w-4 h-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin inline-block" />
-              : <CheckCircle size={16} />
-            }
-          </button>
+          {!requiresApproval && item.quantity > 0 && (
+            <button onClick={() => onPlaceOrder(item)} disabled={placing} title="Als bestellt markieren"
+              className="w-9 h-9 flex items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 hover:bg-emerald-200 transition-colors disabled:opacity-40">
+              {placing
+                ? <span className="w-4 h-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin inline-block" />
+                : <CheckCircle size={16} />
+              }
+            </button>
+          )}
         </div>
       </td>
     </tr>

@@ -62,7 +62,7 @@ create index stock_movements_created_idx on stock_movements(created_at desc);
 create table orders (
   id uuid primary key default uuid_generate_v4(),
   status text not null default 'draft'
-    check (status in ('draft', 'pending_approval', 'approved', 'ordered', 'received', 'cancelled')),
+    check (status in ('draft', 'pending_approval', 'approved', 'ordered', 'received', 'cancelled', 'rejected')),
   created_by uuid not null references auth.users,
   approved_by uuid references auth.users,
   notes text,
