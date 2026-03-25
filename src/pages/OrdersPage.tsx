@@ -630,25 +630,26 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
           </div>
           <div className="p-5 space-y-2">
             {/* Current supplier row */}
-            <div className="flex items-center gap-2 py-2.5 border-b border-slate-100 dark:border-slate-700">
+            <div className="flex items-center gap-3 py-2.5 border-b border-slate-100 dark:border-slate-700">
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-slate-800 dark:text-slate-100">{item.product?.preferred_supplier ?? getDomain(item.product?.supplier_url) ?? '—'}</p>
                 <span className="text-xs text-slate-400 dark:text-slate-500">Aktuell</span>
               </div>
-              <div className="text-right shrink-0">
+              <div className="w-20 text-right shrink-0">
                 {currentPrice != null && (
                   <p className="text-sm font-bold text-slate-800 dark:text-slate-100">
                     € {currentPrice.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
                 )}
               </div>
-              {item.product?.supplier_url && (
+              {item.product?.supplier_url ? (
                 <a href={item.product.supplier_url} target="_blank" rel="noopener noreferrer"
                   className="flex items-center gap-1.5 text-xs font-medium text-sky-600 dark:text-sky-400 hover:text-sky-700 bg-sky-50 dark:bg-sky-900/30 hover:bg-sky-100 dark:hover:bg-sky-900/50 px-3 py-2 rounded-lg transition-colors shrink-0 whitespace-nowrap">
                   <ExternalLink size={12} />
                   Öffnen
                 </a>
-              )}
+              ) : <div className="w-[72px]" />}
+              <div className="w-[100px]" />
             </div>
             {/* Alternative rows */}
             {sorted.map(alt => {
@@ -658,12 +659,12 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
               const isCheaper = savings != null && savings > 0.5
               const euroSavings = currentPrice != null ? currentPrice - alt.price : null
               return (
-                <div key={alt.url} className="flex items-center gap-2 py-2.5 border-b border-slate-100 dark:border-slate-700 last:border-0">
+                <div key={alt.url} className="flex items-center gap-3 py-2.5 border-b border-slate-100 dark:border-slate-700 last:border-0">
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-slate-800 dark:text-slate-100">{alt.domain}</p>
                     {alt.name && <p className="text-xs text-slate-400 dark:text-slate-500 truncate mt-0.5">{alt.name}</p>}
                   </div>
-                  <div className="text-right shrink-0">
+                  <div className="w-20 text-right shrink-0">
                     <p className="text-sm font-bold text-slate-800 dark:text-slate-100">
                       € {alt.price.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </p>
@@ -682,7 +683,7 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
                   </a>
                   <button
                     onClick={() => onApply(item, alt)}
-                    className={`text-xs font-medium px-2.5 py-2 rounded-lg transition-colors whitespace-nowrap shrink-0 ${isCheaper
+                    className={`w-[100px] text-xs font-medium px-2.5 py-2 rounded-lg transition-colors whitespace-nowrap shrink-0 ${isCheaper
                       ? 'bg-emerald-50 dark:bg-emerald-900/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400'
                       : 'bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300'}`}
                   >

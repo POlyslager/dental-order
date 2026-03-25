@@ -49,7 +49,8 @@ export function nameMatches(query: string, resultName: string | null): boolean {
   for (const t of qTokens) {
     if (!/^\d+$/.test(t) && rTokens.has(t)) wordMatches++
   }
-  if (wordMatches < 1) return false
+  const qWordCount = [...qTokens].filter(t => !/^\d+$/.test(t)).length
+  if (wordMatches < Math.min(2, qWordCount)) return false
   for (const t of qTokens) {
     if (/^\d+$/.test(t) && !rTokens.has(t)) return false
   }
