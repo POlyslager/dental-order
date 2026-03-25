@@ -154,6 +154,8 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
     })()
   }, [product.id])
 
+  useEffect(() => { searchAlternatives() }, [product.id])
+
   async function handleSave() {
     setSaving(true)
     const parseNum = (v: unknown) => { const n = parseFloat(String(v).replace(',', '.')); return isNaN(n) ? null : n }
@@ -694,7 +696,7 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
                       ? <span className="w-3.5 h-3.5 border-2 border-sky-400 border-t-transparent rounded-full animate-spin inline-block" />
                       : <Search size={12} />
                     }
-                    {altState === 'idle' ? 'Suchen' : altState === 'loading' ? 'Suche läuft…' : 'Erneut suchen'}
+                    {altState === 'loading' ? 'Suche läuft…' : 'Erneut suchen'}
                   </button>
                 </div>
 
