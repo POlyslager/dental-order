@@ -2,10 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
 import { supabase, getCurrentUser } from '../lib/supabase'
-import type { Product, Role } from '../lib/types'
+import type { Product, Role, PriceAlternative } from '../lib/types'
 import ProductDetailPage from './ProductDetailPage'
 import CategorySelect from '../components/CategorySelect'
-import { Search, Plus, X, Camera, Activity, ChevronUp, ChevronDown, Package, PackageCheck, PackageX, TriangleAlert, Check, ShoppingCart } from 'lucide-react'
+import { Search, Plus, X, Camera, Activity, ChevronUp, ChevronDown, Package, PackageCheck, PackageX, TriangleAlert, Check, ShoppingCart, TrendingDown } from 'lucide-react'
 
 const SCAN_FORMATS = [
   Html5QrcodeSupportedFormats.QR_CODE, Html5QrcodeSupportedFormats.DATA_MATRIX,
@@ -27,6 +27,126 @@ const STORAGE_LOCATIONS = [
   'Steri', 'Rezeption', 'Büro', 'Radiologie', 'Keller',
 ]
 const UNITS = ['Stück', 'Packung', 'Flasche', 'Kanister']
+
+function SweepModal({
+  results,
+  loading,
+  productCount,
+  onClose,
+  onApply,
+}: {
+  results: { product: Product; cheaper: PriceAlternative[] }[]
+  loading: boolean
+  productCount: number
+  onClose: () => void
+  onApply: (product: Product, alt: PriceAlternative) => void
+}) {
+  return (
+    <div className="fixed inset-0 bg-black/40 dark:bg-black/60 z-50 flex items-center justify-center p-4">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700 shrink-0">
+          <div className="flex items-center gap-3">
+            <TrendingDown size={18} className="text-emerald-500" />
+            <h2 className="font-semibold text-slate-800 dark:text-slate-100 text-base">Preisscan</h2>
+            {loading && (
+              <div className="w-4 h-4 border-2 border-sky-500 border-t-transparent rounded-full animate-spin" />
+            )}
+            {!loading && (
+              <span className="text-xs text-slate-400 dark:text-slate-500">
+                {results.length > 0 ? `${results.length} Treffer` : 'Fertig'}
+              </span>
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
+          {loading && (
+            <div className="flex flex-col items-center justify-center py-12 gap-4">
+              <div className="w-8 h-8 border-4 border-sky-500 border-t-transparent rounded-full animate-spin" />
+              <p className="text-sm text-slate-500 dark:text-slate-400">Suche läuft…</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500">{productCount} Artikel werden geprüft</p>
+            </div>
+          )}
+
+          {!loading && results.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-12 gap-2">
+              <p className="text-sm text-slate-500 dark:text-slate-400">Keine günstigeren Alternativen gefunden</p>
+            </div>
+          )}
+
+          {!loading && results.map((hit, idx) => {
+            const sorted = [...hit.cheaper].sort((a, b) => a.price - b.price)
+            return (
+              <div
+                key={hit.product.id}
+                className={`space-y-2 ${idx > 0 ? 'pt-4 border-t border-slate-100 dark:border-slate-800' : ''}`}
+              >
+                <p className="font-semibold text-slate-800 dark:text-slate-100 text-sm">{hit.product.name}</p>
+
+                {/* Current supplier row */}
+                <div className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500">
+                  <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-full font-medium">Aktuell</span>
+                  <span>{hit.product.preferred_supplier ?? '—'}</span>
+                  <span className="font-semibold text-slate-600 dark:text-slate-300">
+                    {hit.product.last_price != null
+                      ? hit.product.last_price.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })
+                      : '—'}
+                  </span>
+                </div>
+
+                {/* Alternatives */}
+                {sorted.map((alt, i) => {
+                  const saving = hit.product.last_price! - alt.price
+                  const savingPct = (saving / hit.product.last_price!) * 100
+                  return (
+                    <div
+                      key={i}
+                      className="flex flex-wrap items-center gap-2 bg-slate-50 dark:bg-slate-800 rounded-xl px-3 py-2"
+                    >
+                      <span className="text-xs text-slate-600 dark:text-slate-300 font-medium truncate max-w-[140px]">
+                        {alt.domain}
+                      </span>
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-100">
+                        {alt.price.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
+                      </span>
+                      <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                        −{saving.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })} (−{savingPct.toFixed(0)}%)
+                      </span>
+                      <div className="ml-auto flex items-center gap-2 shrink-0">
+                        <a
+                          href={alt.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-3 py-1.5 text-xs font-medium border border-slate-200 dark:border-slate-600 rounded-full text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 transition-colors whitespace-nowrap"
+                        >
+                          Öffnen
+                        </a>
+                        <button
+                          onClick={() => onApply(hit.product, alt)}
+                          className="px-3 py-1.5 text-xs font-medium bg-emerald-500 hover:bg-emerald-600 text-white rounded-full transition-colors whitespace-nowrap"
+                        >
+                          Als Standard
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export default function StockPage({ role: _role, initialBarcode, onBarcodeConsumed, onNavigateToOrders }: Props) {
   const [products, setProducts] = useState<Product[]>([])
@@ -60,6 +180,10 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
   const [brandOptions, setBrandOptions] = useState<string[]>([])
   const [allCategories, setAllCategories] = useState<string[]>([])
   const scannerRef = useRef<Html5Qrcode | null>(null)
+
+  const [sweepOpen, setSweepOpen] = useState(false)
+  const [sweepLoading, setSweepLoading] = useState(false)
+  const [sweepResults, setSweepResults] = useState<{ product: Product; cheaper: PriceAlternative[] }[]>([])
 
   async function startBarcodeScanner() {
     // flushSync ensures the div is visible in the DOM before Html5Qrcode attaches
@@ -245,6 +369,43 @@ useEffect(() => {
   async function fetchCategories() {
     const { data } = await supabase.from('products').select('category').not('category', 'is', null)
     if (data) setAllCategories([...new Set(data.map(r => r.category as string))].filter(Boolean).sort())
+  }
+
+  async function runSweep() {
+    setSweepLoading(true)
+    setSweepOpen(true)
+    setSweepResults([])
+    const targets = products.filter(p => p.last_price != null && p.last_price > 0)
+    const settled = await Promise.allSettled(
+      targets.map(async product => {
+        const res = await fetch('/api/find-alternatives', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ productName: product.name, brand: product.brand }),
+        })
+        const data = await res.json()
+        const alts = (data.results ?? []) as PriceAlternative[]
+        const cheaper = alts.filter(a => a.price < product.last_price!)
+        return { product, cheaper }
+      })
+    )
+    const hits = settled
+      .filter((r): r is PromiseFulfilledResult<{ product: Product; cheaper: PriceAlternative[] }> =>
+        r.status === 'fulfilled' && r.value.cheaper.length > 0
+      )
+      .map(r => r.value)
+    setSweepResults(hits)
+    setSweepLoading(false)
+  }
+
+  async function applySweepAlternative(product: Product, alt: PriceAlternative) {
+    await supabase.from('products').update({
+      preferred_supplier: alt.domain,
+      supplier_url: alt.url,
+      last_price: alt.price,
+    }).eq('id', product.id)
+    setSweepResults(prev => prev.filter(r => r.product.id !== product.id))
+    fetchProducts()
   }
 
   async function upsertSupplier(name: string) {
@@ -510,14 +671,24 @@ useEffect(() => {
           options={brands}
         />
 
-        {/* Add button — pushed to end */}
-        <button
-          onClick={() => setShowForm(true)}
-          className="ml-auto bg-sky-500 hover:bg-sky-600 text-white px-4 py-2 rounded-xl transition-colors flex items-center gap-2 text-sm font-medium whitespace-nowrap shrink-0"
-        >
-          <Plus size={16} />
-          <span className="hidden sm:inline">Neuer Artikel</span>
-        </button>
+        {/* Preisscan + Add buttons — pushed to end */}
+        <div className="ml-auto flex items-center gap-2 shrink-0">
+          <button
+            onClick={runSweep}
+            disabled={sweepLoading}
+            className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 px-4 py-2 rounded-xl transition-colors flex items-center gap-2 text-sm font-medium whitespace-nowrap shrink-0 disabled:opacity-50"
+          >
+            <TrendingDown size={16} />
+            <span className="hidden sm:inline">Preisscan</span>
+          </button>
+          <button
+            onClick={() => setShowForm(true)}
+            className="bg-sky-500 hover:bg-sky-600 text-white px-4 py-2 rounded-xl transition-colors flex items-center gap-2 text-sm font-medium whitespace-nowrap shrink-0"
+          >
+            <Plus size={16} />
+            <span className="hidden sm:inline">Neuer Artikel</span>
+          </button>
+        </div>
       </div>
 
       {/* Desktop header (md+) */}
@@ -801,6 +972,17 @@ useEffect(() => {
             </form>
           </div>
         </>
+      )}
+
+      {/* Sweep modal */}
+      {sweepOpen && (
+        <SweepModal
+          results={sweepResults}
+          loading={sweepLoading}
+          productCount={products.filter(p => p.last_price != null && p.last_price > 0).length}
+          onClose={() => setSweepOpen(false)}
+          onApply={applySweepAlternative}
+        />
       )}
 
       {/* Product detail — full-screen on mobile, side panel modal on md+ */}
