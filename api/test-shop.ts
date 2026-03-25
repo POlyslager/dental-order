@@ -120,6 +120,33 @@ function extractProductsFromMicrodata(html: string, pageUrl: string) {
   return found
 }
 
+function extractProductsFromGtmLayer(html: string, pageUrl: string): { name: string | null; price: number; url: string }[] {
+  const found: { name: string | null; price: number; url: string }[] = []
+  for (const block of html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/gi)) {
+    const script = block[1]
+    if (!script.includes('item_name') || !script.includes('"price"')) continue
+    for (const nameM of script.matchAll(/"item_name"\s*:\s*"([^"]+)"/g)) {
+      const name = nameM[1]
+      const ahead = script.slice(nameM.index!, nameM.index! + 400)
+      const priceM = ahead.match(/"price"\s*:\s*([\d.]+)/)
+      if (!priceM) continue
+      const price = parseFloat(priceM[1])
+      if (!price || price <= 0) continue
+      const idM = ahead.match(/"item_id"\s*:\s*"?(\d+)"?/)
+      let url = pageUrl
+      if (idM) {
+        const linkM = html.match(new RegExp(`href="([^"]*${idM[1]}[^"]*)"`, 'i'))
+        if (linkM) {
+          const raw = linkM[1]
+          url = raw.startsWith('http') ? raw : new URL(raw, pageUrl).href
+        }
+      }
+      found.push({ name, price, url })
+    }
+  }
+  return found
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).end()
 
@@ -152,16 +179,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const rawMicro = extractProductsFromMicrodata(html, pageUrl)
       products = rawMicro.filter(p => nameMatches(query, p.name))
       if (products.length === 0) {
-        // Return diagnostic info so the UI can show what went wrong
-        const allRaw = [...rawJsonLd, ...rawMicro]
-        return res.status(200).json({
-          found: false,
-          debug: {
-            fetchedUrl: pageUrl,
-            htmlBytes: html.length,
-            rawProducts: allRaw.slice(0, 5).map(p => ({ name: p.name, price: p.price })),
-          },
-        })
+        const rawGtm = extractProductsFromGtmLayer(html, pageUrl)
+        products = rawGtm.filter(p => nameMatches(query, p.name))
+        if (products.length === 0) {
+          // Return diagnostic info so the UI can show what went wrong
+          const allRaw = [...rawJsonLd, ...rawMicro, ...rawGtm]
+          return res.status(200).json({
+            found: false,
+            debug: {
+              fetchedUrl: pageUrl,
+              htmlBytes: html.length,
+              rawProducts: allRaw.slice(0, 5).map(p => ({ name: p.name, price: p.price })),
+            },
+          })
+        }
       }
     }
 

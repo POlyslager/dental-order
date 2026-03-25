@@ -7,15 +7,16 @@ import {
   Package, ScanLine, ShoppingCart, Menu, X, Settings,
   LayoutDashboard, Bell, BellOff, ScrollText, LogOut,
   ChevronLeft, ChevronRight, PackageMinus, PackagePlus, Check,
-  Store, Users, Tag, KeyRound, Database,
+  Users, Tag, KeyRound, Database, Factory, Sun, Moon,
 } from 'lucide-react'
+import { applyTheme, getStoredTheme, type ThemeMode } from '../lib/theme'
 const StockPage          = lazy(() => import('./StockPage'))
 const OrdersPage         = lazy(() => import('./OrdersPage'))
 const OverviewPage       = lazy(() => import('./OverviewPage'))
 const TermsPage          = lazy(() => import('./TermsPage'))
 const EntnehmenScanModal = lazy(() => import('../components/EntnehmenScanModal'))
-const ShopsPage          = lazy(() => import('./ShopsPage'))
 const SuppliersPage      = lazy(() => import('./SuppliersPage'))
+const BrandsPage         = lazy(() => import('./BrandsPage'))
 const CategoriesPage     = lazy(() => import('./CategoriesPage'))
 const DataPage           = lazy(() => import('./DataPage'))
 const PinSettingsPage    = lazy(() => import('../components/PinSettingsModal'))
@@ -29,7 +30,7 @@ function PageSpinner() {
 }
 
 
-type Tab = 'overview' | 'stock' | 'orders' | 'scan' | 'shops' | 'suppliers' | 'categories' | 'data' | 'pin'
+type Tab = 'overview' | 'stock' | 'orders' | 'scan' | 'suppliers' | 'brands' | 'categories' | 'data' | 'pin'
 
 interface Props { user: User }
 
@@ -38,8 +39,8 @@ const PAGE_TITLES: Record<Tab, string> = {
   stock: 'Artikel',
   scan: 'Scannen',
   orders: 'Bestellungen',
-  shops: 'Online-Shops',
   suppliers: 'Lieferanten',
+  brands: 'Hersteller',
   categories: 'Kategorien',
   data: 'Daten & Import',
   pin: 'PIN-Verwaltung',
@@ -47,6 +48,17 @@ const PAGE_TITLES: Record<Tab, string> = {
 
 export default function Dashboard({ user }: Props) {
   const [role, setRole] = useState<Role | null>(null)
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    const stored = getStoredTheme()
+    if (stored === 'system') return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+    return stored as 'light' | 'dark'
+  })
+
+  function toggleTheme() {
+    const next: 'light' | 'dark' = theme === 'light' ? 'dark' : 'light'
+    applyTheme(next)
+    setTheme(next)
+  }
   const [tab, setTab] = useState<Tab>('stock')
   const [menuOpen, setMenuOpen] = useState(false)
   const [menuClosing, setMenuClosing] = useState(false)
@@ -121,7 +133,7 @@ export default function Dashboard({ user }: Props) {
     return () => { supabase.removeChannel(channel) }
   }, [])
 
-  const SETTINGS_TABS = new Set<Tab>(['shops', 'suppliers', 'categories', 'pin'])
+  const SETTINGS_TABS = new Set<Tab>(['suppliers', 'brands', 'categories', 'pin'])
   const showSettingsPanel = !sidebarCollapsed && (settingsOpen || SETTINGS_TABS.has(tab))
 
   const bottomTabs: { id: Tab; icon: React.ReactNode; badge?: number }[] = [
@@ -224,8 +236,8 @@ export default function Dashboard({ user }: Props) {
               </button>
               <div className="border-t border-slate-100 dark:border-slate-700 pt-1 space-y-0.5">
                 {([
-                  { id: 'shops' as Tab,      icon: <Store size={18} />,     label: 'Online-Shops' },
                   { id: 'suppliers' as Tab,  icon: <Users size={18} />,     label: 'Lieferanten' },
+                  { id: 'brands' as Tab,     icon: <Factory size={18} />,   label: 'Hersteller' },
                   { id: 'categories' as Tab, icon: <Tag size={18} />,       label: 'Kategorien' },
                   { id: 'data' as Tab,       icon: <Database size={18} />,  label: 'Daten & Import' },
                 ] as { id: Tab; icon: React.ReactNode; label: string }[]).map(item => (
@@ -249,6 +261,21 @@ export default function Dashboard({ user }: Props) {
                     <span className="truncate font-medium">PIN-Verwaltung</span>
                   </button>
                 )}
+                <button
+                  onClick={toggleTheme}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl transition-colors"
+                >
+                  {theme === 'dark' ? <Moon size={18} className="shrink-0 text-slate-400 dark:text-slate-500" /> : <Sun size={18} className="shrink-0 text-slate-400 dark:text-slate-500" />}
+                  <span className="flex-1 truncate font-medium">Erscheinungsbild</span>
+                  <div className="flex items-center bg-slate-100 dark:bg-slate-700 rounded-full p-0.5 shrink-0 pointer-events-none">
+                    <span className={`p-1.5 rounded-full transition-all ${theme === 'light' ? 'bg-white shadow text-amber-500' : 'text-slate-400 dark:text-slate-500'}`}>
+                      <Sun size={12} />
+                    </span>
+                    <span className={`p-1.5 rounded-full transition-all ${theme === 'dark' ? 'bg-slate-600 shadow text-indigo-300' : 'text-slate-400 dark:text-slate-400'}`}>
+                      <Moon size={12} />
+                    </span>
+                  </div>
+                </button>
                 {isPushSupported() && (
                   <button
                     onClick={toggleNotifications}
@@ -256,8 +283,13 @@ export default function Dashboard({ user }: Props) {
                   >
                     <Bell size={18} className="shrink-0" />
                     <span className="flex-1 truncate font-medium">Benachrichtigungen</span>
-                    <div className={`relative w-9 h-5 rounded-full transition-colors shrink-0 ${pushPermission === 'granted' ? 'bg-sky-500' : 'bg-slate-200 dark:bg-slate-600'}`}>
-                      <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${pushPermission === 'granted' ? 'left-4' : 'left-0.5'}`} />
+                    <div className="flex items-center bg-slate-100 dark:bg-slate-700 rounded-full p-0.5 shrink-0 pointer-events-none">
+                      <span className={`p-1.5 rounded-full transition-all ${pushPermission !== 'granted' ? 'bg-white dark:bg-slate-600 shadow text-slate-500 dark:text-slate-300' : 'text-slate-400 dark:text-slate-500'}`}>
+                        <BellOff size={12} />
+                      </span>
+                      <span className={`p-1.5 rounded-full transition-all ${pushPermission === 'granted' ? 'bg-sky-500 dark:bg-slate-600 shadow text-white dark:text-sky-300' : 'text-slate-400 dark:text-slate-400'}`}>
+                        <Bell size={12} />
+                      </span>
                     </div>
                   </button>
                 )}
@@ -350,8 +382,8 @@ export default function Dashboard({ user }: Props) {
                     {tab === 'overview'    && <OverviewPage />}
                     {tab === 'stock'       && <StockPage role={role} initialBarcode={pendingBarcode} onBarcodeConsumed={() => setPendingBarcode(null)} onNavigateToOrders={() => setTab('orders')} />}
                     {tab === 'orders'      && <OrdersPage role={role} user={user} onBadgeChange={setOrderBadge} forceOpenTab={forceOrdersOpenTab} forceScanMode={forceOrdersScanMode} />}
-                    {tab === 'shops'       && <ShopsPage />}
                     {tab === 'suppliers'   && <SuppliersPage />}
+                    {tab === 'brands'      && <BrandsPage />}
                     {tab === 'categories'  && <CategoriesPage />}
                     {tab === 'data'        && <DataPage />}
                     {tab === 'pin'         && <PinSettingsPage onClose={() => setTab('stock')} />}
@@ -538,14 +570,14 @@ export default function Dashboard({ user }: Props) {
                 {/* Settings panel */}
                 <div className="overflow-y-auto py-2" style={{ width: '50%' }}>
                   <MenuItem
-                    icon={<Store size={18} />}
-                    label="Online-Shops"
-                    onClick={() => navigate('shops')}
-                  />
-                  <MenuItem
                     icon={<Users size={18} />}
                     label="Lieferanten"
                     onClick={() => navigate('suppliers')}
+                  />
+                  <MenuItem
+                    icon={<Factory size={18} />}
+                    label="Hersteller"
+                    onClick={() => navigate('brands')}
                   />
                   <MenuItem
                     icon={<Tag size={18} />}
@@ -564,6 +596,21 @@ export default function Dashboard({ user }: Props) {
                       onClick={() => navigate('pin')}
                     />
                   )}
+                  <button
+                    onClick={toggleTheme}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300 rounded-xl transition-colors hover:bg-slate-50 dark:hover:bg-slate-700"
+                  >
+                    {theme === 'dark' ? <Moon size={18} className="shrink-0 text-slate-500 dark:text-slate-400" /> : <Sun size={18} className="shrink-0 text-slate-500 dark:text-slate-400" />}
+                    <span className="flex-1 font-medium text-left">Erscheinungsbild</span>
+                    <div className="flex items-center bg-slate-100 dark:bg-slate-700 rounded-full p-0.5 shrink-0 pointer-events-none">
+                      <span className={`p-1.5 rounded-full transition-all ${theme === 'light' ? 'bg-white shadow text-amber-500' : 'text-slate-400 dark:text-slate-500'}`}>
+                        <Sun size={12} />
+                      </span>
+                      <span className={`p-1.5 rounded-full transition-all ${theme === 'dark' ? 'bg-slate-600 shadow text-indigo-300' : 'text-slate-400 dark:text-slate-400'}`}>
+                        <Moon size={12} />
+                      </span>
+                    </div>
+                  </button>
                   {isPushSupported() && (
                     <button
                       onClick={toggleNotifications}

@@ -152,6 +152,23 @@ export default function OverviewPage() {
   }, [orderItems, months12])
   const maxSpend = useMemo(() => Math.max(...monthlySpend.map(d => d.value), 1), [monthlySpend])
 
+  // ── Avg order value per month (received orders) ────────────────────────────
+  const avgOrderValueByMonth = useMemo(() => {
+    const map: Record<string, { total: number; orderIds: Set<string> }> = {}
+    for (const oi of orderItems) {
+      if (oi.orders?.status !== 'received') continue
+      const k = monthKey(oi.orders.created_at)
+      if (!map[k]) map[k] = { total: 0, orderIds: new Set() }
+      map[k].total += (oi.estimated_price ?? 0) * oi.quantity
+      map[k].orderIds.add(oi.orders.id)
+    }
+    return months12.map(m => ({
+      ...m,
+      value: map[m.key] ? map[m.key].total / map[m.key].orderIds.size : 0,
+    }))
+  }, [orderItems, months12])
+  const maxAvgOrderValue = useMemo(() => Math.max(...avgOrderValueByMonth.map(d => d.value), 1), [avgOrderValueByMonth])
+
   // ── Spend by category ──────────────────────────────────────────────────────
   const categorySpend = useMemo(() => {
     const map: Record<string, number> = {}
@@ -604,7 +621,7 @@ export default function OverviewPage() {
                 key={t.id}
                 onClick={() => setDashTab(t.id)}
                 className={`py-3 px-1 mr-6 text-sm font-medium border-b-2 transition-colors ${
-                  dashTab === t.id ? 'border-sky-500 text-sky-600' : 'border-transparent text-slate-500 hover:text-slate-700'
+                  dashTab === t.id ? 'border-sky-500 text-sky-600' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
                 }`}
               >
                 {t.label}
@@ -614,7 +631,7 @@ export default function OverviewPage() {
           {dashTab === 'finanzen' && (
             <button
               onClick={() => setPdfOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 hover:bg-slate-50 rounded-lg text-xs font-medium text-slate-600 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-300 transition-colors"
             >
               <FileDown size={13} />
               Exportieren
@@ -630,21 +647,19 @@ export default function OverviewPage() {
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
 
             {/* KPI row */}
-            <div className="col-span-2 lg:col-span-3 bg-white rounded-2xl border border-slate-100">
-              <div className="flex divide-x divide-slate-100 overflow-x-auto">
-                {([
-                  { icon: <Euro size={20} />,         iconBg: 'bg-sky-100',     iconColor: 'text-sky-600',     label: 'Lagerwert',                               value: `€ ${fmtInt(totalValue)}` },
-                  { icon: <ShoppingCart size={20} />, iconBg: 'bg-violet-100',  iconColor: 'text-violet-600',  label: `Offene Bestellungen (${openOrdersCount})`, value: `€ ${fmtInt(openOrdersValue)}` },
-                  { icon: <CheckCircle size={20} />,  iconBg: 'bg-emerald-100', iconColor: 'text-emerald-600', label: 'Genehmigungsquote',                       value: genehmigungsquote === null ? '–' : `${genehmigungsquote}%` },
-                  { icon: <X size={20} />,            iconBg: 'bg-red-100',     iconColor: 'text-red-500',     label: 'Bestellfehlerquote',                      value: bestellfehlerquote === null ? '–' : `${bestellfehlerquote}%` },
-                ] as const).map((kpi, i, arr) => (
+            <div className="col-span-2 lg:col-span-3 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
+              <div className="flex divide-x divide-slate-100 dark:divide-slate-700 overflow-x-auto">
+                {[
+                  { icon: <Euro size={20} />,         iconBg: 'bg-sky-100 dark:bg-sky-900/40',       iconColor: 'text-sky-600',    label: 'Lagerwert',                               value: `€ ${fmtInt(totalValue)}` },
+                  { icon: <ShoppingCart size={20} />, iconBg: 'bg-violet-100 dark:bg-violet-900/40', iconColor: 'text-violet-600', label: `Offene Bestellungen (${openOrdersCount})`, value: `€ ${fmtInt(openOrdersValue)}` },
+                ].map((kpi, i, arr) => (
                   <div key={i} className={`flex-1 flex items-center gap-3 px-5 py-4 min-w-0 shrink-0 ${i === 0 ? 'rounded-l-2xl' : ''} ${i === arr.length - 1 ? 'rounded-r-2xl' : ''}`}>
                     <div className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 ${kpi.iconBg}`}>
                       <span className={kpi.iconColor}>{kpi.icon}</span>
                     </div>
                     <div className="min-w-0 text-left">
-                      <p className="text-xs text-slate-500 truncate">{kpi.label}</p>
-                      <p className="text-2xl font-bold text-slate-800 leading-tight">{kpi.value}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{kpi.label}</p>
+                      <p className="text-2xl font-bold text-slate-800 dark:text-slate-100 leading-tight">{kpi.value}</p>
                     </div>
                   </div>
                 ))}
@@ -667,8 +682,8 @@ export default function OverviewPage() {
                   { label: 'Dieses Jahr', value: orderPeriods.thisYear, avg: null, unit: null },
                 ]).map((item, i) => (
                   <div key={i}>
-                    <p className="text-xs text-slate-500 mb-0.5">{item.label}</p>
-                    <p className="text-2xl font-bold text-slate-800 leading-tight">{item.value}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-0.5">{item.label}</p>
+                    <p className="text-2xl font-bold text-slate-800 dark:text-slate-100 leading-tight">{item.value}</p>
                     {item.avg != null && (
                       <p className={`text-xs mt-0.5 font-medium ${item.value >= item.avg ? 'text-emerald-500' : 'text-amber-500'}`}>
                         {item.value >= item.avg ? '↑' : '↓'} {item.unit}: {item.avg.toFixed(1)}
@@ -676,6 +691,18 @@ export default function OverviewPage() {
                     )}
                   </div>
                 ))}
+              </div>
+            </Card>
+
+            {/* Ø Bestellwert pro Monat */}
+            <Card title="Ø Bestellwert pro Monat" className="col-span-2 lg:col-span-3" tooltip="Durchschnittlicher Wert einer erhaltenen Bestellung pro Monat der letzten 12 Monate (Gesamtausgaben ÷ Anzahl Bestellungen).">
+              <div className="px-4 pt-2 pb-4">
+                <VerticalBars
+                  data={avgOrderValueByMonth.map(d => ({ label: d.label, value: d.value }))}
+                  max={maxAvgOrderValue}
+                  barColor="#34d399"
+                  formatValue={v => `€${fmtInt(v)}`}
+                />
               </div>
             </Card>
 
@@ -707,9 +734,9 @@ export default function OverviewPage() {
 
             {/* Lieferanten-Konzentration */}
             <Card title="Lieferanten-Konzentration" tooltip="Zeigt wie stark die Ausgaben auf einzelne Lieferanten konzentriert sind. Ein hoher Anteil eines Lieferanten bedeutet ein höheres Abhängigkeitsrisiko.">
-              <div className="px-4 pb-4">
+              <div className="px-4 pb-4 flex-1 flex flex-col justify-center">
                 {supplierConcentration.length === 0 ? (
-                  <p className="text-sm text-slate-400 text-center py-4">Keine Daten</p>
+                  <p className="text-sm text-slate-400 dark:text-slate-500 text-center py-4">Keine Daten</p>
                 ) : (
                   <>
                     <div className="flex h-4 rounded-full overflow-hidden gap-px mb-4">
@@ -724,9 +751,9 @@ export default function OverviewPage() {
                         return (
                           <div key={i} className="flex items-center gap-2">
                             <div className={`w-2.5 h-2.5 rounded-sm shrink-0 ${colors[i] ?? 'bg-slate-200'}`} />
-                            <span className="text-sm text-slate-700 flex-1 truncate">{s.name}</span>
-                            <span className="text-sm font-semibold text-slate-800 shrink-0">{(s.pct * 100).toFixed(1)}%</span>
-                            <span className="text-xs text-slate-400 shrink-0 w-20 text-right">€ {fmtInt(s.val)}</span>
+                            <span className="text-sm text-slate-700 dark:text-slate-200 flex-1 truncate">{s.name}</span>
+                            <span className="text-sm font-semibold text-slate-800 dark:text-slate-100 shrink-0">{(s.pct * 100).toFixed(1)}%</span>
+                            <span className="text-xs text-slate-400 dark:text-slate-500 shrink-0 w-20 text-right">€ {fmtInt(s.val)}</span>
                           </div>
                         )
                       })}
@@ -742,31 +769,31 @@ export default function OverviewPage() {
             <Card title="Lieferantenperformance" className="col-span-2 lg:col-span-3" tooltip="Durchschnittliche Lieferzeit und Erfüllungsrate pro Lieferant, basierend auf abgeschlossenen Bestellungen.">
               <div className="px-4 pb-4">
                 {supplierPerformance.length === 0 ? (
-                  <p className="text-sm text-slate-400 text-center py-4">Noch keine abgeschlossenen Bestellungen.</p>
+                  <p className="text-sm text-slate-400 dark:text-slate-500 text-center py-4">Noch keine abgeschlossenen Bestellungen.</p>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="border-b border-slate-100">
-                          <th className="text-left text-xs font-medium text-slate-400 pb-2 pr-4">Lieferant</th>
-                          <th className="text-right text-xs font-medium text-slate-400 pb-2 px-4">Lieferzeit (∅ Tage)</th>
-                          <th className="text-right text-xs font-medium text-slate-400 pb-2 px-4">Bestellungen</th>
-                          <th className="text-right text-xs font-medium text-slate-400 pb-2 px-4">Ø Bestellintervall</th>
-                          <th className="text-right text-xs font-medium text-slate-400 pb-2 pl-4">Umsatz</th>
+                        <tr className="border-b border-slate-100 dark:border-slate-700">
+                          <th className="text-left text-xs font-medium text-slate-400 dark:text-slate-500 pb-2 pr-4">Lieferant</th>
+                          <th className="text-right text-xs font-medium text-slate-400 dark:text-slate-500 pb-2 px-4">Lieferzeit (∅ Tage)</th>
+                          <th className="text-right text-xs font-medium text-slate-400 dark:text-slate-500 pb-2 px-4">Bestellungen</th>
+                          <th className="text-right text-xs font-medium text-slate-400 dark:text-slate-500 pb-2 px-4">Ø Bestellintervall</th>
+                          <th className="text-right text-xs font-medium text-slate-400 dark:text-slate-500 pb-2 pl-4">Umsatz</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-50">
+                      <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
                         {supplierPerformance.map((s, i) => (
                           <tr key={i}>
-                            <td className="py-2.5 pr-4 text-slate-700 font-medium truncate max-w-[180px]">{s.name}</td>
-                            <td className="py-2.5 px-4 text-right text-slate-600">
-                              {s.avgDeliveryDays != null ? `${s.avgDeliveryDays}d` : <span className="text-slate-300">–</span>}
+                            <td className="py-2.5 pr-4 text-slate-700 dark:text-slate-200 font-medium truncate max-w-[180px]">{s.name}</td>
+                            <td className="py-2.5 px-4 text-right text-slate-600 dark:text-slate-300">
+                              {s.avgDeliveryDays != null ? `${s.avgDeliveryDays}d` : <span className="text-slate-300 dark:text-slate-600">–</span>}
                             </td>
-                            <td className="py-2.5 px-4 text-right text-slate-600">{s.totalOrders}</td>
-                            <td className="py-2.5 px-4 text-right text-slate-600">
-                              {s.avgOrderInterval != null ? `${s.avgOrderInterval}d` : <span className="text-slate-300">–</span>}
+                            <td className="py-2.5 px-4 text-right text-slate-600 dark:text-slate-300">{s.totalOrders}</td>
+                            <td className="py-2.5 px-4 text-right text-slate-600 dark:text-slate-300">
+                              {s.avgOrderInterval != null ? `${s.avgOrderInterval}d` : <span className="text-slate-300 dark:text-slate-600">–</span>}
                             </td>
-                            <td className="py-2.5 pl-4 text-right text-slate-700 font-semibold">€ {fmtInt(s.totalValue)}</td>
+                            <td className="py-2.5 pl-4 text-right text-slate-700 dark:text-slate-200 font-semibold">€ {fmtInt(s.totalValue)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -780,7 +807,7 @@ export default function OverviewPage() {
             <Card title="Monatliche Kosten nach Kategorie" className="col-span-2 lg:col-span-3" tooltip="Ausgaben pro Kategorie aufgeschlüsselt nach Monat der letzten 12 Monate.">
               <div className="px-4 pt-4 pb-4">
                 {categoryMonthlySpend.buckets.length === 0 ? (
-                  <p className="text-sm text-slate-400 text-center py-4">Keine Daten</p>
+                  <p className="text-sm text-slate-400 dark:text-slate-500 text-center py-4">Keine Daten</p>
                 ) : (
                   <StackedMonthlyBars data={categoryMonthlySpend.months} buckets={categoryMonthlySpend.buckets} maxTotal={categoryMonthlySpend.maxTotal} />
                 )}
@@ -795,22 +822,24 @@ export default function OverviewPage() {
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
 
             {/* KPI row */}
-            <div className="col-span-2 lg:col-span-3 bg-white rounded-2xl border border-slate-100">
-              <div className="flex divide-x divide-slate-100 overflow-x-auto">
-                {([
-                  { icon: <Activity size={20} />,      iconBg: 'bg-emerald-100', iconColor: 'text-emerald-600', label: 'Bewegungen heute / Woche', value: `${movementsToday} / ${movementsWeek}` },
-                  { icon: <AlertTriangle size={20} />, iconBg: 'bg-amber-100',   iconColor: 'text-amber-500',   label: 'Artikel ohne Lieferant',  value: String(noSupplierCount) },
-                  { icon: <Scan size={20} />,          iconBg: 'bg-slate-100',   iconColor: 'text-slate-500',   label: 'Artikel ohne Barcode',    value: String(noBarcodeCount) },
-                  { icon: <PackageX size={20} />,      iconBg: 'bg-red-100',     iconColor: 'text-red-500',     label: 'Fehlbestandsquote',       value: fehlbestandsquote === null ? '–' : `${fehlbestandsquote}%` },
-                  { icon: <AlertTriangle size={20} />, iconBg: 'bg-amber-100',   iconColor: 'text-amber-500',   label: 'Notbestellquote',         value: notbestellquote === null ? '–' : `${notbestellquote}%` },
-                ] as const).map((kpi, i, arr) => (
-                  <div key={i} className={`flex-1 flex items-center gap-3 px-5 py-4 min-w-0 shrink-0 ${i === 0 ? 'rounded-l-2xl' : ''} ${i === arr.length - 1 ? 'rounded-r-2xl' : ''}`}>
+            <div className="col-span-2 lg:col-span-3 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
+              <div className="flex divide-x divide-slate-100 dark:divide-slate-700 overflow-x-auto">
+                {[
+                  { icon: <Activity size={20} />,      iconBg: 'bg-emerald-100 dark:bg-emerald-900/40', iconColor: 'text-emerald-600', label: 'Bewegungen heute / Woche', value: `${movementsToday} / ${movementsWeek}`, tooltip: 'Anzahl der Lagerbewegungen (Ein- und Ausgänge) heute und in den letzten 7 Tagen.' },
+                  { icon: <AlertTriangle size={20} />, iconBg: 'bg-amber-100 dark:bg-amber-900/40',   iconColor: 'text-amber-500',   label: 'Artikel ohne Lieferant',  value: String(noSupplierCount) },
+                  { icon: <Scan size={20} />,          iconBg: 'bg-slate-100 dark:bg-slate-700',      iconColor: 'text-slate-500 dark:text-slate-400',   label: 'Artikel ohne Barcode',    value: String(noBarcodeCount) },
+                  { icon: <PackageX size={20} />,      iconBg: 'bg-red-100 dark:bg-red-900/40',       iconColor: 'text-red-500',     label: 'Fehlbestandsquote',       value: fehlbestandsquote === null ? '–' : `${fehlbestandsquote}%`, tooltip: 'Anteil der Produkte, deren aktueller Bestand bei 0 liegt. Hoher Wert = kritische Versorgungslücken.' },
+                  { icon: <AlertTriangle size={20} />, iconBg: 'bg-amber-100 dark:bg-amber-900/40',   iconColor: 'text-amber-500',   label: 'Notbestellquote',         value: notbestellquote === null ? '–' : `${notbestellquote}%`, tooltip: 'Anteil der aktiven Bestellungen, bei denen der Lagerbestand des Artikels 0 beträgt – d.h. dringende Bestellungen wegen fehlendem Bestand.' },
+                ].map((kpi, i, arr) => (
+                  <div key={i} className={`relative flex-1 flex items-center gap-3 px-5 py-4 min-w-0 shrink-0 ${i === 0 ? 'rounded-l-2xl' : ''} ${i === arr.length - 1 ? 'rounded-r-2xl' : ''}`}>
+                    {'tooltip' in kpi && kpi.tooltip && <div className="absolute top-2 right-2"><CardTooltip text={kpi.tooltip} /></div>}
                     <div className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 ${kpi.iconBg}`}>
                       <span className={kpi.iconColor}>{kpi.icon}</span>
                     </div>
-                    <div className="min-w-0 text-left">
-                      <p className="text-xs text-slate-500 truncate">{kpi.label}</p>
-                      <p className="text-2xl font-bold text-slate-800 leading-tight">{kpi.value}</p>
+                    <div className="min-w-0 text-left flex-1">
+                      <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{kpi.label}</p>
+                      <p className="text-2xl font-bold text-slate-800 dark:text-slate-100 leading-tight">{kpi.value}</p>
+                      {'sub' in kpi && kpi.sub && <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{kpi.sub}</p>}
                     </div>
                   </div>
                 ))}
@@ -819,12 +848,12 @@ export default function OverviewPage() {
 
             {/* Lagergesundheit — paired with Lagerumschlag on lg */}
             <Card title="Lagergesundheit" className="col-span-2" tooltip="Monatliche Ein- und Ausgänge im Lager der letzten 12 Monate. Grün = erhaltene Lieferungen, Rot = entnommene Artikel.">
-              <div className="px-4 pt-4 pb-0">
+              <div className="px-4 pt-4 pb-4">
                 <div className="flex items-center gap-4 mb-4">
-                  <span className="flex items-center gap-1.5 text-xs text-slate-500">
+                  <span className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
                     <span className="w-2.5 h-2.5 rounded-sm bg-emerald-400 inline-block" /> Eingang (Lieferung erhalten)
                   </span>
-                  <span className="flex items-center gap-1.5 text-xs text-slate-500">
+                  <span className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
                     <span className="w-2.5 h-2.5 rounded-sm bg-[#FF6B6B] inline-block" /> Ausgang (Entnommen)
                   </span>
                 </div>
@@ -839,7 +868,7 @@ export default function OverviewPage() {
                           onMouseLeave={() => setLagerActiveIn(null)}
                           onClick={() => d.in > 0 && setLagerActiveIn(lagerActiveIn === i ? null : i)}
                         >
-                          {d.in > 0 && <span className="text-slate-600 font-medium leading-none mb-1" style={{ fontSize: 11 }}>{d.in}</span>}
+                          {d.in > 0 && <span className="text-slate-600 dark:text-slate-300 font-medium leading-none mb-1" style={{ fontSize: 11 }}>{d.in}</span>}
                           {d.in > 0 && <div className="w-full rounded-t-sm" style={{ height: `${Math.max(4, (d.in / maxLager) * 100)}px`, background: '#34d399', opacity: lagerActiveIn === null || lagerActiveIn === i ? 1 : 0.4 }} />}
                           {lagerActiveIn === i && d.in > 0 && (
                             <div className={`absolute top-1 z-10 pointer-events-none ${i === 0 ? 'left-0' : i === lagerData.length - 1 ? 'right-0' : 'left-1/2 -translate-x-1/2'}`}>
@@ -851,10 +880,10 @@ export default function OverviewPage() {
                         </div>
                       ))}
                     </div>
-                    <div className="border-t-2 border-slate-300 flex gap-0.5 pt-1 pb-1">
+                    <div className="border-t-2 border-slate-300 dark:border-slate-600 flex gap-0.5 pt-1 pb-1">
                       {lagerData.map((d, i) => (
                         <div key={i} className="flex-1 text-center">
-                          <span className="text-slate-500 font-medium leading-none" style={{ fontSize: 11 }}>{d.label}</span>
+                          <span className="text-slate-500 dark:text-slate-400 font-medium leading-none" style={{ fontSize: 11 }}>{d.label}</span>
                         </div>
                       ))}
                     </div>
@@ -868,7 +897,7 @@ export default function OverviewPage() {
                           onClick={() => d.out > 0 && setLagerActiveOut(lagerActiveOut === i ? null : i)}
                         >
                           {d.out > 0 && <div className="w-full rounded-b-sm" style={{ height: `${Math.max(4, (d.out / maxLager) * 100)}px`, background: '#FF6B6B', opacity: lagerActiveOut === null || lagerActiveOut === i ? 1 : 0.4 }} />}
-                          {d.out > 0 && <span className="text-slate-600 font-medium leading-none mt-1" style={{ fontSize: 11 }}>{d.out}</span>}
+                          {d.out > 0 && <span className="text-slate-600 dark:text-slate-300 font-medium leading-none mt-1" style={{ fontSize: 11 }}>{d.out}</span>}
                           {lagerActiveOut === i && d.out > 0 && (
                             <div className={`absolute top-1 z-10 pointer-events-none ${i === 0 ? 'left-0' : i === lagerData.length - 1 ? 'right-0' : 'left-1/2 -translate-x-1/2'}`}>
                               <div className="bg-slate-800 text-white text-xs rounded-lg px-2 py-1.5 whitespace-nowrap shadow-lg">
@@ -886,7 +915,7 @@ export default function OverviewPage() {
 
             {/* Lagerumschlag — sits in col 3 on lg, next to Lagergesundheit */}
             <Card title="Lagerumschlag nach Kategorie" className="col-span-2 lg:col-span-1" tooltip="Durchschnittliche Entnahmen pro Artikel je Kategorie. Ein hoher Wert bedeutet schnelle Rotation und hohen Verbrauch.">
-              <div className="px-4 pt-4 pb-0">
+              <div className="px-4 pt-4 pb-4">
                 <VerticalBars
                   data={lagerumschlag.map(d => ({ label: d.cat, value: d.rate }))}
                   max={maxLU}
@@ -897,10 +926,10 @@ export default function OverviewPage() {
             </Card>
 
             {/* Produkte unter Mindestbestand */}
-            <Card title="Produkte unter Mindestbestand" className="col-span-2" tooltip="Produkte deren aktueller Bestand den definierten Mindestbestand unterschreitet, sortiert nach dem kritischsten Verhältnis zuerst.">
-              <div className="px-4 pt-4 pb-0">
+            <Card title="Produkte unter Mindestbestand" className="col-span-2 lg:col-span-1" tooltip="Produkte deren aktueller Bestand den definierten Mindestbestand unterschreitet, sortiert nach dem kritischsten Verhältnis zuerst.">
+              <div className="px-4 pt-4 pb-4">
                 {belowMinStock.length === 0 ? (
-                  <p className="text-sm text-slate-400 text-center py-6">Alle Produkte über Mindestbestand</p>
+                  <p className="text-sm text-slate-400 dark:text-slate-500 text-center py-6">Alle Produkte über Mindestbestand</p>
                 ) : (
                   <VerticalBars
                     data={belowMinStock.map(p => ({ label: p.name, value: p.current }))}
@@ -912,38 +941,19 @@ export default function OverviewPage() {
               </div>
             </Card>
 
-            {/* Produkte ohne Bewegung 90+ Tage — scrollable */}
-            <Card title="Produkte ohne Bewegung (90+ Tage)" className="col-span-2 lg:col-span-1" tooltip="Produkte die seit mehr als 90 Tagen nicht bewegt wurden. Möglicher Hinweis auf überschüssigen oder ungenutzten Lagerbestand.">
-              {noMovement90.length === 0 ? (
-                <p className="text-sm text-slate-400 text-center py-6 px-4">Alle Produkte wurden kürzlich bewegt</p>
-              ) : (
-                <div className="overflow-y-auto max-h-64 divide-y divide-slate-50">
-                  {noMovement90.map((p, i) => (
-                    <div key={i} className="flex items-center gap-3 px-4 py-2.5">
-                      <p className="text-sm text-slate-700 flex-1 truncate">{p.name}</p>
-                      <span className="text-xs text-slate-400 shrink-0 hidden sm:block">{p.category}</span>
-                      <span className={`text-xs font-semibold shrink-0 ${p.daysSince == null ? 'text-slate-400' : p.daysSince > 180 ? 'text-red-500' : 'text-amber-500'}`}>
-                        {p.daysSince == null ? 'Nie bewegt' : `${p.daysSince}d`}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Card>
-
             {/* Ablaufende Produkte */}
-            <Card title="Ablaufende Produkte" className="col-span-2 lg:col-span-3" tooltip="Produkte, deren Verfallsdatum in den nächsten 90 Tagen erreicht wird oder bereits abgelaufen ist.">
+            <Card title="Ablaufende Produkte" className="col-span-2 lg:col-span-1" tooltip="Produkte, deren Verfallsdatum in den nächsten 90 Tagen erreicht wird oder bereits abgelaufen ist.">
               {expiringProducts.length === 0 ? (
                 <p className="text-sm text-emerald-500 font-medium text-center py-6 px-4">Alle Produkte aktuell</p>
               ) : (
-                <div className="divide-y divide-slate-50 pb-2">
+                <div className="overflow-y-auto max-h-64 divide-y divide-slate-50 dark:divide-slate-700 pb-2">
                   {expiringProducts.map((p, i) => (
                     <div key={i} className="flex items-center gap-3 px-4 py-2.5">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm text-slate-700 truncate">{p.name}</p>
-                        {p.lot_number && <p className="text-xs text-slate-400 mt-0.5">Charge: {p.lot_number}</p>}
+                        <p className="text-sm text-slate-700 dark:text-slate-200 truncate">{p.name}</p>
+                        {p.lot_number && <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Charge: {p.lot_number}</p>}
                       </div>
-                      <span className="text-xs text-slate-400 shrink-0 hidden sm:block">
+                      <span className="text-xs text-slate-400 dark:text-slate-500 shrink-0 hidden sm:block">
                         {new Date(p.expiry_date!).toLocaleDateString('de-DE')}
                       </span>
                       <span className={`text-xs font-semibold shrink-0 px-2 py-0.5 rounded-full ${
@@ -961,6 +971,25 @@ export default function OverviewPage() {
               )}
             </Card>
 
+            {/* Produkte ohne Bewegung 90+ Tage — scrollable */}
+            <Card title="Produkte ohne Bewegung (90+ Tage)" className="col-span-2 lg:col-span-1" tooltip="Produkte die seit mehr als 90 Tagen nicht bewegt wurden. Möglicher Hinweis auf überschüssigen oder ungenutzten Lagerbestand.">
+              {noMovement90.length === 0 ? (
+                <p className="text-sm text-slate-400 dark:text-slate-500 text-center py-6 px-4">Alle Produkte wurden kürzlich bewegt</p>
+              ) : (
+                <div className="overflow-y-auto max-h-64 divide-y divide-slate-50 dark:divide-slate-700">
+                  {noMovement90.map((p, i) => (
+                    <div key={i} className="flex items-center gap-3 px-4 py-2.5">
+                      <p className="text-sm text-slate-700 dark:text-slate-200 flex-1 truncate">{p.name}</p>
+                      <span className="text-xs text-slate-400 dark:text-slate-500 shrink-0 hidden sm:block">{p.category}</span>
+                      <span className={`text-xs font-semibold shrink-0 ${p.daysSince == null ? 'text-slate-400 dark:text-slate-500' : p.daysSince > 180 ? 'text-red-500' : 'text-amber-500'}`}>
+                        {p.daysSince == null ? 'Nie bewegt' : `${p.daysSince}d`}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+
           </div>
         )}
 
@@ -969,19 +998,22 @@ export default function OverviewPage() {
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
 
             {/* KPI row */}
-            <div className="col-span-2 lg:col-span-3 bg-white rounded-2xl border border-slate-100">
-              <div className="flex divide-x divide-slate-100 overflow-x-auto">
-                {([
-                  { icon: <ShoppingCart size={20} />, iconBg: 'bg-sky-100', iconColor: 'text-sky-600', label: 'Wiederbestellquote', value: wiederbestellquote === null ? '–' : `${wiederbestellquote}%`, sub: 'Artikel mind. 2× bestellt' },
-                ] as const).map((kpi, i, arr) => (
+            <div className="col-span-2 lg:col-span-3 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
+              <div className="flex divide-x divide-slate-100 dark:divide-slate-700 overflow-x-auto">
+                {[
+                  { icon: <ShoppingCart size={20} />, iconBg: 'bg-sky-100 dark:bg-sky-900/40', iconColor: 'text-sky-600', label: 'Wiederbestellquote', value: wiederbestellquote === null ? '–' : `${wiederbestellquote}%`, sub: 'Artikel mind. 2× bestellt', tooltip: 'Anteil der Produkte, die mindestens zweimal bestellt wurden. Zeigt welche Artikel regelmäßig nachgekauft werden.' },
+                ].map((kpi, i, arr) => (
                   <div key={i} className={`flex-1 flex items-center gap-3 px-5 py-4 min-w-0 shrink-0 ${i === 0 ? 'rounded-l-2xl' : ''} ${i === arr.length - 1 ? 'rounded-r-2xl' : ''}`}>
                     <div className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 ${kpi.iconBg}`}>
                       <span className={kpi.iconColor}>{kpi.icon}</span>
                     </div>
-                    <div className="min-w-0 text-left">
-                      <p className="text-xs text-slate-500 truncate">{kpi.label}</p>
-                      <p className="text-2xl font-bold text-slate-800 leading-tight">{kpi.value}</p>
-                      <p className="text-xs text-slate-400 mt-0.5">{kpi.sub}</p>
+                    <div className="min-w-0 text-left flex-1">
+                      <div className="flex items-center gap-1">
+                        <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{kpi.label}</p>
+                        <CardTooltip text={kpi.tooltip} />
+                      </div>
+                      <p className="text-2xl font-bold text-slate-800 dark:text-slate-100 leading-tight">{kpi.value}</p>
+                      <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{kpi.sub}</p>
                     </div>
                   </div>
                 ))}
@@ -1017,14 +1049,14 @@ export default function OverviewPage() {
             {/* Bestellzyklen */}
             <Card title="Bestellzyklen (Ø Tage zwischen Bestellungen)" tooltip="Durchschnittlicher Abstand in Tagen zwischen Bestellungen für wiederholt bestellte Artikel. Hilft beim Erkennen regelmäßiger Bestellmuster.">
               {bestellzyklen.length === 0 ? (
-                <p className="text-sm text-slate-400 text-center py-6 px-4">Zu wenig Bestellhistorie</p>
+                <p className="text-sm text-slate-400 dark:text-slate-500 text-center py-6 px-4">Zu wenig Bestellhistorie</p>
               ) : (
-                <div className="divide-y divide-slate-50 pb-2">
+                <div className="divide-y divide-slate-50 dark:divide-slate-700 pb-2">
                   {bestellzyklen.map((d, i) => (
                     <div key={i} className="flex items-center gap-3 px-4 py-3">
-                      <span className="text-xs font-bold text-slate-300 w-5 shrink-0">#{i + 1}</span>
-                      <p className="text-sm text-slate-700 flex-1 truncate">{d.name}</p>
-                      <span className="text-xs text-slate-400 shrink-0 mr-2">{d.orderCount}× bestellt</span>
+                      <span className="text-xs font-bold text-slate-300 dark:text-slate-600 w-5 shrink-0">#{i + 1}</span>
+                      <p className="text-sm text-slate-700 dark:text-slate-200 flex-1 truncate">{d.name}</p>
+                      <span className="text-xs text-slate-400 dark:text-slate-500 shrink-0 mr-2">{d.orderCount}× bestellt</span>
                       <span className="text-sm font-semibold text-sky-600 shrink-0">Ø {d.avgDays}d</span>
                     </div>
                   ))}
@@ -1036,19 +1068,19 @@ export default function OverviewPage() {
             <Card title="Nach Behandlungstyp" tooltip="Anzahl der Produkte pro Behandlungstyp.">
               <div className="px-4 pb-4">
                 {treatmentTypeBreakdown.length === 0 ? (
-                  <p className="text-sm text-slate-400 text-center py-4">Noch keine Behandlungstypen zugewiesen.</p>
+                  <p className="text-sm text-slate-400 dark:text-slate-500 text-center py-4">Noch keine Behandlungstypen zugewiesen.</p>
                 ) : (
                   <div className="space-y-2">
                     {treatmentTypeBreakdown.map(([type, count], i) => (
                       <div key={i} className="flex items-center gap-3">
-                        <span className="text-sm text-slate-600 w-32 shrink-0 truncate" title={type}>{type}</span>
-                        <div className="flex-1 bg-slate-100 rounded-full h-2 overflow-hidden">
+                        <span className="text-sm text-slate-600 dark:text-slate-300 w-32 shrink-0 truncate" title={type}>{type}</span>
+                        <div className="flex-1 bg-slate-100 dark:bg-slate-700 rounded-full h-2 overflow-hidden">
                           <div
                             className="h-2 rounded-full bg-sky-400"
                             style={{ width: `${(count / maxTreatmentCount) * 100}%` }}
                           />
                         </div>
-                        <span className="text-xs font-semibold text-slate-600 w-8 text-right shrink-0">{count}</span>
+                        <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 w-8 text-right shrink-0">{count}</span>
                       </div>
                     ))}
                   </div>
@@ -1060,16 +1092,16 @@ export default function OverviewPage() {
             <Card title="Ausgaben nach Behandlungstyp" tooltip="Gesamtausgaben aus erhaltenen Bestellungen, aufgeschlüsselt nach Behandlungstyp der bestellten Produkte.">
               <div className="px-4 pb-4">
                 {treatmentTypeSpend.length === 0 ? (
-                  <p className="text-sm text-slate-400 text-center py-4">Keine Daten – Behandlungstypen oder Bestellungen fehlen.</p>
+                  <p className="text-sm text-slate-400 dark:text-slate-500 text-center py-4">Keine Daten – Behandlungstypen oder Bestellungen fehlen.</p>
                 ) : (
                   <div className="space-y-2 pt-1">
                     {treatmentTypeSpend.map(([type, spend], i) => (
                       <div key={i} className="flex items-center gap-3">
-                        <span className="text-sm text-slate-600 w-32 shrink-0 truncate" title={type}>{type}</span>
-                        <div className="flex-1 bg-slate-100 rounded-full h-2 overflow-hidden">
+                        <span className="text-sm text-slate-600 dark:text-slate-300 w-32 shrink-0 truncate" title={type}>{type}</span>
+                        <div className="flex-1 bg-slate-100 dark:bg-slate-700 rounded-full h-2 overflow-hidden">
                           <div className="h-2 rounded-full bg-violet-400" style={{ width: `${(spend / maxTreatmentSpend) * 100}%` }} />
                         </div>
-                        <span className="text-xs font-semibold text-slate-600 w-20 text-right shrink-0">€ {fmtInt(spend)}</span>
+                        <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 w-20 text-right shrink-0">€ {fmtInt(spend)}</span>
                       </div>
                     ))}
                   </div>
@@ -1080,17 +1112,12 @@ export default function OverviewPage() {
             {/* Neue Artikel pro Monat */}
             <Card title="Neue Artikel hinzugefügt (pro Monat)" className="col-span-2 lg:col-span-3" tooltip="Anzahl der neu angelegten Produkte pro Monat der letzten 12 Monate.">
               <div className="px-4 pb-4">
-                <div className="flex items-end gap-1 h-24">
-                  {newProductsByMonth.map((d, i) => (
-                    <div key={i} className="flex-1 flex flex-col items-center justify-end gap-1">
-                      {d.value > 0 && <span className="text-slate-500 font-medium leading-none" style={{ fontSize: 9 }}>{d.value}</span>}
-                      {d.value > 0 && (
-                        <div className="w-full rounded-t-sm" style={{ height: `${Math.max(4, (d.value / maxNewProducts) * 80)}px`, background: '#38bdf8' }} />
-                      )}
-                      <span className="text-slate-400 leading-none" style={{ fontSize: 8 }}>{d.label}</span>
-                    </div>
-                  ))}
-                </div>
+                <VerticalBars
+                  data={newProductsByMonth.map(d => ({ label: d.label, value: d.value }))}
+                  max={maxNewProducts}
+                  barColor="#38bdf8"
+                  formatValue={v => String(v)}
+                />
               </div>
             </Card>
 
@@ -1102,12 +1129,12 @@ export default function OverviewPage() {
       {/* ── PDF export modal ─────────────────────────────────────────────────── */}
       {pdfOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => setPdfOpen(false)}>
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 relative" onClick={e => e.stopPropagation()}>
-            <button onClick={() => setPdfOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-sm p-6 relative" onClick={e => e.stopPropagation()}>
+            <button onClick={() => setPdfOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
               <X size={18} />
             </button>
-            <h3 className="font-semibold text-slate-800 text-base mb-1">Finanzübersicht exportieren</h3>
-            <p className="text-sm text-slate-400 mb-5">Zeitraum auswählen und als PDF speichern.</p>
+            <h3 className="font-semibold text-slate-800 dark:text-slate-100 text-base mb-1">Finanzübersicht exportieren</h3>
+            <p className="text-sm text-slate-400 dark:text-slate-400 mb-5">Zeitraum auswählen und als PDF speichern.</p>
 
             <div className="flex gap-2 mb-4">
               {(['month', 'year'] as const).map(type => (
@@ -1122,7 +1149,7 @@ export default function OverviewPage() {
                       setPdfPeriodValue(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`)
                     }
                   }}
-                  className={`flex-1 py-2 rounded-xl text-sm font-medium border transition-colors ${pdfPeriodType === type ? 'bg-sky-500 text-white border-sky-500' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                  className={`flex-1 py-2 rounded-xl text-sm font-medium border transition-colors ${pdfPeriodType === type ? 'bg-sky-500 text-white border-sky-500' : 'bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-200 border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600'}`}
                 >
                   {type === 'month' ? 'Monat' : 'Jahr'}
                 </button>
@@ -1132,7 +1159,7 @@ export default function OverviewPage() {
             <select
               value={pdfPeriodValue}
               onChange={e => setPdfPeriodValue(e.target.value)}
-              className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 mb-5 bg-white focus:outline-none focus:ring-2 focus:ring-sky-300"
+              className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200 mb-5 bg-white dark:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-300"
             >
               {pdfPeriodType === 'month'
                 ? months12.slice().reverse().map(m => (
@@ -1163,38 +1190,46 @@ export default function OverviewPage() {
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function CardTooltip({ text }: { text: string }) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
+
+  function show() {
+    if (!btnRef.current) return
+    const r = btnRef.current.getBoundingClientRect()
+    setPos({ x: r.right, y: r.top })
+  }
 
   useEffect(() => {
-    if (!open) return
-    function handler(e: MouseEvent | TouchEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', handler)
-    document.addEventListener('touchstart', handler)
-    return () => { document.removeEventListener('mousedown', handler); document.removeEventListener('touchstart', handler) }
-  }, [open])
+    if (!pos) return
+    function hide() { setPos(null) }
+    document.addEventListener('mousedown', hide)
+    document.addEventListener('touchstart', hide)
+    return () => { document.removeEventListener('mousedown', hide); document.removeEventListener('touchstart', hide) }
+  }, [pos])
 
   return (
-    <div ref={ref} className="relative">
+    <>
       <button
-        onMouseEnter={() => setOpen(true)}
-        onMouseLeave={() => setOpen(false)}
-        onTouchEnd={e => { e.preventDefault(); setOpen(v => !v) }}
-        onClick={() => setOpen(v => !v)}
-        className="flex items-center justify-center text-slate-300 hover:text-slate-400 transition-colors"
+        ref={btnRef}
+        onMouseEnter={show}
+        onMouseLeave={() => setPos(null)}
+        onTouchEnd={e => { e.preventDefault(); pos ? setPos(null) : show() }}
+        onClick={show}
+        className="flex items-center justify-center text-slate-300 dark:text-slate-600 hover:text-slate-400 dark:hover:text-slate-400 transition-colors shrink-0"
         aria-label="Info"
       >
         <Info size={13} />
       </button>
-      {open && (
-        <div className="absolute right-0 top-full mt-1.5 w-60 bg-slate-800 text-white text-xs rounded-xl px-3 py-2.5 shadow-xl z-30 pointer-events-none leading-relaxed">
+      {pos && (
+        <div
+          className="fixed z-50 w-60 bg-slate-800 text-white text-xs rounded-xl px-3 py-2.5 shadow-xl pointer-events-none leading-relaxed"
+          style={{ left: pos.x, top: pos.y - 8, transform: 'translate(-100%, -100%)' }}
+        >
           {text}
-          <div className="absolute -top-1 right-1.5 w-2 h-2 bg-slate-800 rotate-45" />
+          <div className="absolute -bottom-1 right-3 w-2 h-2 bg-slate-800 rotate-45" />
         </div>
       )}
-    </div>
+    </>
   )
 }
 
@@ -1206,10 +1241,10 @@ function Card({ title, action, tooltip, children, className = '' }: {
   className?: string
 }) {
   return (
-    <div className={`bg-white rounded-2xl border border-slate-100 flex flex-col ${className}`}>
+    <div className={`bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 flex flex-col ${className}`}>
       {(title || action || tooltip) && (
         <div className="flex items-start justify-between px-4 pt-4 pb-2 gap-2">
-          {title && <p className="text-sm font-semibold text-slate-700">{title}</p>}
+          {title && <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{title}</p>}
           <div className="flex items-center gap-2 shrink-0">
             {action}
             {tooltip && <CardTooltip text={tooltip} />}
@@ -1230,13 +1265,13 @@ function StackedMonthlyBars({ data, buckets, maxTotal }: {
   maxTotal: number
 }) {
   const [activeIdx, setActiveIdx] = useState<number | null>(null)
-  if (data.length === 0 || buckets.length === 0) return <p className="text-sm text-slate-400 text-center py-4">Keine Daten</p>
+  if (data.length === 0 || buckets.length === 0) return <p className="text-sm text-slate-400 dark:text-slate-500 text-center py-4">Keine Daten</p>
   return (
     <div>
       {/* Legend */}
       <div className="flex flex-wrap gap-3 mb-3">
         {buckets.map((b, i) => (
-          <span key={b} className="flex items-center gap-1.5 text-xs text-slate-500">
+          <span key={b} className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
             <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: STACK_COLORS[i % STACK_COLORS.length] }} />
             {b}
           </span>
@@ -1284,11 +1319,11 @@ function StackedMonthlyBars({ data, buckets, maxTotal }: {
         })}
       </div>
       {/* X axis labels */}
-      <div className="flex gap-1 mt-1 border-t border-slate-100 pt-1">
+      <div className="flex gap-1 mt-1 border-t border-slate-100 dark:border-slate-700 pt-1">
         {data.map((month, i) => (
           (i === 0 || i === Math.floor(data.length / 2) || i === data.length - 1) ? (
             <div key={i} className="flex-1 text-center" style={{ position: 'relative' }}>
-              <span className="text-slate-400 leading-none" style={{ fontSize: 11 }}>{month.label}</span>
+              <span className="text-slate-400 dark:text-slate-500 leading-none" style={{ fontSize: 11 }}>{month.label}</span>
             </div>
           ) : <div key={i} className="flex-1" />
         ))}
@@ -1305,7 +1340,7 @@ function VerticalBars({ data, max, barColor, formatValue, empty = 'Keine Daten' 
   empty?: string
 }) {
   const [activeIdx, setActiveIdx] = useState<number | null>(null)
-  if (data.length === 0) return <p className="text-sm text-slate-400 text-center py-4">{empty}</p>
+  if (data.length === 0) return <p className="text-sm text-slate-400 dark:text-slate-500 text-center py-4">{empty}</p>
   return (
     <div className="overflow-x-auto">
       <div style={{ minWidth: data.length * 60 }}>
@@ -1314,7 +1349,7 @@ function VerticalBars({ data, max, barColor, formatValue, empty = 'Keine Daten' 
           {data.map(({ value }, i) => (
             <div key={i} className="flex-1 text-center">
               {value > 0 && (
-                <span className="text-slate-600 font-medium leading-none" style={{ fontSize: 11 }}>
+                <span className="text-slate-600 dark:text-slate-300 font-medium leading-none" style={{ fontSize: 11 }}>
                   {formatValue(value)}
                 </span>
               )}
@@ -1350,10 +1385,10 @@ function VerticalBars({ data, max, barColor, formatValue, empty = 'Keine Daten' 
             </div>
           ))}
         </div>
-        <div className="flex gap-1 mt-1.5 border-t border-slate-100 pt-1.5">
+        <div className="flex gap-1 mt-1.5 border-t border-slate-100 dark:border-slate-700 pt-1.5">
           {data.map(({ label }, i) => (
             <div key={i} className="flex-1 text-center overflow-hidden">
-              <span className="text-slate-400 leading-none block truncate" style={{ fontSize: 11 }} title={label}>
+              <span className="text-slate-400 dark:text-slate-500 leading-none block truncate" style={{ fontSize: 11 }} title={label}>
                 {label}
               </span>
             </div>
@@ -1371,7 +1406,7 @@ function MonthlyTrendChart({ data, max }: { data: { label: string; value: number
   const chartW = W - PAD.left - PAD.right
   const chartH = H - PAD.top - PAD.bottom
   const n = data.length
-  if (n < 2) return <p className="text-sm text-slate-400 text-center py-6">Keine Daten</p>
+  if (n < 2) return <p className="text-sm text-slate-400 dark:text-slate-500 text-center py-6">Keine Daten</p>
 
   const xs = data.map((_, i) => PAD.left + (i / (n - 1)) * chartW)
   const ys = data.map(d => PAD.top + chartH - (d.value / max) * chartH)

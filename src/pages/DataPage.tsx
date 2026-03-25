@@ -155,22 +155,22 @@ export default function DataPage() {
   ]
 
   return (
-    <div className="min-h-full pb-20 md:pb-0 bg-slate-50">
+    <div className="min-h-full pb-20 md:pb-0 bg-slate-50 dark:bg-slate-900">
       <div className="max-w-xl mx-auto p-4 lg:p-6 space-y-6">
 
         {/* Export */}
         <div>
-          <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Exportieren</h2>
-          <div className="bg-white rounded-2xl border border-slate-100 divide-y divide-slate-50">
+          <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">Exportieren</h2>
+          <div className="bg-white rounded-2xl border border-slate-100 divide-y divide-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:divide-slate-700">
             {exportButtons.map(btn => (
               <button key={btn.label} onClick={btn.onClick}
-                className="w-full flex items-center gap-4 px-5 py-4 hover:bg-slate-50 transition-colors text-left">
-                <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center shrink-0">{btn.icon}</div>
+                className="w-full flex items-center gap-4 px-5 py-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left">
+                <div className="w-10 h-10 rounded-xl bg-slate-50 dark:bg-slate-700 flex items-center justify-center shrink-0">{btn.icon}</div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-800">{btn.label}</p>
+                  <p className="text-sm font-medium text-slate-800 dark:text-slate-100">{btn.label}</p>
                   <p className="text-xs text-slate-400">{btn.sub}</p>
                 </div>
-                <Download size={16} className="text-slate-400 shrink-0" />
+                <Download size={16} className="text-slate-400 dark:text-slate-500 shrink-0" />
               </button>
             ))}
           </div>
@@ -178,26 +178,26 @@ export default function DataPage() {
 
         {/* Import */}
         <div>
-          <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Importieren</h2>
-          <div className="bg-white rounded-2xl border border-slate-100 divide-y divide-slate-50">
+          <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">Importieren</h2>
+          <div className="bg-white rounded-2xl border border-slate-100 divide-y divide-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:divide-slate-700">
             <button onClick={downloadTemplate}
-              className="w-full flex items-center gap-4 px-5 py-4 hover:bg-slate-50 transition-colors text-left">
-              <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center shrink-0">
+              className="w-full flex items-center gap-4 px-5 py-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left">
+              <div className="w-10 h-10 rounded-xl bg-slate-50 dark:bg-slate-700 flex items-center justify-center shrink-0">
                 <FileText size={18} className="text-amber-500" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-slate-800">CSV-Vorlage herunterladen</p>
+                <p className="text-sm font-medium text-slate-800 dark:text-slate-100">CSV-Vorlage herunterladen</p>
                 <p className="text-xs text-slate-400">Vorlage für den Produkt-Import</p>
               </div>
-              <Download size={16} className="text-slate-400 shrink-0" />
+              <Download size={16} className="text-slate-400 dark:text-slate-500 shrink-0" />
             </button>
 
-            <label className="w-full flex items-center gap-4 px-5 py-4 hover:bg-slate-50 transition-colors cursor-pointer">
-              <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center shrink-0">
+            <label className="w-full flex items-center gap-4 px-5 py-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer">
+              <div className="w-10 h-10 rounded-xl bg-slate-50 dark:bg-slate-700 flex items-center justify-center shrink-0">
                 <Upload size={18} className="text-sky-500" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-slate-800">Produkte importieren</p>
+                <p className="text-sm font-medium text-slate-800 dark:text-slate-100">Produkte importieren</p>
                 <p className="text-xs text-slate-400">CSV-Datei hochladen (neue Produkte anlegen oder aktualisieren)</p>
               </div>
               {importing

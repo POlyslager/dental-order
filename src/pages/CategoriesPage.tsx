@@ -11,7 +11,7 @@ interface CategoryRow {
   supplierCount: number
 }
 
-const inputCls = 'w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm'
+const inputCls = 'w-full border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm bg-white dark:bg-slate-700 dark:text-slate-100 dark:placeholder-slate-400'
 
 export default function CategoriesPage() {
   const [categories, setCategories] = useState<CategoryRow[]>([])
@@ -162,7 +162,7 @@ export default function CategoriesPage() {
             placeholder="Suchen…"
             value={query}
             onChange={e => { setQuery(e.target.value); setPage(1) }}
-            className="w-full border border-slate-200 rounded-xl pl-8 pr-7 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white"
+            className="w-full border border-slate-200 rounded-xl pl-8 pr-7 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100 dark:placeholder-slate-400"
           />
           {query && (
             <button onClick={() => { setQuery(''); setPage(1) }} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
@@ -185,31 +185,31 @@ export default function CategoriesPage() {
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Scrollable list */}
           <div className="flex-1 overflow-y-auto">
-            <div className="hidden md:grid border-b border-slate-200 bg-white sticky top-0 z-10" style={{ gridTemplateColumns: '2fr 0.6fr 0.6fr 2rem' }}>
+            <div className="hidden md:grid border-b border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700 sticky top-0 z-10" style={{ gridTemplateColumns: '2fr 0.6fr 0.6fr 2rem' }}>
               {['Kategorie', 'Artikel', 'Lieferanten'].map(h => (
-                <div key={h} className="px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">{h}</div>
+                <div key={h} className="px-4 py-2.5 text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">{h}</div>
               ))}
               <div />
             </div>
-            <div className="divide-y divide-slate-100">
+            <div className="divide-y divide-slate-100 dark:divide-slate-700/50">
               {paginated.map(c => (
-                <div key={c.name} onClick={() => openExisting(c)} className="bg-white hover:bg-slate-50 cursor-pointer transition-colors">
+                <div key={c.name} onClick={() => openExisting(c)} className="bg-white hover:bg-slate-50 dark:bg-slate-800/50 dark:hover:bg-slate-700/50 cursor-pointer transition-colors">
                   <div className="hidden md:grid items-center" style={{ gridTemplateColumns: '2fr 0.6fr 0.6fr 2rem' }}>
                     <div className="px-4 py-3.5">
-                      <p className="text-sm font-semibold text-slate-800">{c.name}</p>
+                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{c.name}</p>
                       {c.description && <p className="text-xs text-slate-400 truncate mt-0.5">{c.description}</p>}
                     </div>
                     <div className="px-4 py-3.5 text-sm text-slate-400">{c.productCount}</div>
                     <div className="px-4 py-3.5 text-sm text-slate-400">{c.supplierCount}</div>
-                    <div className="py-3.5 text-slate-300"><ChevronRight size={14} /></div>
+                    <div className="py-3.5 text-slate-300 dark:text-slate-600"><ChevronRight size={14} /></div>
                   </div>
                   <div className="flex md:hidden items-center px-4 py-3.5 gap-3">
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-slate-800">{c.name}</p>
+                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{c.name}</p>
                       {c.description && <p className="text-xs text-slate-400 truncate mt-0.5">{c.description}</p>}
                     </div>
                     <span className="text-xs text-slate-400 shrink-0">{c.productCount} Artikel · {c.supplierCount} Lief.</span>
-                    <ChevronRight size={14} className="text-slate-300 shrink-0" />
+                    <ChevronRight size={14} className="text-slate-300 dark:text-slate-600 shrink-0" />
                   </div>
                 </div>
               ))}
@@ -220,13 +220,13 @@ export default function CategoriesPage() {
           </div>
 
           {/* Pagination — always visible at bottom */}
-          <div className="flex items-center px-4 py-3 border-t border-slate-100 bg-white shrink-0">
+          <div className="flex items-center px-4 py-3 border-t border-slate-100 bg-white dark:bg-slate-800 dark:border-slate-700 shrink-0">
             <p className="text-xs text-slate-400 w-40 shrink-0">
               {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} von {filtered.length} Kategorien
             </p>
             <div className="flex-1 flex items-center justify-center gap-1">
-              <button onClick={() => setPage(1)} disabled={page === 1} className="px-2 py-1.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">«</button>
-              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="px-3 py-1.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">Zurück</button>
+              <button onClick={() => setPage(1)} disabled={page === 1} className="px-2 py-1.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">«</button>
+              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="px-3 py-1.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">Zurück</button>
               {Array.from({ length: totalPages }, (_, i) => i + 1)
                 .filter(n => n === 1 || n === totalPages || Math.abs(n - page) <= 1)
                 .reduce<(number | '…')[]>((acc, n, i, arr) => {
@@ -239,14 +239,14 @@ export default function CategoriesPage() {
                     <span key={`e-${i}`} className="px-2 py-1.5 text-xs text-slate-300">…</span>
                   ) : (
                     <button key={n} onClick={() => setPage(n as number)}
-                      className={`w-8 h-7 text-xs rounded-lg transition-colors ${page === n ? 'bg-sky-500 text-white font-semibold' : 'text-slate-600 hover:bg-slate-100'}`}>
+                      className={`w-8 h-7 text-xs rounded-lg transition-colors ${page === n ? 'bg-sky-500 text-white font-semibold' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700'}`}>
                       {n}
                     </button>
                   )
                 )
               }
-              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="px-3 py-1.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">Weiter</button>
-              <button onClick={() => setPage(totalPages)} disabled={page === totalPages} className="px-2 py-1.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">»</button>
+              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="px-3 py-1.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">Weiter</button>
+              <button onClick={() => setPage(totalPages)} disabled={page === totalPages} className="px-2 py-1.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">»</button>
             </div>
             <div className="w-40 shrink-0" />
           </div>
@@ -256,13 +256,13 @@ export default function CategoriesPage() {
       {(panelOpen || closing) && (
         <>
           <div className="hidden md:block fixed inset-0 bg-black/30 z-40" onClick={closePanel} />
-          <div className={`fixed inset-0 bg-white z-50 flex flex-col md:inset-auto md:top-4 md:bottom-4 md:right-4 md:w-[520px] md:rounded-2xl md:shadow-2xl ${closing ? 'animate-slide-out-right' : 'animate-slide-in-right'}`}>
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0">
-              <h2 className="font-semibold text-slate-800 truncate flex-1 mr-2">
+          <div className={`fixed inset-0 bg-white dark:bg-slate-800 z-50 flex flex-col md:inset-auto md:top-4 md:bottom-4 md:right-4 md:w-[520px] md:rounded-2xl md:shadow-2xl ${closing ? 'animate-slide-out-right' : 'animate-slide-in-right'}`}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700 shrink-0">
+              <h2 className="font-semibold text-slate-800 dark:text-slate-100 truncate flex-1 mr-2">
                 {isNew ? 'Neue Kategorie' : selected?.name}
               </h2>
               <button onClick={closePanel}
-                className="text-slate-400 hover:text-slate-600 p-1.5 transition-colors">
+                className="text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 p-1.5 transition-colors">
                 <X size={18} />
               </button>
             </div>
@@ -271,19 +271,19 @@ export default function CategoriesPage() {
             {!editing && !isNew ? (
               <div className="flex-1 overflow-y-auto p-5 space-y-4">
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-slate-50 rounded-xl px-4 py-3">
+                  <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl px-4 py-3">
                     <p className="text-xs text-slate-400 mb-0.5">Artikel</p>
-                    <p className="text-xl font-bold text-slate-800">{selected?.productCount}</p>
+                    <p className="text-xl font-bold text-slate-800 dark:text-slate-100">{selected?.productCount}</p>
                   </div>
-                  <div className="bg-slate-50 rounded-xl px-4 py-3">
+                  <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl px-4 py-3">
                     <p className="text-xs text-slate-400 mb-0.5">Lieferanten</p>
-                    <p className="text-xl font-bold text-slate-800">{selected?.supplierCount}</p>
+                    <p className="text-xl font-bold text-slate-800 dark:text-slate-100">{selected?.supplierCount}</p>
                   </div>
                 </div>
                 {selected?.description && (
                   <div>
                     <p className="text-xs text-slate-400 mb-0.5">Beschreibung</p>
-                    <p className="text-sm text-slate-800 whitespace-pre-wrap">{selected.description}</p>
+                    <p className="text-sm text-slate-800 dark:text-slate-100 whitespace-pre-wrap">{selected.description}</p>
                   </div>
                 )}
                 {(selected?.productCount ?? 0) === 0 && (
@@ -294,12 +294,12 @@ export default function CategoriesPage() {
               /* Edit / New mode */
               <div className="flex-1 overflow-y-auto p-5 space-y-4">
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Name</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Name</label>
                   <input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                     placeholder="z.B. Desinfektion" autoFocus className={inputCls} />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Beschreibung</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Beschreibung</label>
                   <textarea rows={3} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
                     placeholder="Optionale Beschreibung…" className={`${inputCls} resize-none`} />
                 </div>
@@ -307,10 +307,10 @@ export default function CategoriesPage() {
             )}
 
             {!editing && !isNew ? (
-              <div className="border-t border-slate-100 px-5 pt-4 pb-3 flex flex-col gap-2 shrink-0">
+              <div className="border-t border-slate-100 dark:border-slate-700 px-5 pt-4 pb-3 flex flex-col gap-2 shrink-0">
                 <div className="flex gap-3">
                   <button onClick={() => setEditing(true)}
-                    className="flex-1 flex items-center justify-center gap-2 border border-slate-300 rounded-xl py-3 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
+                    className="flex-1 flex items-center justify-center gap-2 border border-slate-300 dark:border-slate-600 rounded-xl py-3 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
                     <Pencil size={14} /> Bearbeiten
                   </button>
                   <button onClick={() => setConfirmDelete(true)} disabled={(selected?.productCount ?? 0) > 0}
@@ -325,9 +325,9 @@ export default function CategoriesPage() {
                 )}
               </div>
             ) : (editing || isNew) ? (
-              <div className="border-t border-slate-100 px-5 py-4 flex gap-3 shrink-0">
+              <div className="border-t border-slate-100 dark:border-slate-700 px-5 py-4 flex gap-3 shrink-0">
                 <button onClick={closePanel}
-                  className="flex-1 border border-slate-300 rounded-xl py-3 text-sm text-slate-600 hover:bg-slate-50 transition-colors">Abbrechen</button>
+                  className="flex-1 border border-slate-300 dark:border-slate-600 rounded-xl py-3 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">Abbrechen</button>
                 <button onClick={handleSave} disabled={saving || !form.name.trim()}
                   className="flex-1 bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white rounded-xl py-3 text-sm font-medium transition-colors">
                   {saving ? 'Speichern…' : 'Speichern'}

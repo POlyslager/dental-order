@@ -115,6 +115,35 @@ export function extractProductsFromHtml(html: string, pageUrl: string): { name: 
   return found
 }
 
+// ── GTM data layer extraction (e.g. dentalbauer.de / window.__dbGtmQueue) ────
+export function extractProductsFromGtmLayer(html: string, pageUrl: string): { name: string | null; price: number; url: string }[] {
+  const found: { name: string | null; price: number; url: string }[] = []
+  for (const block of html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/gi)) {
+    const script = block[1]
+    if (!script.includes('item_name') || !script.includes('"price"')) continue
+    for (const nameM of script.matchAll(/"item_name"\s*:\s*"([^"]+)"/g)) {
+      const name = nameM[1]
+      const ahead = script.slice(nameM.index!, nameM.index! + 400)
+      const priceM = ahead.match(/"price"\s*:\s*([\d.]+)/)
+      if (!priceM) continue
+      const price = parseFloat(priceM[1])
+      if (!price || price <= 0) continue
+      // Use item_id to find the direct product URL in the HTML
+      const idM = ahead.match(/"item_id"\s*:\s*"?(\d+)"?/)
+      let url = pageUrl
+      if (idM) {
+        const linkM = html.match(new RegExp(`href="([^"]*${idM[1]}[^"]*)"`, 'i'))
+        if (linkM) {
+          const raw = linkM[1]
+          url = raw.startsWith('http') ? raw : new URL(raw, pageUrl).href
+        }
+      }
+      found.push({ name, price, url })
+    }
+  }
+  return found
+}
+
 // ── dm.de — dedicated JSON API ───────────────────────────────────────────────
 // Price lives at product.price.price.current.value as a string e.g. "2,45 €"
 async function searchDm(query: string): Promise<Alternative | null> {
@@ -230,6 +259,10 @@ async function searchSite(site: { domain: string; searches: string[] }, query: s
         products = extractProductsFromMicrodata(html, res.url).filter(p => nameMatches(query, p.name))
         console.log(`[${site.domain}] microdata products found: ${products.length}`)
       }
+      if (products.length === 0) {
+        products = extractProductsFromGtmLayer(html, res.url).filter(p => nameMatches(query, p.name))
+        console.log(`[${site.domain}] GTM products found: ${products.length}`)
+      }
       if (products.length > 0) {
         products.sort((a, b) => a.price - b.price)
         return { domain: site.domain, name: products[0].name, url: products[0].url, price: products[0].price }
@@ -254,17 +287,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     : name
 
   const { data: shopRows } = await adminClient
-    .from('price_comparison_shops')
-    .select('base_url, search_paths')
+    .from('suppliers')
+    .select('website, search_paths')
     .eq('is_active', true)
+    .not('search_paths', 'eq', '{}')
+    .not('website', 'is', null)
 
-  const htmlShops = (shopRows ?? [])
-    .filter(r => !new URL(r.base_url as string).hostname.includes('dm.de'))
+  const validShops = (shopRows ?? []).filter(r => r.website && (r.search_paths as string[]).length > 0)
+
+  const htmlShops = validShops
+    .filter(r => !new URL(r.website as string).hostname.includes('dm.de'))
     .map(r => ({
-      domain: new URL(r.base_url as string).hostname.replace(/^www\./, ''),
+      domain: new URL(r.website as string).hostname.replace(/^www\./, ''),
       searches: r.search_paths as string[],
     }))
-  const hasDm = (shopRows ?? []).some(r => new URL(r.base_url as string).hostname.includes('dm.de'))
+  const hasDm = validShops.some(r => new URL(r.website as string).hostname.includes('dm.de'))
 
   const settled = await Promise.allSettled([
     ...htmlShops.map(site => searchSite(site, query)),

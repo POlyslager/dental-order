@@ -57,6 +57,8 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
   const [cartToastAction, setCartToastAction] = useState<(() => void) | null>(null)
   const [cartToastUndo, setCartToastUndo] = useState<(() => void) | null>(null)
   const [suppliers, setSuppliers] = useState<string[]>([])
+  const [brandOptions, setBrandOptions] = useState<string[]>([])
+  const [allCategories, setAllCategories] = useState<string[]>([])
   const scannerRef = useRef<Html5Qrcode | null>(null)
 
   async function startBarcodeScanner() {
@@ -191,7 +193,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
   }
 
   useEffect(() => {
-    fetchProducts(); fetchSuppliers(); fetchCartProductIds()
+    fetchProducts(); fetchSuppliers(); fetchBrands(); fetchCategories(); fetchCartProductIds()
     let lastFetch = Date.now()
     const onVisible = () => {
       if (document.visibilityState === 'visible' && Date.now() - lastFetch > 60_000) {
@@ -217,8 +219,32 @@ useEffect(() => {
   }
 
   async function fetchSuppliers() {
-    const { data } = await supabase.from('products').select('preferred_supplier').not('preferred_supplier', 'is', null)
-    if (data) setSuppliers([...new Set(data.map(r => r.preferred_supplier as string))].filter(Boolean).sort())
+    const [{ data: prodData }, { data: supData }] = await Promise.all([
+      supabase.from('products').select('preferred_supplier').not('preferred_supplier', 'is', null),
+      supabase.from('suppliers').select('name'),
+    ])
+    const names = [
+      ...(prodData ?? []).map(r => r.preferred_supplier as string),
+      ...(supData ?? []).map(r => r.name as string),
+    ]
+    setSuppliers([...new Set(names)].filter(Boolean).sort())
+  }
+
+  async function fetchBrands() {
+    const [{ data: prodData }, { data: brandData }] = await Promise.all([
+      supabase.from('products').select('brand').not('brand', 'is', null),
+      supabase.from('brands').select('name'),
+    ])
+    const names = [
+      ...(prodData ?? []).map(r => r.brand as string),
+      ...(brandData ?? []).map(r => r.name as string),
+    ]
+    setBrandOptions([...new Set(names)].filter(Boolean).sort())
+  }
+
+  async function fetchCategories() {
+    const { data } = await supabase.from('products').select('category').not('category', 'is', null)
+    if (data) setAllCategories([...new Set(data.map(r => r.category as string))].filter(Boolean).sort())
   }
 
   async function upsertSupplier(name: string) {
@@ -248,6 +274,7 @@ useEffect(() => {
       await upsertSupplier(form.preferred_supplier)
       fetchSuppliers()
     }
+    if (form.brand) fetchBrands()
     setForm(EMPTY_FORM)
     setShowForm(false)
     setSaving(false)
@@ -257,7 +284,10 @@ useEffect(() => {
     setCartToast(`${addedName} wurde zum Inventar hinzugefügt`)
   }
 
-  const productCategories = useMemo(() => Array.from(new Set(products.map(p => p.category))).sort(), [products])
+  const productCategories = useMemo(() => {
+    const fromProducts = products.map(p => p.category).filter(Boolean)
+    return [...new Set([...fromProducts, ...allCategories])].sort()
+  }, [products, allCategories])
   const categories = useMemo(() => ['all', ...productCategories], [productCategories])
   const brands = suppliers
 
@@ -388,8 +418,8 @@ useEffect(() => {
       {/* Lagergesundheit stat bar */}
       {products.length > 0 && (
         <div className="px-4 pt-4 pb-2">
-          <div className="bg-white rounded-2xl border border-slate-100">
-            <div className="flex divide-x divide-slate-100 overflow-x-auto">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
+            <div className="flex divide-x divide-slate-100 dark:divide-slate-700 overflow-x-auto">
               {([
                 { count: products.length,    label: 'Artikel gesamt', icon: <Package size={20} />,       iconBg: 'bg-slate-100',    iconColor: 'text-slate-500',   filter: 'all'      as const, active: false },
                 { count: stockHealth.green,  label: 'Verfügbar',      icon: <PackageCheck size={20} />,  iconBg: 'bg-emerald-100',  iconColor: 'text-emerald-600', filter: 'ok'       as const, active: selectedStatus === 'ok' },
@@ -404,15 +434,15 @@ useEffect(() => {
                     else { setSelectedStatus(p => p === s.filter ? 'all' : s.filter); setPage(1) }
                   }}
                   className={`flex-1 flex items-center gap-3 px-5 py-4 transition-colors min-w-0 shrink-0 ${
-                    s.active ? 'bg-slate-50' : 'hover:bg-slate-50'
+                    s.active ? 'bg-slate-50 dark:bg-slate-700' : 'hover:bg-slate-50 dark:hover:bg-slate-700'
                   } ${i === 0 ? 'rounded-l-2xl' : ''} ${i === 4 ? 'rounded-r-2xl' : ''}`}
                 >
                   <div className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 ${s.iconBg} ${s.active ? 'ring-2 ring-offset-1 ring-slate-300' : ''}`}>
                     <span className={s.iconColor}>{s.icon}</span>
                   </div>
                   <div className="min-w-0 text-left">
-                    <p className="text-xs text-slate-500 truncate">{s.label}</p>
-                    <p className="text-2xl font-bold text-slate-800 leading-tight">{s.count}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{s.label}</p>
+                    <p className="text-2xl font-bold text-slate-800 dark:text-slate-100 leading-tight">{s.count}</p>
                   </div>
                 </button>
               ))}
@@ -431,7 +461,7 @@ useEffect(() => {
             value={search}
             onChange={e => { setSearch(e.target.value); setPage(1) }}
             placeholder="Suchen…"
-            className="w-full border border-slate-200 rounded-xl pl-8 pr-7 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white"
+            className="w-full border border-slate-200 dark:border-slate-600 rounded-xl pl-8 pr-7 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-400"
           />
           {search && (
             <button onClick={() => { setSearch(''); setPage(1) }} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
@@ -445,7 +475,7 @@ useEffect(() => {
           <select
             value={selectedStatus}
             onChange={e => { setSelectedStatus(e.target.value as typeof selectedStatus); setPage(1) }}
-            className="appearance-none border border-slate-200 rounded-xl pl-3 pr-8 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500"
+            className="appearance-none border border-slate-200 dark:border-slate-600 rounded-xl pl-3 pr-8 py-2 text-sm bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
           >
             <option value="all">Alle Status</option>
             <option value="ok">Verfügbar</option>
@@ -463,7 +493,7 @@ useEffect(() => {
           <select
             value={selectedCategory}
             onChange={e => { setSelectedCategory(e.target.value); setPage(1) }}
-            className="appearance-none border border-slate-200 rounded-xl pl-3 pr-8 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500"
+            className="appearance-none border border-slate-200 dark:border-slate-600 rounded-xl pl-3 pr-8 py-2 text-sm bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
           >
             <option value="all">Alle Kategorien</option>
             {categories.filter(c => c !== 'all').map(c => (
@@ -491,7 +521,7 @@ useEffect(() => {
       </div>
 
       {/* Desktop header (md+) */}
-      <div className="hidden md:grid border-b border-slate-200 bg-white sticky top-0 z-10" style={{ gridTemplateColumns: '1.7fr 1fr 1fr 0.8fr 1fr' }}>
+      <div className="hidden md:grid border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 sticky top-0 z-10" style={{ gridTemplateColumns: '1.7fr 1fr 1fr 0.8fr 1fr' }}>
         <ColHeader label="Name"      col="name"               onClick={toggleSort} SortIcon={SortIcon} />
         <ColHeader label="Kategorie" col="category"           onClick={toggleSort} SortIcon={SortIcon} />
         <ColHeader label="Lieferant" col="preferred_supplier" onClick={toggleSort} SortIcon={SortIcon} />
@@ -500,82 +530,82 @@ useEffect(() => {
       </div>
 
       {/* Mobile header */}
-      <div className="flex md:hidden border-b border-slate-200 bg-white sticky top-0 z-10">
+      <div className="flex md:hidden border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 sticky top-0 z-10">
         <ColHeader label="Artikel"  col="name"          onClick={toggleSort} SortIcon={SortIcon} className="flex-1" />
         <ColHeader label="Bestand"  col="current_stock" onClick={toggleSort} SortIcon={SortIcon} align="right" className="w-24" />
         <ColHeader label="Status"   col="status"        onClick={toggleSort} SortIcon={SortIcon} className="w-28" />
       </div>
 
       {/* Rows */}
-      <div className="divide-y divide-slate-100">
+      <div className="divide-y divide-slate-100 dark:divide-slate-800">
         {paginated.map(p => (
           <div
             key={p.id}
             onClick={() => setSelectedProduct(p)}
-            className={`bg-white hover:bg-slate-50 cursor-pointer transition-colors ${selectedProduct?.id === p.id ? 'bg-sky-50' : ''}`}
+            className={`bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-colors ${selectedProduct?.id === p.id ? 'bg-sky-50 dark:bg-sky-950' : ''}`}
           >
             {/* Desktop row */}
             <div className="hidden md:grid items-center" style={{ gridTemplateColumns: '1.7fr 1fr 1fr 0.8fr 1fr' }}>
               <div className="min-w-0 px-4 py-3.5">
                 <div className="flex items-center gap-2">
-                  <p className="text-sm font-semibold text-slate-800 truncate">{p.name}</p>
+                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{p.name}</p>
                   {cartProductIds.has(p.id) && (
-                    <span className="inline-flex items-center gap-1 text-xs font-medium bg-sky-50 text-sky-600 px-2 py-0.5 rounded-full shrink-0">
+                    <span className="inline-flex items-center gap-1 text-xs font-medium bg-sky-50 dark:bg-sky-900/40 text-sky-600 dark:text-sky-400 px-2 py-0.5 rounded-full shrink-0">
                       <ShoppingCart size={10} /> Im Warenkorb
                     </span>
                   )}
                   {!cartProductIds.has(p.id) && orderedProductIds.has(p.id) && (
-                    <span className="inline-flex items-center gap-1 text-xs font-medium bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full shrink-0">
+                    <span className="inline-flex items-center gap-1 text-xs font-medium bg-emerald-50 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-full shrink-0">
                       <Package size={10} /> In Bestellung
                     </span>
                   )}
                 </div>
               </div>
-              <div className="min-w-0 px-4 py-3.5 text-sm text-slate-500 truncate">{p.category}</div>
-              <div className="min-w-0 px-4 py-3.5 text-sm text-slate-500 truncate">{p.preferred_supplier ?? '—'}</div>
+              <div className="min-w-0 px-4 py-3.5 text-sm text-slate-500 dark:text-slate-400 truncate">{p.category}</div>
+              <div className="min-w-0 px-4 py-3.5 text-sm text-slate-500 dark:text-slate-400 truncate">{p.preferred_supplier ?? '—'}</div>
               <div className="px-4 py-3.5">
-                <span className="text-sm font-bold text-slate-800">{p.current_stock}</span>
-                <span className="text-xs text-slate-400 ml-1">{p.unit}</span>
+                <span className="text-sm font-bold text-slate-800 dark:text-slate-100">{p.current_stock}</span>
+                <span className="text-xs text-slate-400 dark:text-slate-500 ml-1">{p.unit}</span>
               </div>
               <div className="px-4 py-3.5"><StockStatus product={p} /></div>
             </div>
             {/* Mobile row */}
             <div className="flex md:hidden items-center">
               <div className="flex-1 min-w-0 px-4 py-3.5">
-                <p className="text-sm font-semibold text-slate-800 truncate">{p.name}</p>
-                <p className="text-xs text-slate-400 mt-0.5 truncate">{p.category}</p>
+                <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{p.name}</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5 truncate">{p.category}</p>
               </div>
               <div className="w-24 px-4 py-3.5 text-right shrink-0">
-                <span className="text-sm font-bold text-slate-800">{p.current_stock}</span>
-                <span className="text-xs text-slate-400 ml-1">{p.unit}</span>
+                <span className="text-sm font-bold text-slate-800 dark:text-slate-100">{p.current_stock}</span>
+                <span className="text-xs text-slate-400 dark:text-slate-500 ml-1">{p.unit}</span>
               </div>
               <div className="w-28 px-4 py-3.5 shrink-0"><StockStatus product={p} /></div>
             </div>
           </div>
         ))}
         {sorted.length === 0 && (
-          <p className="px-4 py-12 text-center text-slate-400 text-sm">Keine Artikel gefunden</p>
+          <p className="px-4 py-12 text-center text-slate-400 dark:text-slate-500 text-sm">Keine Artikel gefunden</p>
         )}
       </div>
 
       {/* Pagination (md+) */}
       {totalPages > 1 && (
-        <div className="hidden md:flex items-center px-4 py-3 border-t border-slate-100 bg-white sticky bottom-0 z-10">
-          <p className="text-xs text-slate-400 w-40 shrink-0">
+        <div className="hidden md:flex items-center px-4 py-3 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 sticky bottom-0 z-10">
+          <p className="text-xs text-slate-400 dark:text-slate-500 w-40 shrink-0">
             {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, sorted.length)} von {sorted.length} Artikeln
           </p>
           <div className="flex-1 flex items-center justify-center gap-1">
             <button
               onClick={() => setPage(1)}
               disabled={page === 1}
-              className="px-2 py-1.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="px-2 py-1.5 text-xs rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
               «
             </button>
             <button
               onClick={() => setPage(p => Math.max(1, p - 1))}
               disabled={page === 1}
-              className="px-3 py-1.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="px-3 py-1.5 text-xs rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
               Zurück
             </button>
@@ -588,13 +618,13 @@ useEffect(() => {
               }, [])
               .map((n, i) =>
                 n === '…' ? (
-                  <span key={`ellipsis-${i}`} className="px-2 py-1.5 text-xs text-slate-300">…</span>
+                  <span key={`ellipsis-${i}`} className="px-2 py-1.5 text-xs text-slate-300 dark:text-slate-600">…</span>
                 ) : (
                   <button
                     key={n}
                     onClick={() => setPage(n as number)}
                     className={`w-8 h-7 text-xs rounded-lg transition-colors ${
-                      page === n ? 'bg-sky-500 text-white font-semibold' : 'text-slate-600 hover:bg-slate-100'
+                      page === n ? 'bg-sky-500 text-white font-semibold' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                     }`}
                   >
                     {n}
@@ -605,14 +635,14 @@ useEffect(() => {
             <button
               onClick={() => setPage(p => Math.min(totalPages, p + 1))}
               disabled={page === totalPages}
-              className="px-3 py-1.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="px-3 py-1.5 text-xs rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
               Weiter
             </button>
             <button
               onClick={() => setPage(totalPages)}
               disabled={page === totalPages}
-              className="px-2 py-1.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="px-2 py-1.5 text-xs rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
               »
             </button>
@@ -627,15 +657,15 @@ useEffect(() => {
       {/* Duplicate barcode modal */}
       {duplicateProduct && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 animate-slide-in-up">
-            <h3 className="font-semibold text-slate-800 text-lg mb-1">Artikel bereits vorhanden</h3>
-            <p className="text-sm text-slate-500 mb-5">
-              <span className="font-medium text-slate-700">{duplicateProduct.name}</span> ist bereits in deinem Inventar.
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-sm w-full p-6 animate-slide-in-up">
+            <h3 className="font-semibold text-slate-800 dark:text-slate-100 text-lg mb-1">Artikel bereits vorhanden</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-5">
+              <span className="font-medium text-slate-700 dark:text-slate-200">{duplicateProduct.name}</span> ist bereits in deinem Inventar.
             </p>
             <div className="flex gap-3">
               <button
                 onClick={() => setDuplicateProduct(null)}
-                className="flex-1 border border-slate-300 rounded-xl py-2.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
+                className="flex-1 border border-slate-300 dark:border-slate-600 rounded-xl py-2.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
               >
                 Abbrechen
               </button>
@@ -654,11 +684,11 @@ useEffect(() => {
       {(showForm || closingForm) && !selectedProduct && (
         <>
           <div className="hidden md:block fixed inset-0 bg-black/30 z-40" onClick={closeForm} />
-          <div className={`fixed inset-0 bg-white z-50 overflow-y-auto md:inset-auto md:top-4 md:bottom-4 md:right-4 md:w-[520px] md:rounded-2xl md:shadow-2xl ${closingForm ? 'animate-slide-out-right' : 'animate-slide-in-right'}`}>
+          <div className={`fixed inset-0 bg-white dark:bg-slate-900 z-50 overflow-y-auto md:inset-auto md:top-4 md:bottom-4 md:right-4 md:w-[520px] md:rounded-2xl md:shadow-2xl ${closingForm ? 'animate-slide-out-right' : 'animate-slide-in-right'}`}>
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-4 border-b border-slate-100 sticky top-0 bg-white z-10">
-              <h2 className="font-semibold text-slate-800">Neuer Artikel</h2>
-              <button onClick={closeForm} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors">
+            <div className="flex items-center justify-between px-4 py-4 border-b border-slate-100 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-900 z-10">
+              <h2 className="font-semibold text-slate-800 dark:text-slate-100">Neuer Artikel</h2>
+              <button onClick={closeForm} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
                 <X size={20} />
               </button>
             </div>
@@ -666,11 +696,11 @@ useEffect(() => {
             {/* Scanner modal */}
             {scanning && (
               <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/60">
-                <div className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl shadow-2xl overflow-hidden">
-                  <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
-                    <span className="font-semibold text-slate-800 text-sm">Barcode scannen</span>
+                <div className="bg-white dark:bg-slate-800 w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl shadow-2xl overflow-hidden">
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-700">
+                    <span className="font-semibold text-slate-800 dark:text-slate-100 text-sm">Barcode scannen</span>
                     <button type="button" onClick={stopBarcodeScanner}
-                      className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors">
+                      className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
                       <X size={18} />
                     </button>
                   </div>
@@ -696,10 +726,10 @@ useEffect(() => {
                 <Field label="Bestand" inputMode="numeric" value={form.current_stock} onChange={v => setForm(f => ({ ...f, current_stock: v }))} />
                 <Field label="Meldebestand *" inputMode="numeric" value={form.min_stock} onChange={v => setForm(f => ({ ...f, min_stock: v }))} required />
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Einheit</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Einheit</label>
                   <div className="relative">
                     <select value={form.unit} onChange={e => setForm(f => ({ ...f, unit: e.target.value }))}
-                      className="w-full appearance-none border border-slate-300 rounded-lg pl-3 pr-8 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500">
+                      className="w-full appearance-none border border-slate-300 dark:border-slate-600 rounded-lg pl-3 pr-8 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100">
                       {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
                     </select>
                     <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
@@ -712,10 +742,10 @@ useEffect(() => {
               </div>
               <Field label="Beschreibung" value={form.notes} onChange={v => setForm(f => ({ ...f, notes: v }))} rows={3} />
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Lagerort</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Lagerort</label>
                 <div className="relative">
                   <select value={form.storage_location} onChange={e => setForm(f => ({ ...f, storage_location: e.target.value }))}
-                    className="w-full appearance-none border border-slate-300 rounded-lg pl-3 pr-8 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500">
+                    className="w-full appearance-none border border-slate-300 dark:border-slate-600 rounded-lg pl-3 pr-8 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100">
                     <option value="">— Kein Lagerort —</option>
                     {STORAGE_LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}
                   </select>
@@ -723,7 +753,7 @@ useEffect(() => {
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Lieferant</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Lieferant</label>
                 <CategorySelect
                   value={form.preferred_supplier}
                   onChange={v => setForm(f => ({ ...f, preferred_supplier: v }))}
@@ -733,19 +763,23 @@ useEffect(() => {
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Hersteller</label>
-                <input type="text" value={form.brand}
-                  onChange={e => setForm(f => ({ ...f, brand: e.target.value }))}
-                  placeholder="z.B. Hager Werken"
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Hersteller</label>
+                <CategorySelect
+                  value={form.brand ?? ''}
+                  onChange={v => setForm(f => ({ ...f, brand: v || null }))}
+                  categories={brandOptions}
+                  placeholder="Hersteller suchen…"
+                  newLabel="als neuer Hersteller"
+                  emptyLabel="Keine Hersteller vorhanden"
+                />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Bestell-Website</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Bestellwebsite</label>
                 <div className="flex gap-2">
                   <input type="url" value={form.supplier_url}
                     onChange={e => setForm(f => ({ ...f, supplier_url: e.target.value }))}
                     placeholder="https://…"
-                    className="flex-1 border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
+                    className="flex-1 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100" />
                   {(form.supplier_url || form.preferred_supplier) && (form.name || form.article_number) && (
                     <button type="button" onClick={lookupProduct} disabled={looking}
                       className="px-3 py-2 rounded-lg border border-sky-300 text-sky-600 hover:bg-sky-50 disabled:opacity-40 text-xs font-medium whitespace-nowrap transition-colors">
@@ -756,7 +790,7 @@ useEffect(() => {
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={closeForm}
-                  className="flex-1 border border-slate-300 rounded-xl py-3 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
+                  className="flex-1 border border-slate-300 dark:border-slate-600 rounded-xl py-3 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
                   Abbrechen
                 </button>
                 <button type="submit" disabled={saving}
@@ -776,7 +810,7 @@ useEffect(() => {
             className={`hidden md:block fixed inset-0 bg-black/30 z-40 ${closingProduct ? 'animate-fade-in' : 'animate-fade-in'}`}
             onClick={closeProduct}
           />
-          <div className={`fixed inset-0 bg-white z-50 overflow-y-auto md:inset-auto md:top-4 md:bottom-4 md:right-4 md:w-[520px] md:rounded-2xl md:shadow-2xl ${closingProduct ? 'animate-slide-out-right' : 'animate-slide-in-right'}`}>
+          <div className={`fixed inset-0 bg-white dark:bg-slate-900 z-50 overflow-y-auto md:inset-auto md:top-4 md:bottom-4 md:right-4 md:w-[520px] md:rounded-2xl md:shadow-2xl ${closingProduct ? 'animate-slide-out-right' : 'animate-slide-in-right'}`}>
             <ProductDetailPage {...productDetailProps} isModal />
           </div>
         </>
@@ -797,7 +831,7 @@ function ColHeader({ label, col, onClick, SortIcon, align, className = '' }: {
   return (
     <button
       onClick={() => onClick(col as never)}
-      className={`flex items-center gap-1 px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide cursor-pointer select-none hover:text-slate-600 transition-colors ${align === 'right' ? 'justify-end' : 'justify-start'} ${className}`}
+      className={`flex items-center gap-1 px-4 py-3 text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide cursor-pointer select-none hover:text-slate-600 dark:hover:text-slate-300 transition-colors ${align === 'right' ? 'justify-end' : 'justify-start'} ${className}`}
     >
       {label}
       <SortIcon col={col as never} />
@@ -821,10 +855,10 @@ function Field({ label, value, onChange, type = 'text', required = false, inputM
   inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode']
   rows?: number
 }) {
-  const cls = 'w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500'
+  const cls = 'w-full border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100'
   return (
     <div>
-      <label className="block text-xs font-medium text-slate-600 mb-1">{label}</label>
+      <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">{label}</label>
       {rows
         ? <textarea value={value} onChange={e => onChange(e.target.value)} required={required} rows={rows} className={`${cls} resize-none`} />
         : <input
@@ -879,29 +913,29 @@ function SupplierMultiSelect({ selected, onChange, options }: {
       <button
         type="button"
         onClick={() => { setOpen(o => !o); setQ('') }}
-        className={`border rounded-xl pl-3 pr-2.5 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 flex items-center gap-2 min-w-[140px] justify-between ${
-          selected.size > 0 ? 'border-sky-400 text-sky-700' : 'border-slate-200 text-slate-700'
+        className={`border rounded-xl pl-3 pr-2.5 py-2 text-sm bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 flex items-center gap-2 min-w-[140px] justify-between ${
+          selected.size > 0 ? 'border-sky-400 text-sky-700 dark:text-sky-400' : 'border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-100'
         }`}
       >
         <span className="truncate">{label}</span>
         <ChevronDown size={13} className="text-slate-400 shrink-0" />
       </button>
       {open && (
-        <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-30 w-64 animate-slide-in-up">
-          <div className="p-2 border-b border-slate-100">
+        <div className="absolute top-full left-0 mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg z-30 w-64 animate-slide-in-up">
+          <div className="p-2 border-b border-slate-100 dark:border-slate-700">
             <input
               autoFocus
               type="text"
               value={q}
               onChange={e => setQ(e.target.value)}
               placeholder="Suchen…"
-              className="w-full text-sm px-2 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500"
+              className="w-full text-sm px-2 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white dark:bg-slate-700 dark:text-slate-100 dark:placeholder-slate-400"
             />
           </div>
           <ul className="max-h-56 overflow-y-auto py-1">
             <li>
               <button type="button" onClick={() => onChange(new Set())}
-                className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center gap-2.5 text-slate-700">
+                className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-2.5 text-slate-700 dark:text-slate-200">
                 <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${selected.size === 0 ? 'bg-sky-500 border-sky-500' : 'border-slate-300'}`}>
                   {selected.size === 0 && <Check size={10} className="text-white" />}
                 </span>
@@ -911,7 +945,7 @@ function SupplierMultiSelect({ selected, onChange, options }: {
             {filtered.map(o => (
               <li key={o}>
                 <button type="button" onClick={() => toggle(o)}
-                  className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center gap-2.5 text-slate-700">
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-2.5 text-slate-700 dark:text-slate-200">
                   <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${selected.has(o) ? 'bg-sky-500 border-sky-500' : 'border-slate-300'}`}>
                     {selected.has(o) && <Check size={10} className="text-white" />}
                   </span>
@@ -919,7 +953,7 @@ function SupplierMultiSelect({ selected, onChange, options }: {
                 </button>
               </li>
             ))}
-            {filtered.length === 0 && <li className="px-3 py-2 text-sm text-slate-400">Keine Ergebnisse</li>}
+            {filtered.length === 0 && <li className="px-3 py-2 text-sm text-slate-400 dark:text-slate-500">Keine Ergebnisse</li>}
           </ul>
         </div>
       )}

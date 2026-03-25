@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { PriceAlternative, Product, SupplierHistoryEntry } from '../lib/types'
 import CategorySelect from '../components/CategorySelect'
+import Toast from '../components/Toast'
 import {
   ChevronLeft, Pencil, Trash2, ShoppingCart, Check, ExternalLink, X, Minus, Plus,
   Search, ChevronDown, RotateCcw,
@@ -68,10 +69,12 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
   const [lastScan, setLastScan] = useState<string | null>(null)
   const [categories, setCategories] = useState<string[]>([])
   const [suppliers, setSuppliers] = useState<string[]>([])
+  const [brands, setBrands] = useState<string[]>([])
   const [altState, setAltState] = useState<'idle' | 'loading' | 'done'>('idle')
   const [altResults, setAltResults] = useState<PriceAlternative[]>([])
   const [supplierHistory, setSupplierHistory] = useState<SupplierHistoryEntry[]>([])
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
 
   const status = stockStatus(form)
 
@@ -80,9 +83,9 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
   const thresholdPct = Math.min(99, ((Number(form.min_stock) || 0) / barMax) * 100)
 
   const STATUS_STYLES = {
-    green:  { bar: 'bg-emerald-400', text: 'text-emerald-600', bg: 'bg-emerald-50',  border: 'border-emerald-200', label: 'Ausreichend' },
-    orange: { bar: 'bg-amber-400',   text: 'text-amber-600',   bg: 'bg-amber-50',    border: 'border-amber-200',   label: 'Niedrig'     },
-    red:    { bar: 'bg-red-400',     text: 'text-red-600',     bg: 'bg-red-50',      border: 'border-red-200',     label: 'Kritisch'    },
+    green:  { bar: 'bg-emerald-400', text: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-900/20',  border: 'border-emerald-200 dark:border-emerald-800', label: 'Ausreichend' },
+    orange: { bar: 'bg-amber-400',   text: 'text-amber-600 dark:text-amber-400',     bg: 'bg-amber-50 dark:bg-amber-900/20',      border: 'border-amber-200 dark:border-amber-800',     label: 'Niedrig'     },
+    red:    { bar: 'bg-red-400',     text: 'text-red-600 dark:text-red-400',         bg: 'bg-red-50 dark:bg-red-900/20',          border: 'border-red-200 dark:border-red-800',         label: 'Kritisch'    },
   }
   const styles = STATUS_STYLES[status]
 
@@ -116,10 +119,23 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
     if (availableSuppliers) {
       setSuppliers(availableSuppliers)
     } else {
-      supabase.from('products').select('preferred_supplier').not('preferred_supplier', 'is', null).then(({ data }) => {
-        if (data) setSuppliers([...new Set(data.map(p => p.preferred_supplier as string))].filter(Boolean).sort())
+      Promise.all([
+        supabase.from('products').select('preferred_supplier').not('preferred_supplier', 'is', null),
+        supabase.from('suppliers').select('name'),
+      ]).then(([{ data: prodData }, { data: supData }]) => {
+        const fromProducts = (prodData ?? []).map(p => p.preferred_supplier as string)
+        const fromSuppliers = (supData ?? []).map(s => s.name as string)
+        setSuppliers([...new Set([...fromProducts, ...fromSuppliers])].filter(Boolean).sort())
       })
     }
+    Promise.all([
+      supabase.from('products').select('brand').not('brand', 'is', null),
+      supabase.from('brands').select('name'),
+    ]).then(([{ data: prodData }, { data: brandData }]) => {
+      const fromProducts = (prodData ?? []).map(p => p.brand as string)
+      const fromBrands = (brandData ?? []).map(b => b.name as string)
+      setBrands([...new Set([...fromProducts, ...fromBrands])].filter(Boolean).sort())
+    })
     fetchHistory()
 
     // Check cart and open orders
@@ -166,6 +182,9 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
       }
       onUpdated(data as Product)
       setEditing(false)
+      setToast('Änderungen gespeichert')
+    } else if (error) {
+      setToast(`Fehler: ${error.message}`)
     }
   }
 
@@ -279,24 +298,25 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
     fetchHistory()
   }
 
-  const inputCls = 'w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500'
+  const inputCls = 'w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100'
+  const selectCls = `${inputCls} pr-8 appearance-none`
 
   function editField(label: string, key: keyof Product, type: 'text' | 'number' | 'url' | 'select' | 'unit' | 'textarea' = 'text') {
     const val = form[key] as string | number | null
     return (
       <div>
-        <label className="block text-xs font-medium text-slate-600 mb-1">{label}</label>
+        <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{label}</label>
         {type === 'select' ? (
           <select value={(val as string) ?? ''}
             onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
-            className={inputCls}>
+            className={selectCls}>
             <option value="">— Kein Lagerort —</option>
             {STORAGE_LOCATIONS.map(o => <option key={o} value={o}>{o}</option>)}
           </select>
         ) : type === 'unit' ? (
           <select value={(val as string) ?? ''}
             onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
-            className={inputCls}>
+            className={selectCls}>
             {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
           </select>
         ) : type === 'textarea' ? (
@@ -321,7 +341,8 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
   }
 
   return (
-    <div className="min-h-full bg-slate-50 overflow-x-hidden">
+    <div className="min-h-full bg-slate-50 dark:bg-slate-900 overflow-x-hidden">
+      {toast && <Toast message={toast} onClose={() => setToast(null)} />}
       {/* Slow operation spinner */}
       {showDeleteSpinner && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30">
@@ -329,31 +350,31 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
         </div>
       )}
       {/* Sub-header */}
-      <div className="bg-white border-b border-slate-200 px-4 py-3 flex items-center gap-2 sticky top-0 z-10">
+      <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 px-4 py-3 flex items-center gap-2 sticky top-0 z-10">
         {/* Back button — non-modal only */}
         {!isModal && (
           <button
             onClick={editing ? () => { setForm(product); setEditing(false) } : onBack}
-            className="flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-slate-700 p-1 -ml-1 shrink-0"
+            className="flex items-center gap-1 text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 p-1 -ml-1 shrink-0"
           >
             <ChevronLeft size={16} />
             Zurück
           </button>
         )}
 
-        <h1 className="font-semibold text-slate-800 truncate flex-1">{form.name}</h1>
+        <h1 className="font-semibold text-slate-800 dark:text-slate-100 truncate flex-1">{form.name}</h1>
 
         {/* Edit/delete in header — non-modal only */}
         {!editing && !isModal && (
           <>
-            <button onClick={() => setEditing(true)} className="text-slate-400 hover:text-sky-600 p-1.5 shrink-0">
+            <button onClick={() => setEditing(true)} className="text-slate-400 dark:text-slate-500 hover:text-sky-600 p-1.5 shrink-0">
               <Pencil size={16} />
             </button>
             <button
               onClick={() => !inCart && !inOrdered && setConfirmDelete(true)}
               disabled={inCart || inOrdered}
               title={inCart ? 'Im Warenkorb — kann nicht gelöscht werden' : inOrdered ? 'In offener Bestellung — kann nicht gelöscht werden' : undefined}
-              className={`p-1.5 shrink-0 transition-colors ${inCart || inOrdered ? 'text-slate-200 cursor-not-allowed' : 'text-slate-300 hover:text-red-400'}`}
+              className={`p-1.5 shrink-0 transition-colors ${inCart || inOrdered ? 'text-slate-200 dark:text-slate-700 cursor-not-allowed' : 'text-slate-300 dark:text-slate-600 hover:text-red-400'}`}
             >
               <Trash2 size={16} />
             </button>
@@ -364,7 +385,7 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
         {isModal && (
           <button
             onClick={onBack}
-            className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 transition-colors shrink-0"
+            className="text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors shrink-0"
           >
             <X size={18} />
           </button>
@@ -379,13 +400,13 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
           <div className={`px-4 py-3 ${styles.bg}`}>
             <div className="flex items-center justify-between mb-2">
               <p className={`text-3xl font-bold ${styles.text}`}>
-                {form.current_stock} <span className="text-sm font-normal text-slate-400">{form.unit}</span>
+                {form.current_stock} <span className="text-sm font-normal text-slate-400 dark:text-slate-500">{form.unit}</span>
               </p>
-              <span className={`text-xs font-semibold px-2.5 py-1 rounded-full bg-white/70 ${styles.text}`}>
+              <span className={`text-xs font-semibold px-2.5 py-1 rounded-full bg-white/70 dark:bg-black/30 ${styles.text}`}>
                 {styles.label}
               </span>
             </div>
-            <div className="relative h-2 bg-white/60 rounded-full overflow-hidden">
+            <div className="relative h-2 bg-white/60 dark:bg-white/10 rounded-full overflow-hidden">
               <div className={`absolute left-0 top-0 h-full rounded-full ${styles.bar}`} style={{ width: `${fillPct}%` }} />
               <div className="absolute top-0 h-full w-[3px] bg-slate-500 opacity-40" style={{ left: `${thresholdPct}%` }} />
             </div>
@@ -394,9 +415,9 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
                 {editField('Aktuell', 'current_stock', 'number')}
                 {editField('Meldebestand', 'min_stock', 'number')}
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Einheit</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Einheit</label>
                   <select value={form.unit ?? ''} onChange={e => setForm(p => ({ ...p, unit: e.target.value }))}
-                    className={inputCls}>
+                    className={selectCls}>
                     {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
                   </select>
                 </div>
@@ -406,11 +427,11 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
 
           {/* Order + take actions — always visible when not editing */}
           {!editing && (
-            <div className={`border-t ${styles.border} bg-white`}>
+            <div className={`border-t ${styles.border} bg-white dark:bg-slate-900 dark:border-slate-700`}>
 
               {/* ── Bestellen ── */}
               <div className="px-4 pt-4 pb-3">
-                <p className={`text-xs font-semibold uppercase tracking-wide mb-3 ${(inCart || inOrdered) ? 'text-slate-300' : status === 'red' ? 'text-red-600' : status === 'orange' ? 'text-amber-600' : 'text-slate-500'}`}>
+                <p className={`text-xs font-semibold uppercase tracking-wide mb-3 ${(inCart || inOrdered) ? 'text-slate-300 dark:text-slate-600' : status === 'red' ? 'text-red-600' : status === 'orange' ? 'text-amber-600' : 'text-slate-500 dark:text-slate-400'}`}>
                   Bestellen
                 </p>
                 {(inCart || inOrdered) ? (
@@ -419,7 +440,7 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
                       <ShoppingCart size={14} className="text-sky-500" />
                     </div>
                     <div>
-                      <p className="text-sm text-slate-400">
+                      <p className="text-sm text-slate-400 dark:text-slate-500">
                         {inCart ? 'Artikel bereits im Warenkorb' : 'Artikel bereits in Bestellung'}
                         {onNavigateToOrders && (
                           <button onClick={onNavigateToOrders} className="ml-2 text-sky-500 hover:text-sky-600 hover:underline transition-colors">
@@ -431,21 +452,21 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
                   </div>
                 ) : (
                   <div className="flex items-center gap-3">
-                    <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden shrink-0">
+                    <div className="flex items-center border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden shrink-0">
                       <button onClick={() => setOrderQty(q => String(Math.max(1, (parseInt(q) || 1) - 1)))}
-                        className="w-9 h-10 flex items-center justify-center text-slate-500 hover:bg-slate-50 transition-colors">
+                        className="w-9 h-10 flex items-center justify-center text-slate-500 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
                         <Minus size={14} />
                       </button>
-                      <span className="w-10 text-center text-sm font-semibold text-slate-800 select-none">{orderQty}</span>
+                      <span className="w-10 text-center text-sm font-semibold text-slate-800 dark:text-slate-100 select-none">{orderQty}</span>
                       <button onClick={() => setOrderQty(q => String((parseInt(q) || 0) + 1))}
-                        className="w-9 h-10 flex items-center justify-center text-slate-500 hover:bg-slate-50 transition-colors">
+                        className="w-9 h-10 flex items-center justify-center text-slate-500 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
                         <Plus size={14} />
                       </button>
                     </div>
                     {form.last_price != null ? (
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs text-slate-400">€ {Number(form.last_price).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / {form.unit}</p>
-                        <p className="text-sm font-bold text-slate-800">€ {((parseInt(orderQty) || 0) * Number(form.last_price)).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                        <p className="text-xs text-slate-400 dark:text-slate-500">€ {Number(form.last_price).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / {form.unit}</p>
+                        <p className="text-sm font-bold text-slate-800 dark:text-slate-100">€ {((parseInt(orderQty) || 0) * Number(form.last_price)).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                       </div>
                     ) : <div className="flex-1" />}
                     <button onClick={handleAddToCart}
@@ -460,28 +481,28 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
 
               {/* ── Entnehmen (only when in stock) ── */}
               {Number(form.current_stock) > 0 && <>
-              <div className="border-t border-slate-100" />
+              <div className="border-t border-slate-100 dark:border-slate-700" />
               <div className="px-4 pt-3 pb-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">Entnehmen</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500 mb-3">Entnehmen</p>
                 <div className="flex items-center gap-3">
-                  <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden shrink-0">
+                  <div className="flex items-center border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden shrink-0">
                     <button onClick={() => setEntnehmenQty(q => Math.max(1, q - 1))}
                       disabled={entnehmenQty <= 1}
-                      className="w-9 h-10 flex items-center justify-center text-slate-500 hover:bg-slate-50 disabled:opacity-30 transition-colors">
+                      className="w-9 h-10 flex items-center justify-center text-slate-500 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-30 transition-colors">
                       <Minus size={14} />
                     </button>
-                    <span className="w-10 text-center text-sm font-semibold text-slate-800 select-none">{entnehmenQty}</span>
+                    <span className="w-10 text-center text-sm font-semibold text-slate-800 dark:text-slate-100 select-none">{entnehmenQty}</span>
                     <button onClick={() => setEntnehmenQty(q => Math.min(Number(form.current_stock), q + 1))}
                       disabled={entnehmenQty >= Number(form.current_stock)}
-                      className="w-9 h-10 flex items-center justify-center text-slate-500 hover:bg-slate-50 disabled:opacity-30 transition-colors">
+                      className="w-9 h-10 flex items-center justify-center text-slate-500 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-30 transition-colors">
                       <Plus size={14} />
                     </button>
                   </div>
-                  <p className="flex-1 text-xs text-slate-400">max. {form.current_stock} {form.unit}</p>
+                  <p className="flex-1 text-xs text-slate-400 dark:text-slate-500">max. {form.current_stock} {form.unit}</p>
                   <button onClick={handleTake}
                     disabled={Number(form.current_stock) <= 0}
                     className={`w-11 h-11 flex items-center justify-center rounded-xl transition-colors shrink-0 ${
-                      taken ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 hover:bg-slate-200 disabled:opacity-30 text-slate-700'
+                      taken ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-30 text-slate-700 dark:text-slate-200'
                     }`}>
                     {taken ? <Check size={20} /> : <Minus size={20} />}
                   </button>
@@ -494,12 +515,12 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
         </div>
 
         {/* ── Info fields ── */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-4">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 space-y-4">
           {editing ? (
             <div className="space-y-3">
               {editField('Name', 'name')}
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Kategorie</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Kategorie</label>
                 <CategorySelect value={form.category ?? ''} onChange={v => setForm(p => ({ ...p, category: v }))} categories={categories} />
               </div>
               {editField('Artikelnummer', 'article_number')}
@@ -508,7 +529,7 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
               {editField('Beschreibung', 'notes', 'textarea')}
               {/* Verfallsdatum */}
               <div>
-                <label className="flex items-center gap-2 text-xs font-medium text-slate-600 mb-1">
+                <label className="flex items-center gap-2 text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">
                   Verfallsdatum
                   {(() => {
                     const st = expiryStatus(form.expiry_date)
@@ -521,12 +542,12 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
                   type="date"
                   value={form.expiry_date ?? ''}
                   onChange={e => setForm(p => ({ ...p, expiry_date: e.target.value || null }))}
-                  className={inputCls}
+                  className={`${inputCls} dark:[color-scheme:dark]`}
                 />
               </div>
               {/* Chargennummer */}
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Chargennummer</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Chargennummer</label>
                 <input
                   type="text"
                   value={form.lot_number ?? ''}
@@ -537,8 +558,8 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
               </div>
               {/* Behandlungstypen */}
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-2">
-                  Behandlungstypen <span className="text-slate-400 font-normal">(optional)</span>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-2">
+                  Behandlungstypen <span className="text-slate-400 dark:text-slate-500 font-normal">(optional)</span>
                 </label>
                 <div className="flex flex-wrap gap-2">
                   {TREATMENT_TYPE_OPTIONS.map(opt => {
@@ -559,7 +580,7 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
                         className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
                           selected
                             ? 'bg-sky-500 border-sky-500 text-white'
-                            : 'bg-slate-100 border-slate-200 text-slate-600 hover:bg-slate-200'
+                            : 'bg-slate-100 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
                         }`}
                       >
                         {opt}
@@ -568,9 +589,9 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
                   })}
                 </div>
               </div>
-              <div className="border-t border-slate-100 pt-3 space-y-3">
+              <div className="border-t border-slate-100 dark:border-slate-700 pt-3 space-y-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Lieferant</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Lieferant</label>
                   <CategorySelect
                     value={form.preferred_supplier ?? ''}
                     onChange={v => setForm(p => ({ ...p, preferred_supplier: v }))}
@@ -580,7 +601,17 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
                   />
                 </div>
                 {editField('Bestellwebsite', 'supplier_url', 'url')}
-                {editField('Hersteller', 'brand')}
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Hersteller</label>
+                  <CategorySelect
+                    value={form.brand ?? ''}
+                    onChange={v => setForm(p => ({ ...p, brand: v || null }))}
+                    categories={brands}
+                    placeholder="Hersteller suchen…"
+                    newLabel="als neuer Hersteller"
+                    emptyLabel="Keine Hersteller vorhanden"
+                  />
+                </div>
               </div>
             </div>
           ) : (
@@ -599,15 +630,15 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
 
               {/* Verfallsdatum / Chargennummer / Behandlungstypen */}
               {(form.expiry_date || form.lot_number || (form.treatment_types && form.treatment_types.length > 0)) && (
-                <div className="border-t border-slate-100 pt-4 space-y-3">
+                <div className="border-t border-slate-100 dark:border-slate-700 pt-4 space-y-3">
                   {form.expiry_date && (() => {
                     const st = expiryStatus(form.expiry_date)
                     const formatted = new Date(form.expiry_date + 'T00:00:00').toLocaleDateString('de-DE')
                     return (
                       <div>
-                        <p className="text-xs text-slate-400 mb-0.5">Verfallsdatum</p>
+                        <p className="text-xs text-slate-400 dark:text-slate-500 mb-0.5">Verfallsdatum</p>
                         <div className="flex items-center gap-2">
-                          <p className="text-sm text-slate-800">{formatted}</p>
+                          <p className="text-sm text-slate-800 dark:text-slate-100">{formatted}</p>
                           {st === 'expired' && (
                             <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-600">Abgelaufen</span>
                           )}
@@ -623,10 +654,10 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
                   )}
                   {form.treatment_types && form.treatment_types.length > 0 && (
                     <div>
-                      <p className="text-xs text-slate-400 mb-1.5">Behandlungstypen</p>
+                      <p className="text-xs text-slate-400 dark:text-slate-500 mb-1.5">Behandlungstypen</p>
                       <div className="flex flex-wrap gap-1.5">
                         {form.treatment_types.map(t => (
-                          <span key={t} className="text-xs font-medium px-3 py-1 rounded-full bg-sky-100 text-sky-700">
+                          <span key={t} className="text-xs font-medium px-3 py-1 rounded-full bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300">
                             {t}
                           </span>
                         ))}
@@ -636,26 +667,24 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
                 </div>
               )}
 
-              {(form.preferred_supplier || form.supplier_url || form.brand) && (
-                <div className="border-t border-slate-100 pt-4 space-y-3">
-                  {form.preferred_supplier ? <Info label="Lieferant" value={form.preferred_supplier} /> : null}
-                  {form.brand ? <Info label="Hersteller" value={form.brand} /> : null}
-                  {form.supplier_url ? (
-                    <div>
-                      <p className="text-xs text-slate-400 mb-0.5">Bestellwebsite</p>
-                      <a href={form.supplier_url} target="_blank" rel="noopener noreferrer"
-                        className="flex items-center gap-1 text-sm text-sky-600 hover:underline break-all">
-                        <ExternalLink size={12} /> {form.supplier_url}
-                      </a>
-                    </div>
-                  ) : null}
-                </div>
-              )}
+              <div className="border-t border-slate-100 dark:border-slate-700 pt-4 space-y-3">
+                <Info label="Lieferant" value={form.preferred_supplier ?? '—'} />
+                {form.brand ? <Info label="Hersteller" value={form.brand} /> : null}
+                {form.supplier_url ? (
+                  <div>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mb-0.5">Bestellwebsite</p>
+                    <a href={form.supplier_url} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-sm text-sky-600 hover:underline break-all">
+                      <ExternalLink size={12} /> {form.supplier_url}
+                    </a>
+                  </div>
+                ) : null}
+              </div>
 
               {/* ── Price alternatives ── */}
-              <div className="border-t border-slate-100 pt-4">
+              <div className="border-t border-slate-100 dark:border-slate-700 pt-4">
                 <div className="flex items-center justify-between mb-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Preisvergleich</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Preisvergleich</p>
                   <button
                     onClick={searchAlternatives}
                     disabled={altState === 'loading'}
@@ -670,7 +699,7 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
                 </div>
 
                 {altState === 'done' && altResults.length === 0 && (
-                  <p className="text-sm text-slate-400 py-1">Keine Ergebnisse gefunden</p>
+                  <p className="text-sm text-slate-400 dark:text-slate-500 py-1">Keine Ergebnisse gefunden</p>
                 )}
 
                 {altResults.map(alt => {
@@ -680,35 +709,35 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
                   const isCheaper = savings != null && savings > 0.5
                   const isCurrentSupplier = form.supplier_url?.includes(alt.domain)
                   return (
-                    <div key={alt.url} className="flex items-center gap-2 py-2.5 border-b border-slate-50 last:border-0">
+                    <div key={alt.url} className="flex items-center gap-2 py-2.5 border-b border-slate-50 dark:border-slate-700 last:border-0">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-slate-800">{alt.domain}</p>
-                        {alt.name && <p className="text-xs text-slate-400 truncate mt-0.5">{alt.name}</p>}
+                        <p className="text-sm font-medium text-slate-800 dark:text-slate-100">{alt.domain}</p>
+                        {alt.name && <p className="text-xs text-slate-400 dark:text-slate-500 truncate mt-0.5">{alt.name}</p>}
                       </div>
                       <div className="text-right shrink-0">
-                        <p className="text-sm font-bold text-slate-800">
+                        <p className="text-sm font-bold text-slate-800 dark:text-slate-100">
                           € {alt.price.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </p>
                         {savings != null && (
-                          <span className={`text-xs font-medium ${isCheaper ? 'text-emerald-600' : 'text-slate-400'}`}>
+                          <span className={`text-xs font-medium ${isCheaper ? 'text-emerald-600' : 'text-slate-400 dark:text-slate-500'}`}>
                             {isCheaper ? `−${Math.round(savings)}%` : savings < -0.5 ? `+${Math.round(-savings)}%` : '≈ gleich'}
                           </span>
                         )}
                       </div>
                       <a href={alt.url} target="_blank" rel="noopener noreferrer"
-                        className="text-slate-300 hover:text-sky-500 p-1 transition-colors shrink-0">
+                        className="text-slate-300 dark:text-slate-600 hover:text-sky-500 p-1 transition-colors shrink-0">
                         <ExternalLink size={14} />
                       </a>
                       {!isCurrentSupplier && (
                         <button
                           onClick={() => setAsDefault(alt)}
-                          className="text-xs font-medium bg-sky-50 hover:bg-sky-100 text-sky-600 px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap shrink-0"
+                          className="text-xs font-medium bg-sky-50 dark:bg-sky-900/30 hover:bg-sky-100 dark:hover:bg-sky-900/50 text-sky-600 dark:text-sky-400 px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap shrink-0"
                         >
                           Standard
                         </button>
                       )}
                       {isCurrentSupplier && (
-                        <span className="text-xs text-slate-400 px-2.5 py-1.5 whitespace-nowrap shrink-0">Aktuell</span>
+                        <span className="text-xs text-slate-400 dark:text-slate-500 px-2.5 py-1.5 whitespace-nowrap shrink-0">Aktuell</span>
                       )}
                     </div>
                   )
@@ -717,10 +746,10 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
 
               {/* ── Supplier history ── */}
               {supplierHistory.length > 0 && (
-                <div className="border-t border-slate-100 pt-4">
+                <div className="border-t border-slate-100 dark:border-slate-700 pt-4">
                   <button
                     onClick={() => setHistoryOpen(o => !o)}
-                    className="flex items-center gap-2 w-full text-xs font-semibold uppercase tracking-wide text-slate-400 hover:text-slate-600 transition-colors"
+                    className="flex items-center gap-2 w-full text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
                   >
                     Verlauf ({supplierHistory.length})
                     <ChevronDown size={12} className={`ml-auto transition-transform duration-200 ${historyOpen ? 'rotate-180' : ''}`} />
@@ -728,10 +757,10 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
                   {historyOpen && (
                     <div className="mt-3 space-y-1">
                       {supplierHistory.map(entry => (
-                        <div key={entry.id} className="flex items-center gap-2 py-2 border-b border-slate-50 last:border-0">
+                        <div key={entry.id} className="flex items-center gap-2 py-2 border-b border-slate-50 dark:border-slate-700 last:border-0">
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm text-slate-700 font-medium truncate">{entry.supplier_name ?? '—'}</p>
-                            <p className="text-xs text-slate-400 mt-0.5">
+                            <p className="text-sm text-slate-700 dark:text-slate-200 font-medium truncate">{entry.supplier_name ?? '—'}</p>
+                            <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
                               {entry.price != null
                                 ? `€ ${entry.price.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · `
                                 : ''}
@@ -740,13 +769,13 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
                           </div>
                           {entry.supplier_url && (
                             <a href={entry.supplier_url} target="_blank" rel="noopener noreferrer"
-                              className="text-slate-300 hover:text-sky-500 p-1 transition-colors shrink-0">
+                              className="text-slate-300 dark:text-slate-600 hover:text-sky-500 p-1 transition-colors shrink-0">
                               <ExternalLink size={13} />
                             </a>
                           )}
                           <button
                             onClick={() => restoreSupplier(entry)}
-                            className="flex items-center gap-1 text-xs text-slate-500 hover:text-sky-600 font-medium px-2.5 py-1.5 rounded-lg hover:bg-sky-50 transition-colors whitespace-nowrap shrink-0"
+                            className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 font-medium px-2.5 py-1.5 rounded-lg hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors whitespace-nowrap shrink-0"
                           >
                             <RotateCcw size={11} /> Wiederherstellen
                           </button>
@@ -765,30 +794,24 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
           <div className="flex gap-3 pt-2">
             <button
               onClick={() => setEditing(true)}
-              className="flex-1 flex items-center justify-center gap-2 border border-slate-300 rounded-xl py-3 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+              className="flex-1 flex items-center justify-center gap-2 border border-slate-300 dark:border-slate-600 rounded-xl py-3 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
             >
               <Pencil size={15} />
               Bearbeiten
             </button>
-            <div className="flex-1 flex flex-col gap-1">
-              <button
-                onClick={() => !inCart && !inOrdered && setConfirmDelete(true)}
-                disabled={inCart || inOrdered}
-                className={`flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-medium transition-colors ${
-                  inCart || inOrdered
-                    ? 'bg-red-200 text-red-300 cursor-not-allowed'
-                    : 'bg-red-500 hover:bg-red-600 text-white'
-                }`}
-              >
-                <Trash2 size={15} />
-                Löschen
-              </button>
-              {(inCart || inOrdered) && (
-                <p className="text-xs text-slate-400 text-center">
-                  {inCart ? 'Aktuell im Warenkorb' : 'In offener Bestellung'}
-                </p>
-              )}
-            </div>
+            <button
+              onClick={() => !inCart && !inOrdered && setConfirmDelete(true)}
+              disabled={inCart || inOrdered}
+              title={inCart ? 'Aktuell im Warenkorb' : inOrdered ? 'In offener Bestellung' : undefined}
+              className={`flex-1 flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-medium transition-colors ${
+                inCart || inOrdered
+                  ? 'bg-red-200 text-red-300 cursor-not-allowed'
+                  : 'bg-red-500 hover:bg-red-600 text-white'
+              }`}
+            >
+              <Trash2 size={15} />
+              Löschen
+            </button>
           </div>
         )}
 
@@ -796,9 +819,9 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
 
       {/* Edit footer */}
       {editing && (
-        <div className={`${isModal ? '' : 'fixed bottom-0 left-0 right-0'} bg-white border-t border-slate-100 px-4 py-4 flex gap-3 z-20`}>
+        <div className={`${isModal ? '' : 'fixed bottom-0 left-0 right-0'} bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 px-4 py-4 flex gap-3 z-20`}>
           <button onClick={() => { setForm(product); setEditing(false) }}
-            className="flex-1 border border-slate-300 rounded-xl py-3 text-sm text-slate-600">
+            className="flex-1 border border-slate-300 dark:border-slate-600 rounded-xl py-3 text-sm text-slate-600 dark:text-slate-300">
             Abbrechen
           </button>
           <button onClick={handleSave} disabled={saving}
@@ -811,12 +834,12 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
       {/* Delete confirmation modal */}
       {confirmDelete && (
         <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 animate-slide-in-up">
-            <h3 className="font-semibold text-slate-800 text-lg mb-1">Artikel löschen?</h3>
-            <p className="text-sm text-slate-500 mb-5">{product.name} wird dauerhaft gelöscht.</p>
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-sm w-full p-6 animate-slide-in-up">
+            <h3 className="font-semibold text-slate-800 dark:text-slate-100 text-lg mb-1">Artikel löschen?</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-5">{product.name} wird dauerhaft gelöscht.</p>
             <div className="flex gap-3">
               <button onClick={() => setConfirmDelete(false)}
-                className="flex-1 border border-slate-300 rounded-xl py-3 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
+                className="flex-1 border border-slate-300 dark:border-slate-600 rounded-xl py-3 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
                 Abbrechen
               </button>
               <button onClick={handleDelete}
@@ -834,8 +857,8 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
 function Info({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-xs text-slate-400 mb-0.5">{label}</p>
-      <p className="text-sm text-slate-800">{value}</p>
+      <p className="text-xs text-slate-400 dark:text-slate-500 mb-0.5">{label}</p>
+      <p className="text-sm text-slate-800 dark:text-slate-100">{value}</p>
     </div>
   )
 }

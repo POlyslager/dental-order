@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import type { CartItem, Order, OrderItem, Role } from '../lib/types'
-import { ShoppingCart, Package, Plus, Minus, CheckCircle, ExternalLink, Check, Trash2, Undo2, ScanLine, X, Pencil, ChevronDown, Clock } from 'lucide-react'
+import { ShoppingCart, Package, Plus, Minus, CheckCircle, ExternalLink, Check, Trash2, Undo2, ScanLine, X, Pencil, ChevronDown, Clock, XCircle } from 'lucide-react'
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
 
 interface Props { role: Role | null; user: User; onBadgeChange: (n: number) => void; forceOpenTab?: number; forceScanMode?: number }
@@ -22,6 +22,7 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
   const [cartItems, setCartItems] = useState<CartItem[]>([])
   const [orders, setOrders] = useState<Order[]>([])
   const [pendingOrders, setPendingOrders] = useState<Order[]>([])
+  const [pendingLoaded, setPendingLoaded] = useState(false)
   const [rejectedOrders, setRejectedOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [placingItem, setPlacingItem] = useState<string | null>(null)
@@ -30,6 +31,7 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
   const [editForm, setEditForm] = useState<{ supplier: string; price: string; quantity: number }>({ supplier: '', price: '', quantity: 1 })
   const [editSaving, setEditSaving] = useState(false)
   const [suppliers, setSuppliers] = useState<string[]>([])
+  const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>({})
   const [deleteConfirm, setDeleteConfirm] = useState<CartItem | null>(null)
   const [approvingOrder, setApprovingOrder] = useState<string | null>(null)
   const [toast, setToast] = useState<{ message: string; onUndo?: () => void; variant?: 'error' } | null>(null)
@@ -97,17 +99,24 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
   }, [tab])
 
   async function fetchCart() {
-    const [{ data }, { data: prodSupData }] = await Promise.all([
+    const [{ data }, { data: prodSupData }, { data: supRows }] = await Promise.all([
       supabase
         .from('cart_items')
         .select('id, product_id, quantity, created_at, is_edited, product:products(id, name, current_stock, unit, last_price, alternative_price, alternative_url, alternative_supplier, supplier_url, preferred_supplier, brand)')
         .order('created_at'),
       supabase.from('products').select('preferred_supplier').not('preferred_supplier', 'is', null).limit(10000),
+      supabase.from('suppliers').select('name, website').not('website', 'is', null),
     ])
     setCartItems((data as unknown as CartItem[]) ?? [])
     setSuppliers(
       [...new Set((prodSupData ?? []).map((p: { preferred_supplier: string }) => p.preferred_supplier?.trim()).filter(Boolean) as string[])].sort((a, b) => a.localeCompare(b))
     )
+    const map: Record<string, string> = {}
+    for (const r of (supRows ?? []) as { name: string; website: string }[]) {
+      const domain = getDomain(r.website)
+      if (domain) map[domain] = r.name
+    }
+    setDomainToSupplier(map)
   }
 
   async function fetchOrders() {
@@ -127,6 +136,7 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
       .eq('status', 'pending_approval')
       .order('created_at', { ascending: false })
     setPendingOrders(((data as unknown as Order[]) ?? []).filter(o => (o.items ?? []).length > 0))
+    setPendingLoaded(true)
   }
 
   async function fetchRejectedOrders() {
@@ -150,9 +160,16 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
     setToast({ message: `Bestellung abgelehnt${reason ? ` – ${reason}` : ''}`, variant: 'error' })
   }, [rejectedOrders])
 
-  // Group cart items by website domain (from supplier_url), fallback to supplier name
+  function resolveSupplier(preferredSupplier: string | null | undefined, supplierUrl: string | null | undefined, fallback = 'Kein Lieferant'): string {
+    if (preferredSupplier) return preferredSupplier
+    const domain = getDomain(supplierUrl)
+    if (domain) return domainToSupplier[domain] ?? domain
+    return fallback
+  }
+
+  // Group cart items by supplier name, fallback to domain from supplier_url
   const cartByDomain = cartItems.reduce<Record<string, CartItem[]>>((acc, item) => {
-    const domain = getDomain(item.product?.supplier_url) ?? item.product?.preferred_supplier ?? 'Kein Lieferant'
+    const domain = resolveSupplier(item.product?.preferred_supplier, item.product?.supplier_url)
     if (!acc[domain]) acc[domain] = []
     acc[domain].push(item)
     return acc
@@ -165,7 +182,7 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
     const seen: Record<string, number> = {}
     for (const order of orders) {
       const items = order.items ?? []
-      const domain = getDomain(items[0]?.product?.supplier_url) ?? order.supplier ?? 'Unbekannter Lieferant'
+      const domain = resolveSupplier(order.supplier ?? items[0]?.product?.preferred_supplier, items[0]?.product?.supplier_url, 'Unbekannter Lieferant')
       if (seen[domain] === undefined) { seen[domain] = grouped.length; grouped.push([domain, []]) }
       grouped[seen[domain]][1].push(order)
     }
@@ -408,10 +425,11 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
     if (allDone) {
       await supabase.from('orders').update({ status: 'received', received_at: new Date().toISOString() }).eq('id', order.id)
       // Only show "Alle Artikel" toast if no other orders from the same supplier remain
-      const supplierKey = getDomain(items[0]?.product?.supplier_url ?? null) ?? order.supplier ?? 'Unbekannter Lieferant'
+      const supplierKey = resolveSupplier(order.supplier ?? items[0]?.product?.preferred_supplier, items[0]?.product?.supplier_url, 'Unbekannter Lieferant')
       const remainingFromSupplier = orders.filter(o => {
         if (o.id === order.id) return false
-        const key = getDomain((o.items ?? [])[0]?.product?.supplier_url ?? null) ?? o.supplier ?? 'Unbekannter Lieferant'
+        const oItems = o.items ?? []
+        const key = resolveSupplier(o.supplier ?? oItems[0]?.product?.preferred_supplier, oItems[0]?.product?.supplier_url, 'Unbekannter Lieferant')
         return key === supplierKey
       })
       if (remainingFromSupplier.length === 0) {
@@ -559,12 +577,12 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
 
   const openCount = ordersBySupplier.length
   const cartCount = cartItems.length
-  const pendingCount = pendingOrders.length
+  const pendingCount = pendingLoaded ? pendingOrders.reduce((s, o) => s + (o.items ?? []).length, 0) : null
 
   return (
     <div className="w-full relative flex flex-col h-full">
       {/* Tab switcher */}
-      <div className="flex items-center border-b border-slate-200 bg-white sticky top-0 z-10 px-4">
+      <div className="flex items-center border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 sticky top-0 z-10 px-4">
         <TabButton active={tab === 'cart'} onClick={() => setTab('cart')} badge={cartCount}>
           Warenkorb
         </TabButton>
@@ -572,9 +590,12 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
           Offen
         </TabButton>
         {role === 'admin' && (
-          <TabButton active={tab === 'approval'} onClick={() => setTab('approval')} badge={pendingCount}>
-            Zur Freigabe
-          </TabButton>
+          <span className="self-stretch flex items-center">
+            <span className="w-px h-5 bg-slate-200 mr-6" />
+            <TabButton active={tab === 'approval'} onClick={() => setTab('approval')} badge={pendingCount}>
+              Zur Freigabe
+            </TabButton>
+          </span>
         )}
         {tab === 'open' && (
           <div className="ml-auto flex items-center gap-2 shrink-0">
@@ -584,7 +605,7 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
               aria-checked={scanToggle}
               onClick={handleToggleScan}
               className={`relative w-10 h-6 rounded-full transition-colors duration-200 focus:outline-none ${
-                scanToggle ? 'bg-emerald-500' : 'bg-slate-200'
+                scanToggle ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-700'
               }`}
             >
               <span className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${
@@ -611,31 +632,31 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
                   {Object.entries(cartByDomain).map(([domain, items], idx) => {
                     const domainTotal = items.reduce((s, i) => s + (i.quantity * (i.product?.last_price ?? 0)), 0)
                     return (
-                      <>
+                      <React.Fragment key={domain}>
                         {/* Spacer between groups */}
                         {idx > 0 && (
-                          <tr key={`spacer-${domain}`}><td colSpan={7} className="h-4 bg-slate-100" /></tr>
+                          <tr><td colSpan={7} className="h-4 bg-slate-100 dark:bg-slate-700" /></tr>
                         )}
                         {/* Domain title row */}
-                        <tr key={`domain-${domain}`} className="border-t border-slate-200 bg-slate-50">
+                        <tr className="border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
                           <td colSpan={7} className="px-4 py-2.5">
                             <div className="flex items-center justify-between gap-3">
-                              <p className="font-semibold text-slate-800 text-base">{domain}</p>
-                              <span className="text-xs text-slate-500 hidden sm:inline">
-                                Gesamt: <span className="font-semibold text-slate-700">€ {domainTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                              <p className="font-semibold text-slate-800 dark:text-slate-100 text-base">{domain}</p>
+                              <span className="text-xs text-slate-500 dark:text-slate-400 hidden sm:inline">
+                                Gesamt: <span className="font-semibold text-slate-700 dark:text-slate-200">€ {domainTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                               </span>
                             </div>
                           </td>
                         </tr>
                         {/* Column headers */}
-                        <tr key={`cols-${domain}`} className="border-b border-slate-200 bg-white">
-                          <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide px-4 py-3">Artikel</th>
-                          <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide px-4 py-3 hidden md:table-cell">Bestand</th>
-                          <th className="text-center text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Menge</th>
-                          <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap hidden sm:table-cell">Preis/Einheit</th>
-                          <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Gesamt</th>
-                          <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap hidden sm:table-cell">Website</th>
-                          <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Aktion</th>
+                        <tr className="border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+                          <th className="text-left text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-4 py-3">Artikel</th>
+                          <th className="text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-4 py-3 hidden md:table-cell">Bestand</th>
+                          <th className="text-center text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Menge</th>
+                          <th className="text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap hidden sm:table-cell">Preis/Einheit</th>
+                          <th className="text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Gesamt</th>
+                          <th className="text-left text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap hidden sm:table-cell">Website</th>
+                          <th className="text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Aktion</th>
                         </tr>
                         {/* Item rows */}
                         {items.map(item => (
@@ -650,7 +671,7 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
                             onEdit={openEditPanel}
                           />
                         ))}
-                      </>
+                      </React.Fragment>
                     )
                   })}
                 </tbody>
@@ -661,7 +682,7 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
                 const orderTotal = order.total_estimate ?? (order.items ?? []).reduce((s, i) => s + i.quantity * (i.estimated_price ?? 0), 0)
                 return (
                   <div key={order.id} className="border-t-2 border-amber-200">
-                    <div className="px-4 py-3 bg-amber-50 flex items-center justify-between gap-3">
+                    <div className="px-4 py-3 bg-amber-50 dark:bg-amber-900/20 flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2">
                         <Clock size={14} className="text-amber-500 shrink-0" />
                         <span className="text-sm font-semibold text-amber-700">Wartet auf Freigabe</span>
@@ -674,12 +695,12 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
                     <table className="w-full text-sm">
                       <tbody>
                         {(order.items ?? []).map(item => (
-                          <tr key={item.id} className="border-b border-amber-50 bg-white opacity-60">
+                          <tr key={item.id} className="border-b border-amber-50 dark:border-amber-800/40 bg-white dark:bg-slate-900 opacity-60">
                             <td className="px-4 py-3">
-                              <p className="text-sm font-semibold text-slate-600">{item.product?.name ?? '—'}</p>
+                              <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">{item.product?.name ?? '—'}</p>
                             </td>
-                            <td className="text-center px-3 py-3 text-slate-400 whitespace-nowrap">{item.quantity}×</td>
-                            <td className="text-right px-3 py-3 text-slate-500 whitespace-nowrap">
+                            <td className="text-center px-3 py-3 text-slate-400 dark:text-slate-500 whitespace-nowrap">{item.quantity}×</td>
+                            <td className="text-right px-3 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">
                               {item.estimated_price != null ? `€ ${(item.estimated_price * item.quantity).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
                             </td>
                           </tr>
@@ -705,16 +726,16 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
               {pendingOrders.map(order => {
                 const items = order.items ?? []
                 const byDomain = items.reduce<Record<string, OrderItem[]>>((acc, item) => {
-                  const domain = getDomain(item.product?.supplier_url) ?? item.product?.preferred_supplier ?? 'Kein Lieferant'
+                  const domain = resolveSupplier(item.product?.preferred_supplier, item.product?.supplier_url)
                   if (!acc[domain]) acc[domain] = []
                   acc[domain].push(item)
                   return acc
                 }, {})
 
                 return (
-                  <div key={order.id} className="border-b-4 border-slate-100">
+                  <div key={order.id} className="border-b-4 border-slate-100 dark:border-slate-800">
                     {/* Submission date header */}
-                    <div className="px-4 py-2 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
+                    <div className="px-4 py-2 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-100 dark:border-amber-800/40 flex items-center gap-2">
                       <Clock size={13} className="text-amber-500 shrink-0" />
                       <span className="text-xs text-amber-700 font-medium">
                         Eingereicht am {new Date(order.created_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
@@ -726,52 +747,52 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
                         {Object.entries(byDomain).map(([domain, domainItems], idx) => {
                           const domainTotal = domainItems.reduce((s, i) => s + (i.quantity * (i.estimated_price ?? 0)), 0)
                           return (
-                            <>
+                            <React.Fragment key={domain}>
                               {idx > 0 && (
-                                <tr key={`spacer-${domain}`}><td colSpan={4} className="h-4 bg-slate-100" /></tr>
+                                <tr><td colSpan={4} className="h-4 bg-slate-100 dark:bg-slate-700" /></tr>
                               )}
-                              <tr key={`domain-${domain}`} className="border-t border-slate-200 bg-slate-50">
+                              <tr className="border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
                                 <td colSpan={4} className="px-4 py-2.5">
                                   <div className="flex items-center justify-between gap-3">
-                                    <p className="font-semibold text-slate-800 text-base">{domain}</p>
-                                    <span className="text-xs text-slate-500 hidden sm:inline">
-                                      Gesamt: <span className="font-semibold text-slate-700">€ {domainTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                    <p className="font-semibold text-slate-800 dark:text-slate-100 text-base">{domain}</p>
+                                    <span className="text-xs text-slate-500 dark:text-slate-400 hidden sm:inline">
+                                      Gesamt: <span className="font-semibold text-slate-700 dark:text-slate-200">€ {domainTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                     </span>
                                   </div>
                                 </td>
                               </tr>
-                              <tr key={`cols-${domain}`} className="border-b border-slate-200 bg-white">
-                                <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide px-4 py-3">Artikel</th>
-                                <th className="text-center text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Menge</th>
-                                <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap hidden sm:table-cell">Preis/Einheit</th>
-                                <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Gesamt</th>
+                              <tr className="border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+                                <th className="text-left text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-4 py-3">Artikel</th>
+                                <th className="text-center text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Menge</th>
+                                <th className="text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap hidden sm:table-cell">Preis/Einheit</th>
+                                <th className="text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Gesamt</th>
                               </tr>
                               {domainItems.map(item => {
                                 const price = item.estimated_price
                                 const rowTotal = item.quantity * (price ?? 0)
                                 return (
-                                  <tr key={item.id} className="bg-white hover:bg-slate-50 transition-colors border-b border-slate-100">
+                                  <tr key={item.id} className="bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors border-b border-slate-100 dark:border-slate-800">
                                     <td className="px-4 py-3">
-                                      <p className="text-sm font-semibold text-slate-800 truncate max-w-[160px] md:max-w-xs">{item.product?.name ?? '—'}</p>
+                                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate max-w-[160px] md:max-w-xs">{item.product?.name ?? '—'}</p>
                                       {item.product?.brand && (
-                                        <p className="text-xs text-slate-400 mt-0.5">{item.product.brand}</p>
+                                        <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{item.product.brand}</p>
                                       )}
                                     </td>
                                     <td className="px-3 py-3 text-center">
-                                      <span className="font-semibold text-slate-800">{item.quantity}</span>
+                                      <span className="font-semibold text-slate-800 dark:text-slate-100">{item.quantity}</span>
                                     </td>
                                     <td className="px-3 py-3 text-right hidden sm:table-cell">
-                                      <span className="text-sm text-slate-600">
+                                      <span className="text-sm text-slate-600 dark:text-slate-300">
                                         {price != null ? `€ ${price.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
                                       </span>
                                     </td>
-                                    <td className="px-3 py-3 text-right font-semibold text-slate-800 whitespace-nowrap">
+                                    <td className="px-3 py-3 text-right font-semibold text-slate-800 dark:text-slate-100 whitespace-nowrap">
                                       {price != null ? `€ ${rowTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
                                     </td>
                                   </tr>
                                 )
                               })}
-                            </>
+                            </React.Fragment>
                           )
                         })}
                       </tbody>
@@ -823,7 +844,7 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
 
       {/* ── Sticky footer ── */}
       {tab === 'cart' && cartItems.length > 0 && grandTotal > 2000 && (
-        <div className="shrink-0 bg-white border-t border-slate-200">
+        <div className="shrink-0 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700">
           <div className="px-4 py-4 flex items-center justify-between gap-4">
             <button
               onClick={submitCartForApproval}
@@ -836,7 +857,7 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
               }
               {pendingOrders.length > 0 ? 'Wartet auf Freigabe' : 'Zur Freigabe einreichen'}
             </button>
-            <p className="text-lg font-bold text-slate-800 shrink-0">
+            <p className="text-lg font-bold text-slate-800 dark:text-slate-100 shrink-0">
               € {grandTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </p>
           </div>
@@ -844,10 +865,10 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
         </div>
       )}
       {tab === 'cart' && cartItems.length > 0 && grandTotal <= 2000 && Object.keys(cartByDomain).length > 1 && (
-        <div className="shrink-0 bg-white border-t border-slate-200">
+        <div className="shrink-0 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700">
           <div className="px-4 py-3 flex items-center justify-between">
-            <p className="text-sm font-medium text-slate-600">Gesamtsumme Warenkorb</p>
-            <p className="text-lg font-bold text-slate-800">
+            <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Gesamtsumme Warenkorb</p>
+            <p className="text-lg font-bold text-slate-800 dark:text-slate-100">
               € {grandTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </p>
           </div>
@@ -859,7 +880,7 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
         const total = order.total_estimate ?? (order.items ?? []).reduce((s, i) => s + (i.quantity * (i.estimated_price ?? 0)), 0)
         const busy = approvingOrder === order.id
         return (
-          <div className="shrink-0 bg-white border-t border-slate-200">
+          <div className="shrink-0 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700">
             <div className="px-4 py-4 flex items-center justify-between gap-4">
               <div className="flex items-center gap-2 shrink-0">
                 <button
@@ -867,6 +888,7 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
                   disabled={busy}
                   className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-red-500 hover:bg-red-600 disabled:opacity-40 text-white text-sm font-medium transition-colors"
                 >
+                  <XCircle size={16} />
                   Ablehnen
                 </button>
                 <button
@@ -874,10 +896,10 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
                   disabled={busy}
                   className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 text-white text-sm font-medium transition-colors"
                 >
-                  {busy ? <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : 'Freigeben'}
+                  {busy ? <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <><CheckCircle size={16} />Freigeben</>}
                 </button>
               </div>
-              <p className="text-lg font-bold text-slate-800 shrink-0">
+              <p className="text-lg font-bold text-slate-800 dark:text-slate-100 shrink-0">
                 € {total.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
             </div>
@@ -888,9 +910,10 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
       {tab === 'open' && orders.length > 0 && (() => {
         const openTotal = orders.reduce((s, o) => s + (o.total_estimate ?? (o.items ?? []).reduce((si, i) => si + i.quantity * (i.estimated_price ?? 0), 0)), 0)
         return (
-          <div className="shrink-0 bg-white border-t border-slate-200">
-            <div className="px-4 py-3 flex items-center justify-end">
-              <p className="text-lg font-bold text-slate-800">
+          <div className="shrink-0 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700">
+            <div className="px-4 py-3 flex items-center justify-between">
+              <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Gesamtsumme Bestellungen</p>
+              <p className="text-lg font-bold text-slate-800 dark:text-slate-100">
                 € {openTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
             </div>
@@ -903,16 +926,16 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
       {(editItem || editClosing) && (
         <>
           <div className="hidden md:block fixed inset-0 bg-black/30 z-40" onClick={closeEditPanel} />
-          <div className={`fixed inset-0 bg-white z-50 flex flex-col md:inset-auto md:top-4 md:bottom-4 md:right-4 md:w-[400px] md:rounded-2xl md:shadow-2xl ${editClosing ? 'animate-slide-out-right' : 'animate-slide-in-right'}`}>
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0">
-              <h2 className="font-semibold text-slate-800 truncate flex-1 mr-2">{editItem?.product?.name}</h2>
-              <button onClick={closeEditPanel} className="text-slate-400 hover:text-slate-600 p-1.5 transition-colors">
+          <div className={`fixed inset-0 bg-white dark:bg-slate-900 z-50 flex flex-col md:inset-auto md:top-4 md:bottom-4 md:right-4 md:w-[400px] md:rounded-2xl md:shadow-2xl ${editClosing ? 'animate-slide-out-right' : 'animate-slide-in-right'}`}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800 shrink-0">
+              <h2 className="font-semibold text-slate-800 dark:text-slate-100 truncate flex-1 mr-2">{editItem?.product?.name}</h2>
+              <button onClick={closeEditPanel} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-1.5 transition-colors">
                 <X size={18} />
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-5 space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Lieferant</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Lieferant</label>
                 <SupplierSelect
                   value={editForm.supplier}
                   onChange={v => setEditForm(f => ({ ...f, supplier: v }))}
@@ -921,10 +944,10 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Menge</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Menge</label>
                   <div className="flex items-center gap-1">
                     <button type="button" onClick={() => setEditForm(f => ({ ...f, quantity: Math.max(1, f.quantity - 1) }))}
-                      className="w-8 h-9 flex items-center justify-center rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors shrink-0">
+                      className="w-8 h-9 flex items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors shrink-0">
                       <Minus size={13} />
                     </button>
                     <input
@@ -933,16 +956,16 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
                       value={editForm.quantity}
                       onChange={e => { const n = parseInt(e.target.value); if (!isNaN(n) && n > 0) setEditForm(f => ({ ...f, quantity: n })) }}
                       onFocus={e => e.target.select()}
-                      className="w-full text-center border border-slate-300 rounded-lg py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      className="w-full text-center border border-slate-300 dark:border-slate-600 rounded-lg py-2 text-sm bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
                     />
                     <button type="button" onClick={() => setEditForm(f => ({ ...f, quantity: f.quantity + 1 }))}
-                      className="w-8 h-9 flex items-center justify-center rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors shrink-0">
+                      className="w-8 h-9 flex items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors shrink-0">
                       <Plus size={13} />
                     </button>
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Preis pro Einheit (€)</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Preis pro Einheit (€)</label>
                   <input
                     type="text"
                     inputMode="decimal"
@@ -950,7 +973,7 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
                     onChange={e => setEditForm(f => ({ ...f, price: e.target.value }))}
                     onFocus={e => e.target.select()}
                     placeholder="0,00"
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    className="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
                   />
                 </div>
               </div>
@@ -962,12 +985,12 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
                 const newTotal = editForm.quantity * (isNaN(newPrice) ? 0 : newPrice)
                 const fmt = (n: number) => `€ ${Math.abs(n).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                 return (
-                  <div className="bg-slate-50 rounded-xl px-4 py-3 space-y-2 text-sm">
-                    <div className="flex justify-between text-slate-500">
+                  <div className="bg-slate-50 dark:bg-slate-800 rounded-xl px-4 py-3 space-y-2 text-sm">
+                    <div className="flex justify-between text-slate-500 dark:text-slate-400">
                       <span>Vorher</span>
                       <span>{fmt(prevTotal)}</span>
                     </div>
-                    <div className="flex justify-between font-medium text-slate-800">
+                    <div className="flex justify-between font-medium text-slate-800 dark:text-slate-100">
                       <span>Neu</span>
                       <span>{fmt(newTotal)}</span>
                     </div>
@@ -975,9 +998,9 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
                 )
               })()}
             </div>
-            <div className="border-t border-slate-100 px-5 py-4 flex gap-3 shrink-0">
+            <div className="border-t border-slate-100 dark:border-slate-800 px-5 py-4 flex gap-3 shrink-0">
               <button onClick={closeEditPanel}
-                className="flex-1 border border-slate-300 rounded-xl py-3 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
+                className="flex-1 border border-slate-300 dark:border-slate-600 rounded-xl py-3 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
                 Abbrechen
               </button>
               <button onClick={saveEditPanel} disabled={editSaving}
@@ -992,9 +1015,9 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
       {/* Reject order modal */}
       {rejectModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => !rejecting && setRejectModal(null)}>
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
-            <h3 className="font-semibold text-slate-800 text-base mb-1">Bestellung ablehnen</h3>
-            <p className="text-sm text-slate-500 mb-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="font-semibold text-slate-800 dark:text-slate-100 text-base mb-1">Bestellung ablehnen</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
               Die Artikel werden zurück in den Warenkorb gelegt. Optional können Sie einen Grund angeben.
             </p>
             <textarea
@@ -1002,14 +1025,14 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
               onChange={e => setRejectReason(e.target.value)}
               placeholder="Begründung (optional)…"
               rows={3}
-              className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-red-300 resize-none mb-4"
+              className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-red-300 resize-none mb-4"
               autoFocus
             />
             <div className="flex gap-3">
               <button
                 onClick={() => setRejectModal(null)}
                 disabled={rejecting}
-                className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors disabled:opacity-40"
+                className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-40"
               >
                 Abbrechen
               </button>
@@ -1031,15 +1054,15 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
       {/* Delete confirmation modal */}
       {deleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => setDeleteConfirm(null)}>
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
-            <h3 className="font-semibold text-slate-800 text-base mb-1">Aus Warenkorb entfernen?</h3>
-            <p className="text-sm text-slate-500 mb-5">
-              <span className="font-medium text-slate-700">{deleteConfirm.product?.name}</span> wird aus dem Warenkorb gelöscht.
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="font-semibold text-slate-800 dark:text-slate-100 text-base mb-1">Aus Warenkorb entfernen?</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-5">
+              <span className="font-medium text-slate-700 dark:text-slate-200">{deleteConfirm.product?.name}</span> wird aus dem Warenkorb gelöscht.
             </p>
             <div className="flex gap-3">
               <button
                 onClick={() => setDeleteConfirm(null)}
-                className="flex-1 px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors"
+                className="flex-1 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
               >
                 Abbrechen
               </button>
@@ -1072,7 +1095,7 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
       {/* ── Draggable scan modal ── */}
       {scanToggle && (
         <div
-          className="fixed z-50 bg-white rounded-2xl shadow-2xl overflow-hidden select-none"
+          className="fixed z-50 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl overflow-hidden select-none"
           style={{ left: dragPos.x, top: dragPos.y, width: 320 }}
         >
           {/* Drag handle */}
@@ -1103,16 +1126,16 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
 
           {/* Confirm panel */}
           {scanConfirm && (
-            <div className="p-4 border-t border-slate-100">
-              <p className="text-xs text-slate-500 mb-1.5">Richtiger Artikel?</p>
-              <p className="font-semibold text-slate-800 text-sm leading-snug">{scanConfirm.item.product?.name ?? '—'}</p>
-              <p className="text-xs text-slate-400 mt-0.5 mb-4">
+            <div className="p-4 border-t border-slate-100 dark:border-slate-800">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mb-1.5">Richtiger Artikel?</p>
+              <p className="font-semibold text-slate-800 dark:text-slate-100 text-sm leading-snug">{scanConfirm.item.product?.name ?? '—'}</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5 mb-4">
                 {scanConfirm.order.supplier ?? 'Lieferant'} · gescannt: {scannedCounts[scanConfirm.item.id] ?? 0}/{scanConfirm.item.quantity}
               </p>
               <div className="flex gap-2">
                 <button
                   onClick={() => setScanConfirm(null)}
-                  className="flex-1 px-3 py-2 rounded-xl border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors"
+                  className="flex-1 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
                 >
                   Nicht korrekt
                 </button>
@@ -1149,16 +1172,16 @@ function CartItemRow({ item, placing, requiresApproval, onUpdateQuantity, onPlac
   const rowTotal = item.quantity * (price ?? 0)
 
   return (
-    <tr className="bg-white hover:bg-slate-50 transition-colors border-b border-slate-100">
+    <tr className="bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors border-b border-slate-100 dark:border-slate-800">
       <td className="px-4 py-3">
         <div className="flex items-center gap-2">
-          <p className="text-sm font-semibold text-slate-800 truncate max-w-[160px] md:max-w-xs">{item.product?.name}</p>
+          <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate max-w-[160px] md:max-w-xs">{item.product?.name}</p>
           {item.is_edited && (
-            <span className="shrink-0 text-xs font-medium px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">Aktualisiert</span>
+            <span className="shrink-0 text-xs font-medium px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">Aktualisiert</span>
           )}
         </div>
         {item.product?.brand && (
-          <p className="text-xs text-slate-400 mt-0.5">{item.product.brand}</p>
+          <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{item.product.brand}</p>
         )}
         {item.product?.alternative_price != null &&
          item.product?.last_price != null &&
@@ -1174,31 +1197,31 @@ function CartItemRow({ item, placing, requiresApproval, onUpdateQuantity, onPlac
       </td>
       {/* Current stock */}
       <td className="px-4 py-3 text-right hidden md:table-cell">
-        <span className="text-sm font-bold text-slate-800">{item.product?.current_stock ?? '—'}</span>
-        {item.product?.unit && <span className="text-xs text-slate-400 ml-1">{item.product.unit}</span>}
+        <span className="text-sm font-bold text-slate-800 dark:text-slate-100">{item.product?.current_stock ?? '—'}</span>
+        {item.product?.unit && <span className="text-xs text-slate-400 dark:text-slate-500 ml-1">{item.product.unit}</span>}
       </td>
       {/* Order quantity */}
       <td className="px-3 py-3">
         <div className="flex items-center gap-1 justify-center">
           <button onClick={() => onUpdateQuantity(item.id, item.quantity - 1)} disabled={item.quantity === 0}
-            className="w-6 h-6 flex items-center justify-center rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors disabled:opacity-30">
+            className="w-6 h-6 flex items-center justify-center rounded-md bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors disabled:opacity-30">
             <Minus size={11} />
           </button>
-          <span className="w-7 text-center font-semibold text-slate-800">{item.quantity}</span>
+          <span className="w-7 text-center font-semibold text-slate-800 dark:text-slate-100">{item.quantity}</span>
           <button onClick={() => onUpdateQuantity(item.id, item.quantity + 1)}
-            className="w-6 h-6 flex items-center justify-center rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors">
+            className="w-6 h-6 flex items-center justify-center rounded-md bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
             <Plus size={11} />
           </button>
         </div>
       </td>
       {/* Price */}
       <td className="px-3 py-3 text-right hidden sm:table-cell">
-        <span className="text-sm text-slate-600">
+        <span className="text-sm text-slate-600 dark:text-slate-300">
           {price != null ? `€ ${price.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
         </span>
       </td>
       {/* Row total */}
-      <td className="px-3 py-3 text-right font-semibold text-slate-800 whitespace-nowrap">
+      <td className="px-3 py-3 text-right font-semibold text-slate-800 dark:text-slate-100 whitespace-nowrap">
         {price != null
           ? `€ ${rowTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
           : '—'}
@@ -1244,18 +1267,21 @@ function CartItemRow({ item, placing, requiresApproval, onUpdateQuantity, onPlac
 
 // ── Tab button ─────────────────────────────────────────────────────────────
 function TabButton({ active, onClick, badge, children }: {
-  active: boolean; onClick: () => void; badge?: number; children: React.ReactNode
+  active: boolean; onClick: () => void; badge?: number | string | null; children: React.ReactNode
 }) {
   return (
     <button onClick={onClick}
       className={`py-3 px-1 mr-6 text-sm font-medium inline-flex items-center gap-2 border-b-2 transition-colors ${
-        active ? 'border-sky-500 text-sky-600' : 'border-transparent text-slate-500 hover:text-slate-700'
+        active ? 'border-sky-500 text-sky-600' : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
       }`}
     >
       {children}
-      {!!badge && badge > 0 && (
+      {badge === null && (
+        <span className="w-6 h-4 bg-slate-100 dark:bg-slate-700 rounded-full animate-pulse" />
+      )}
+      {badge != null && badge !== 0 && badge !== '' && (
         <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${
-          active ? 'bg-sky-100 text-sky-600' : 'bg-slate-100 text-slate-500'
+          active ? 'bg-sky-100 dark:bg-sky-900/40 text-sky-600 dark:text-sky-400' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
         }`}>
           {badge}
         </span>
@@ -1272,31 +1298,31 @@ function OpenOrderSection({ order, isFirstOverall, isFirstInGroup, scannedCounts
   onReceiveItem: (item: OrderItem) => void
 }) {
   const items = order.items ?? []
-  const domain = getDomain(items[0]?.product?.supplier_url) ?? order.supplier ?? 'Unbekannter Lieferant'
+  const domain = order.supplier ?? items[0]?.product?.preferred_supplier ?? getDomain(items[0]?.product?.supplier_url) ?? 'Unbekannter Lieferant'
   const doneCount = items.filter(i => (scannedCounts[i.id] ?? 0) >= i.quantity).length
   const progressPct = items.length > 0 ? (doneCount / items.length) * 100 : 0
 
   return (
     <>
       {/* Spacer between supplier groups */}
-      {!isFirstOverall && isFirstInGroup && <tr><td colSpan={7} className="h-4 bg-slate-100" /></tr>}
+      {!isFirstOverall && isFirstInGroup && <tr><td colSpan={7} className="h-4 bg-slate-100 dark:bg-slate-700" /></tr>}
 
       {/* Supplier header — shown once per group, includes progress + total */}
       {isFirstInGroup && (
-        <tr className="border-t border-slate-200 bg-slate-50">
+        <tr className="border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
           <td colSpan={7} className="px-4 py-2.5">
             <div className="flex items-center justify-between gap-3">
-              <p className="font-semibold text-slate-800 text-base">{domain}</p>
+              <p className="font-semibold text-slate-800 dark:text-slate-100 text-base">{domain}</p>
               <div className="flex items-center gap-3 shrink-0">
                 <div className="flex items-center gap-2">
-                  <div className="w-20 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                  <div className="w-20 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
                     <div className="h-full bg-emerald-500 rounded-full transition-all duration-300" style={{ width: `${progressPct}%` }} />
                   </div>
-                  <span className="text-xs text-slate-500 whitespace-nowrap">{doneCount}/{items.length}</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">{doneCount}/{items.length}</span>
                 </div>
                 {order.total_estimate != null && (
-                  <span className="text-sm text-slate-600">
-                    Gesamt: <span className="font-semibold text-slate-800">€ {order.total_estimate.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                    Gesamt: <span className="font-semibold text-slate-700 dark:text-slate-200">€ {order.total_estimate.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </span>
                 )}
               </div>
@@ -1307,14 +1333,14 @@ function OpenOrderSection({ order, isFirstOverall, isFirstInGroup, scannedCounts
 
       {/* Column headers — only once per supplier group */}
       {isFirstInGroup && (
-        <tr className="border-b border-slate-200 bg-white">
-          <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide px-4 py-3">Artikel</th>
-          <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap hidden sm:table-cell">Datum</th>
-          <th className="text-center text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Bestellt</th>
-          <th className="text-center text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Gescannt</th>
-          <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap hidden sm:table-cell">Preis/Stück</th>
-          <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Gesamt</th>
-          <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Aktion</th>
+        <tr className="border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+          <th className="text-left text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-4 py-3">Artikel</th>
+          <th className="text-left text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap hidden sm:table-cell">Datum</th>
+          <th className="text-center text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Bestellt</th>
+          <th className="text-center text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Gescannt</th>
+          <th className="text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap hidden sm:table-cell">Preis/Stück</th>
+          <th className="text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Gesamt</th>
+          <th className="text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Aktion</th>
         </tr>
       )}
 
@@ -1325,30 +1351,30 @@ function OpenOrderSection({ order, isFirstOverall, isFirstInGroup, scannedCounts
         const rowTotal = item.quantity * (item.estimated_price ?? 0)
         const orderDate = new Date(order.created_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
         return (
-          <tr key={item.id} className={`border-b border-slate-100 transition-colors ${done ? 'bg-emerald-50/50' : 'bg-white hover:bg-slate-50'}`}>
+          <tr key={item.id} className={`border-b border-slate-100 dark:border-slate-800 transition-colors ${done ? 'bg-emerald-50/50 dark:bg-emerald-900/10' : 'bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
             <td className="px-4 py-3.5">
-              <p className={`text-sm font-semibold truncate max-w-[180px] md:max-w-xs ${done ? 'text-slate-400' : 'text-slate-800'}`}>{item.product?.name ?? '—'}</p>
-              {item.product?.brand && <p className="text-xs text-slate-400 mt-0.5">{item.product.brand}</p>}
+              <p className={`text-sm font-semibold truncate max-w-[180px] md:max-w-xs ${done ? 'text-slate-400 dark:text-slate-500' : 'text-slate-800 dark:text-slate-100'}`}>{item.product?.name ?? '—'}</p>
+              {item.product?.brand && <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{item.product.brand}</p>}
             </td>
-            <td className="px-3 py-3.5 text-sm text-slate-500 whitespace-nowrap hidden sm:table-cell">{orderDate}</td>
-            <td className="px-3 py-3.5 text-center text-slate-500">{item.quantity}</td>
+            <td className="px-3 py-3.5 text-sm text-slate-500 dark:text-slate-400 whitespace-nowrap hidden sm:table-cell">{orderDate}</td>
+            <td className="px-3 py-3.5 text-center text-slate-500 dark:text-slate-400">{item.quantity}</td>
             <td className="px-3 py-3.5 text-center">
               {done ? (
-                <span className="inline-flex items-center justify-center gap-1 text-slate-500 font-semibold">
+                <span className="inline-flex items-center justify-center gap-1 text-slate-500 dark:text-slate-400 font-semibold">
                   <Check size={12} className="text-emerald-600" /> {item.quantity}
                 </span>
               ) : scanned > 0 ? (
                 <span className="font-semibold text-sky-600">{scanned}/{item.quantity}</span>
               ) : (
-                <span className="text-slate-300">—</span>
+                <span className="text-slate-300 dark:text-slate-600">—</span>
               )}
             </td>
-            <td className="px-3 py-3.5 text-right text-slate-500 whitespace-nowrap hidden sm:table-cell">
+            <td className="px-3 py-3.5 text-right text-slate-500 dark:text-slate-400 whitespace-nowrap hidden sm:table-cell">
               {item.estimated_price != null
                 ? `€ ${item.estimated_price.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                 : '—'}
             </td>
-            <td className="px-3 py-3.5 text-right font-semibold text-slate-800 whitespace-nowrap">
+            <td className="px-3 py-3.5 text-right font-semibold text-slate-800 dark:text-slate-100 whitespace-nowrap">
               {item.estimated_price != null
                 ? `€ ${rowTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                 : '—'}
@@ -1411,33 +1437,33 @@ function SupplierSelect({ value, onChange, options }: {
       <button
         type="button"
         onClick={() => { setOpen(o => !o); setQ('') }}
-        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 flex items-center justify-between gap-2 text-left"
+        className="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 flex items-center justify-between gap-2 text-left"
       >
-        <span className={`truncate ${value ? 'text-slate-800' : 'text-slate-400'}`}>{value || 'Lieferant wählen…'}</span>
-        <ChevronDown size={14} className="text-slate-400 shrink-0" />
+        <span className={`truncate ${value ? 'text-slate-800 dark:text-slate-100' : 'text-slate-400 dark:text-slate-500'}`}>{value || 'Lieferant wählen…'}</span>
+        <ChevronDown size={14} className="text-slate-400 dark:text-slate-500 shrink-0" />
       </button>
       {open && (
-        <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-30 w-full animate-slide-in-up">
-          <div className="p-2 border-b border-slate-100">
+        <div className="absolute top-full left-0 mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg z-30 w-full animate-slide-in-up">
+          <div className="p-2 border-b border-slate-100 dark:border-slate-700">
             <input
               autoFocus
               type="text"
               value={q}
               onChange={e => setQ(e.target.value)}
               placeholder="Suchen…"
-              className="w-full text-sm px-2 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500"
+              className="w-full text-sm px-2 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
             />
           </div>
           <ul className="max-h-56 overflow-y-auto py-1">
             {filtered.map(o => (
               <li key={o}>
                 <button type="button" onClick={() => select(o)}
-                  className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-50 ${o === value ? 'text-sky-600 font-medium bg-sky-50' : 'text-slate-700'}`}>
+                  className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700 ${o === value ? 'text-sky-600 font-medium bg-sky-50 dark:bg-sky-900/20' : 'text-slate-700 dark:text-slate-200'}`}>
                   {o}
                 </button>
               </li>
             ))}
-            {filtered.length === 0 && <li className="px-3 py-2 text-sm text-slate-400">Keine Ergebnisse</li>}
+            {filtered.length === 0 && <li className="px-3 py-2 text-sm text-slate-400 dark:text-slate-500">Keine Ergebnisse</li>}
           </ul>
         </div>
       )}
