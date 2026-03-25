@@ -123,26 +123,20 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
     setDomainToSupplier(map)
   }
 
-  async function fetchPriceHits(items: CartItem[]) {
+  function fetchPriceHits(items: CartItem[]) {
     if (items.length === 0) return
-    const results = await Promise.allSettled(
-      items.map(async item => {
+    items.forEach(async item => {
+      try {
         const res = await fetch('/api/find-alternatives', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ productName: item.product?.name, brand: item.product?.brand }),
         })
         const data = await res.json()
-        return { productId: item.product_id, alternatives: (data.results ?? []) as PriceAlternative[] }
-      })
-    )
-    const hits: Record<string, PriceAlternative[]> = {}
-    for (const r of results) {
-      if (r.status === 'fulfilled') {
-        hits[r.value.productId] = r.value.alternatives
-      }
-    }
-    setPriceHits(hits)
+        const alternatives = (data.results ?? []) as PriceAlternative[]
+        setPriceHits(prev => ({ ...prev, [item.product_id]: alternatives }))
+      } catch { /* ignore */ }
+    })
   }
 
   async function applyAlternative(item: CartItem, alt: PriceAlternative) {
