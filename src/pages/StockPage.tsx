@@ -766,7 +766,7 @@ useEffect(() => {
                 <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Hersteller</label>
                 <CategorySelect
                   value={form.brand ?? ''}
-                  onChange={v => setForm(f => ({ ...f, brand: v || null }))}
+                  onChange={v => setForm(f => ({ ...f, brand: v || '' }))}
                   categories={brandOptions}
                   placeholder="Hersteller suchen…"
                   newLabel="als neuer Hersteller"

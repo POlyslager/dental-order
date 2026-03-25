@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { Euro, ShoppingCart, Activity, AlertTriangle, Scan, FileDown, X, Info, CheckCircle, PackageX } from 'lucide-react'
+import { Euro, ShoppingCart, Activity, AlertTriangle, Scan, FileDown, X, Info, PackageX } from 'lucide-react'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -421,7 +421,7 @@ export default function OverviewPage() {
   }, [products])
 
   // ── KPI 12: Genehmigungsquote — % of orders approved vs rejected ───────────
-  const genehmigungsquote = useMemo(() => {
+  const _genehmigungsquote = useMemo(() => {
     const approved = new Set<string>()
     const rejected = new Set<string>()
     for (const oi of orderItems) {
@@ -458,7 +458,7 @@ export default function OverviewPage() {
   }, [orderItems, products])
 
   // ── KPI 15: Bestellfehlerquote — % of orders rejected or cancelled ─────────
-  const bestellfehlerquote = useMemo(() => {
+  const _bestellfehlerquote = useMemo(() => {
     const all = new Set<string>()
     const failed = new Set<string>()
     for (const oi of orderItems) {
@@ -839,7 +839,7 @@ export default function OverviewPage() {
                     <div className="min-w-0 text-left flex-1">
                       <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{kpi.label}</p>
                       <p className="text-2xl font-bold text-slate-800 dark:text-slate-100 leading-tight">{kpi.value}</p>
-                      {'sub' in kpi && kpi.sub && <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{kpi.sub}</p>}
+                      {'sub' in kpi && kpi.sub && <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{kpi.sub as string}</p>}
                     </div>
                   </div>
                 ))}

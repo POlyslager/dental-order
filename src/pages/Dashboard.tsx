@@ -9,7 +9,7 @@ import {
   ChevronLeft, ChevronRight, PackageMinus, PackagePlus, Check,
   Users, Tag, KeyRound, Database, Factory, Sun, Moon,
 } from 'lucide-react'
-import { applyTheme, getStoredTheme, type ThemeMode } from '../lib/theme'
+import { applyTheme, getStoredTheme } from '../lib/theme'
 const StockPage          = lazy(() => import('./StockPage'))
 const OrdersPage         = lazy(() => import('./OrdersPage'))
 const OverviewPage       = lazy(() => import('./OverviewPage'))
