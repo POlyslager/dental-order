@@ -127,7 +127,7 @@ export default function OverviewPage() {
   const noBarcodeCount = useMemo(() => products.filter(p => !p.barcode).length, [products])
 
   // ── Stock health ───────────────────────────────────────────────────────────
-  const stockHealth = useMemo(() => ({
+  const _stockHealth = useMemo(() => ({
     green:  products.filter(p => p.current_stock > p.min_stock * 1.5).length,
     orange: products.filter(p => p.current_stock > p.min_stock && p.current_stock <= p.min_stock * 1.5).length,
     red:    products.filter(p => p.current_stock <= p.min_stock && p.current_stock > 0).length,
@@ -1094,7 +1094,7 @@ function VerticalBars({ data, max, barColor, formatValue, empty = 'Keine Daten' 
     <div className="overflow-x-auto">
       <div style={{ minWidth: data.length * 60 }}>
         <div className="flex items-end gap-1" style={{ height: 140 }}>
-          {data.map(({ label, value }, i) => (
+          {data.map(({ value }, i) => (
             <div key={i} className="flex-1 flex flex-col items-center justify-end">
               {value > 0 && (
                 <span className="text-slate-600 font-medium leading-none mb-0.5" style={{ fontSize: 9 }}>

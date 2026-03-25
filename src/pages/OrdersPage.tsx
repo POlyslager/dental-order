@@ -688,7 +688,6 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
                 const prevTotal = (editItem?.quantity ?? 0) * (editItem?.product?.last_price ?? 0)
                 const newPrice = parseFloat(editForm.price.replace(',', '.'))
                 const newTotal = editForm.quantity * (isNaN(newPrice) ? 0 : newPrice)
-                const diff = newTotal - prevTotal
                 const fmt = (n: number) => `€ ${Math.abs(n).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                 return (
                   <div className="bg-slate-50 rounded-xl px-4 py-3 space-y-2 text-sm">
