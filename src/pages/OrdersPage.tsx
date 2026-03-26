@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import type { CartItem, Order, OrderItem, PriceAlternative, Role } from '../lib/types'
-import { ShoppingCart, Package, Plus, Minus, CheckCircle, ExternalLink, Check, Trash2, Undo2, ScanLine, X, Pencil, ChevronDown, Clock, XCircle, TrendingDown, Flashlight, FlashlightOff } from 'lucide-react'
+import { ShoppingCart, Package, Plus, Minus, CheckCircle, ExternalLink, Check, Trash2, Undo2, ScanLine, X, Pencil, Clock, XCircle, TrendingDown, Flashlight, FlashlightOff } from 'lucide-react'
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
 
 interface Props { role: Role | null; user: User; onBadgeChange: (n: number) => void; forceOpenTab?: number; forceScanMode?: number }
@@ -39,8 +39,7 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
   const [editClosing, setEditClosing] = useState(false)
   const [editForm, setEditForm] = useState<{ price: string; quantity: number }>({ price: '', quantity: 1 })
   const [editSaving, setEditSaving] = useState(false)
-  const [suppliers, setSuppliers] = useState<string[]>([])
-  const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>({})
+const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>({})
   const [deleteConfirm, setDeleteConfirm] = useState<CartItem | null>(null)
   const [approvingOrder, setApprovingOrder] = useState<string | null>(null)
   const [toast, setToast] = useState<{ message: string; onUndo?: () => void; variant?: 'error' } | null>(null)
@@ -123,7 +122,7 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
   }, [tab])
 
   async function fetchCart() {
-    const [{ data }, { data: prodSupData }, { data: supRows }] = await Promise.all([
+    const [{ data }, , { data: supRows }] = await Promise.all([
       supabase
         .from('cart_items')
         .select('id, product_id, quantity, created_at, is_edited, product:products(id, name, current_stock, unit, last_price, alternative_price, alternative_url, alternative_supplier, supplier_url, preferred_supplier, brand)')
@@ -134,10 +133,7 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
     const loadedItems = (data as unknown as CartItem[]) ?? []
     setCartItems(loadedItems)
     if (loadedItems.length > 0) fetchPriceHits(loadedItems)
-    setSuppliers(
-      [...new Set((prodSupData ?? []).map((p: { preferred_supplier: string }) => p.preferred_supplier?.trim()).filter(Boolean) as string[])].sort((a, b) => a.localeCompare(b))
-    )
-    const map: Record<string, string> = {}
+const map: Record<string, string> = {}
     for (const r of (supRows ?? []) as { name: string; website: string }[]) {
       const domain = getDomain(r.website)
       if (domain) map[domain] = r.name
@@ -1645,68 +1641,3 @@ function OpenOrderSection({ order, isFirstOverall, isFirstInGroup, scannedCounts
   )
 }
 
-// ── Supplier single-select dropdown ──────────────────────────────────────────
-function SupplierSelect({ value, onChange, options }: {
-  value: string
-  onChange: (v: string) => void
-  options: string[]
-}) {
-  const [open, setOpen] = useState(false)
-  const [q, setQ] = useState('')
-  const ref = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [])
-
-  const allOptions = value && !options.includes(value) ? [value, ...options] : options
-  const filtered = allOptions.filter(o => o.toLowerCase().includes(q.toLowerCase()))
-
-  function select(v: string) {
-    onChange(v)
-    setOpen(false)
-    setQ('')
-  }
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        type="button"
-        onClick={() => { setOpen(o => !o); setQ('') }}
-        className="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 flex items-center justify-between gap-2 text-left"
-      >
-        <span className={`truncate ${value ? 'text-slate-800 dark:text-slate-100' : 'text-slate-400 dark:text-slate-500'}`}>{value || 'Lieferant wählen…'}</span>
-        <ChevronDown size={14} className="text-slate-400 dark:text-slate-500 shrink-0" />
-      </button>
-      {open && (
-        <div className="absolute top-full left-0 mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg z-30 w-full animate-slide-in-up">
-          <div className="p-2 border-b border-slate-100 dark:border-slate-700">
-            <input
-              autoFocus
-              type="text"
-              value={q}
-              onChange={e => setQ(e.target.value)}
-              placeholder="Suchen…"
-              className="w-full text-sm px-2 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
-            />
-          </div>
-          <ul className="max-h-56 overflow-y-auto py-1">
-            {filtered.map(o => (
-              <li key={o}>
-                <button type="button" onClick={() => select(o)}
-                  className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700 ${o === value ? 'text-sky-600 font-medium bg-sky-50 dark:bg-sky-900/20' : 'text-slate-700 dark:text-slate-200'}`}>
-                  {o}
-                </button>
-              </li>
-            ))}
-            {filtered.length === 0 && <li className="px-3 py-2 text-sm text-slate-400 dark:text-slate-500">Keine Ergebnisse</li>}
-          </ul>
-        </div>
-      )}
-    </div>
-  )
-}

@@ -204,8 +204,9 @@ export default function ScanPage({ onAddWithBarcode, onSubview }: Props) {
     const barcode = cleanBarcode(raw)
     setRawCode(barcode)
 
-    const { data } = await supabase
+    const { data: _data } = await supabase
       .from('products').select('id, name, current_stock, min_stock, unit, last_price').eq('barcode', barcode).single()
+    const data = _data as unknown as Product | null
 
     if (!data) {
       // Product not in system at all

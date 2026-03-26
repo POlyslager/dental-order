@@ -8,7 +8,7 @@ import Toast from '../components/Toast'
 import BarcodeScanModal from '../components/BarcodeScanModal'
 import {
   ChevronLeft, Pencil, Trash2, ShoppingCart, Check, ExternalLink, X, Minus, Plus,
-  Search, ChevronDown, RotateCcw, Camera,
+  ChevronDown, RotateCcw, Camera,
 } from 'lucide-react'
 
 const SCAN_FORMATS = [
@@ -370,7 +370,7 @@ async function restoreSupplier(entry: SupplierHistoryEntry) {
   }
 
   return (
-    <div className={`bg-slate-50 dark:bg-slate-900 overflow-x-hidden ${isModal ? 'flex flex-col h-full' : 'min-h-full'}`}>
+    <div className={`bg-slate-50 dark:bg-slate-900 overflow-x-hidden ${isModal ? 'flex flex-col flex-1 min-h-0' : 'min-h-full'}`}>
       {toast && <Toast message={toast} onClose={() => setToast(null)} />}
       {/* Slow operation spinner */}
       {showDeleteSpinner && (
@@ -421,7 +421,7 @@ async function restoreSupplier(entry: SupplierHistoryEntry) {
         )}
       </div>
 
-      <div className={isModal ? 'flex-1 overflow-y-auto' : ''}>
+      <div className={isModal ? 'flex-1 overflow-y-auto min-h-0' : ''}>
       <div className="max-w-2xl mx-auto p-4 space-y-4"
         style={{ paddingBottom: editing && !isModal ? '80px' : undefined }}>
 

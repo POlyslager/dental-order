@@ -35,8 +35,7 @@ export default function EntnehmenScanModal({ onClose, onSuccess }: Props) {
   const [scanError, setScanError] = useState<string | null>(null)
   const [sessionLog, setSessionLog] = useState<SessionEntry[]>([])
 
-  const [scanActive, setScanActive] = useState(false)
-  const scannerRef = useRef<Html5Qrcode | null>(null)
+const scannerRef = useRef<Html5Qrcode | null>(null)
   const startTokenRef = useRef(0)
 
   const [dragPos, setDragPos] = useState(() => ({
@@ -93,7 +92,6 @@ export default function EntnehmenScanModal({ onClose, onSuccess }: Props) {
 
   async function startScanner() {
     const token = ++startTokenRef.current
-    setScanActive(true)
     await new Promise(r => setTimeout(r, 150))
     if (token !== startTokenRef.current) return
     const el = document.getElementById(SCAN_DIV)
@@ -109,7 +107,6 @@ export default function EntnehmenScanModal({ onClose, onSuccess }: Props) {
           await s.stop()
           s.clear()
           scannerRef.current = null
-          setScanActive(false)
           torchChecked.current = false
           setTorchSupported(false)
           setTorchOn(false)
@@ -142,7 +139,7 @@ export default function EntnehmenScanModal({ onClose, onSuccess }: Props) {
         if (caps.torchFeature().isSupported()) setTorchSupported(true)
         torchChecked.current = true
       } catch { /* torch not available */ }
-    } catch { if (token === startTokenRef.current) setScanActive(false) }
+    } catch { /* scanner start failed */ }
   }
 
   async function toggleTorch() {
@@ -158,7 +155,6 @@ export default function EntnehmenScanModal({ onClose, onSuccess }: Props) {
     startTokenRef.current++
     const s = scannerRef.current
     scannerRef.current = null
-    setScanActive(false)
     if (s?.isScanning) s.stop().then(() => s.clear()).catch(() => {})
     else s?.clear()
   }
