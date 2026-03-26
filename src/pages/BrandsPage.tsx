@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { Search, X, Trash2, ChevronRight, ExternalLink, Pencil, Plus } from 'lucide-react'
 import Toast from '../components/Toast'
 import ConfirmDialog from '../components/ConfirmDialog'
+import SwipeToDelete from '../components/SwipeToDelete'
 
 interface BrandRow {
   name: string
@@ -107,13 +108,12 @@ export default function BrandsPage() {
 
   async function handleDelete() {
     if (!selected) return
-    const { data: affected } = await supabase.from('products').select('id').eq('brand', selected.name)
-    const snapshot = { name: selected.name, website: selected.website, notes: selected.notes, productIds: (affected ?? []).map(p => p.id) }
-    await Promise.all([
-      supabase.from('products').update({ brand: null }).eq('brand', selected.name),
-      supabase.from('brands').delete().eq('name', selected.name),
-    ])
-    setUndoBrand(snapshot)
+    if (selected.productCount > 0) {
+      setToast(`Nicht möglich: ${selected.productCount} Artikel sind diesem Hersteller zugeordnet`)
+      setConfirmDelete(false)
+      return
+    }
+    await supabase.from('brands').delete().eq('name', selected.name)
     setToast('Hersteller gelöscht')
     await load()
     closePanel()
@@ -191,7 +191,13 @@ export default function BrandsPage() {
             </div>
             <div className="divide-y divide-slate-100 dark:divide-slate-700/50">
               {paginated.map(b => (
-                <div key={b.name} onClick={() => openExisting(b)} className="bg-white hover:bg-slate-50 dark:bg-slate-800/50 dark:hover:bg-slate-700/50 cursor-pointer transition-colors">
+                <SwipeToDelete key={b.name} onDelete={async () => {
+                  if (b.productCount > 0) { setToast(`Nicht möglich: ${b.productCount} Artikel zugeordnet`); return }
+                  await supabase.from('brands').delete().eq('name', b.name)
+                  setToast('Hersteller gelöscht')
+                  load()
+                }}>
+                <div onClick={() => openExisting(b)} className="bg-white hover:bg-slate-50 dark:bg-slate-800/50 dark:hover:bg-slate-700/50 cursor-pointer transition-colors">
                   {/* Desktop */}
                   <div className="hidden md:grid items-center" style={{ gridTemplateColumns: '1.5fr 1.5fr 0.6fr 2rem' }}>
                     <div className="px-4 py-3.5">
@@ -212,6 +218,7 @@ export default function BrandsPage() {
                     <ChevronRight size={14} className="text-slate-300 dark:text-slate-600 shrink-0" />
                   </div>
                 </div>
+                </SwipeToDelete>
               ))}
             </div>
             {filtered.length === 0 && (

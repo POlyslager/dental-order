@@ -4,6 +4,7 @@ import type { User } from '@supabase/supabase-js'
 import LoginPage from './pages/LoginPage'
 import Dashboard from './pages/Dashboard'
 import { initTheme, applyTheme, getStoredTheme } from './lib/theme'
+import RotateOverlay from './components/RotateOverlay'
 
 // Apply theme immediately (before first render)
 initTheme()
@@ -37,5 +38,10 @@ export default function App() {
 
   if (!user) return <LoginPage />
 
-  return <Dashboard user={user} />
+  return (
+    <>
+      <RotateOverlay />
+      <Dashboard user={user} />
+    </>
+  )
 }

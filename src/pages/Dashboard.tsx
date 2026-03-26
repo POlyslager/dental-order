@@ -114,13 +114,13 @@ export default function Dashboard({ user }: Props) {
   }, [])
 
   async function fetchBadge() {
-    const [{ data: cartData }, { data: ordersData }] = await Promise.all([
-      supabase.from('cart_items').select('id'),
+    const [{ count: cartCount }, { data: ordersData }] = await Promise.all([
+      supabase.from('cart_items').select('*', { count: 'exact', head: true }),
       supabase.from('orders').select('id, supplier, items:order_items(id)').eq('status', 'ordered'),
     ])
     const ordersWithItems = (ordersData ?? []).filter((o: { supplier?: string; items?: { id: string }[] }) => (o.items?.length ?? 0) > 0)
     const uniqueSuppliers = new Set(ordersWithItems.map(o => o.supplier ?? 'Unbekannter Lieferant')).size
-    setOrderBadge((cartData?.length ?? 0) + uniqueSuppliers)
+    setOrderBadge((cartCount ?? 0) + uniqueSuppliers)
   }
 
   useEffect(() => {
@@ -374,7 +374,7 @@ export default function Dashboard({ user }: Props) {
           className={`flex-1 ${menuOpen ? 'overflow-hidden' : 'overflow-y-auto'}`}
           style={{ overscrollBehavior: 'none' }}
         >
-          <div className={(SETTINGS_TABS.has(tab) || tab === 'orders') ? 'h-full flex flex-col' : 'pb-20 md:pb-0 min-h-full'}>
+          <div className={(SETTINGS_TABS.has(tab) || tab === 'orders' || tab === 'suppliers' || tab === 'brands' || tab === 'categories') ? 'h-full flex flex-col' : 'pb-20 md:pb-0 min-h-full'}>
             <Suspense fallback={<PageSpinner />}>
               {showTerms
                 ? <TermsPage onBack={() => setShowTerms(false)} />
@@ -441,7 +441,7 @@ export default function Dashboard({ user }: Props) {
             <div className="flex gap-3">
               <button
                 onClick={() => setScanMode('entnehmen')}
-                className="flex-1 flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-slate-200 dark:border-slate-700 hover:border-sky-400 hover:bg-sky-50 transition-colors"
+                className="flex-1 flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-slate-200 dark:border-slate-700 hover:border-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors"
               >
                 <PackageMinus size={22} className="text-sky-600" />
                 <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">Entnehmen</span>
@@ -453,7 +453,7 @@ export default function Dashboard({ user }: Props) {
                   setForceOrdersOpenTab(c => c + 1)
                   setForceOrdersScanMode(c => c + 1)
                 }}
-                className="flex-1 flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-slate-200 dark:border-slate-700 hover:border-emerald-400 hover:bg-emerald-50 transition-colors"
+                className="flex-1 flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-slate-200 dark:border-slate-700 hover:border-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors"
               >
                 <PackagePlus size={22} className="text-emerald-600" />
                 <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">Einbuchen</span>

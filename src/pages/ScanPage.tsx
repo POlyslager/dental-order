@@ -48,9 +48,11 @@ export default function ScanPage({ onAddWithBarcode, onSubview }: Props) {
   const [manualSearch, setManualSearch] = useState('')
 
   useEffect(() => {
-    supabase.from('products').select('*').order('name').then(({ data }) => {
-      setAllProducts(data ?? [])
-    })
+    supabase.from('products')
+      .select('id, name, barcode, category, article_number, preferred_supplier, current_stock, min_stock, unit, last_price')
+      .order('name').then(({ data }) => {
+        setAllProducts((data ?? []) as Product[])
+      })
     return () => { stopScanner() }
   }, [])
 
@@ -159,8 +161,8 @@ export default function ScanPage({ onAddWithBarcode, onSubview }: Props) {
   function cleanBarcode(raw: string): string {
     const code = raw.replace(/^\][A-Za-z][0-9]/, '').replace(/[^\x20-\x7E]/g, '').trim()
     const gs1 = code.match(/^01(\d{14})/)
-    if (gs1) return gs1[1]
-    return code
+    const gtin = gs1 ? gs1[1] : code
+    return gtin.length === 14 && gtin.startsWith('0') ? gtin.slice(1) : gtin
   }
 
   async function startScanner() {
@@ -170,14 +172,14 @@ export default function ScanPage({ onAddWithBarcode, onSubview }: Props) {
     setRawCode(null)
     setMatchedItem(null)
 
-    const scanner = new Html5Qrcode('qr-reader', { formatsToSupport: FORMATS, verbose: false, experimentalFeatures: { useBarCodeDetectorIfSupported: false } })
+    const scanner = new Html5Qrcode('qr-reader', { formatsToSupport: FORMATS, verbose: false, experimentalFeatures: { useBarCodeDetectorIfSupported: true } })
     scannerRef.current = scanner
     setScanning(true)
 
     try {
       await scanner.start(
         { facingMode: 'environment' },
-        { fps: 15, qrbox: (w, h) => ({ width: Math.min(w, h) * 0.85, height: Math.min(w, h) * 0.85 }) },
+        { fps: 25, qrbox: (w, h) => ({ width: Math.min(w, h) * 0.85, height: Math.min(w, h) * 0.85 }) },
         async (text) => {
           await stopScanner()
           await handleBarcode(text)
@@ -203,7 +205,7 @@ export default function ScanPage({ onAddWithBarcode, onSubview }: Props) {
     setRawCode(barcode)
 
     const { data } = await supabase
-      .from('products').select('*').eq('barcode', barcode).single()
+      .from('products').select('id, name, current_stock, min_stock, unit, last_price').eq('barcode', barcode).single()
 
     if (!data) {
       // Product not in system at all

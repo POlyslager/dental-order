@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { Search, X, Trash2, ChevronRight, ExternalLink, Pencil, Plus } from 'lucide-react'
 import Toast from '../components/Toast'
 import ConfirmDialog from '../components/ConfirmDialog'
+import SwipeToDelete from '../components/SwipeToDelete'
 
 interface SupplierRow {
   name: string
@@ -43,7 +44,7 @@ export default function SuppliersPage() {
 
   async function load() {
     const [{ data: productRows }, { data: metaRows }, { data: orderItemRows }] = await Promise.all([
-      supabase.from('products').select('preferred_supplier'),
+      supabase.from('products').select('id, preferred_supplier'),
       supabase.from('suppliers').select('name, website, notes, min_order_value, search_paths, is_active'),
       supabase.from('order_items')
         .select('product_id, orders!inner(created_at)')
@@ -75,16 +76,13 @@ export default function SuppliersPage() {
     }
 
     const productCounts: Record<string, number> = {}
-    for (const p of (productRows ?? []) as { preferred_supplier: string | null }[]) {
-      const s = p.preferred_supplier?.trim()
-      if (s) productCounts[s] = (productCounts[s] ?? 0) + 1
-    }
-
-    const { data: productIdRows } = await supabase
-      .from('products').select('id, preferred_supplier').not('preferred_supplier', 'is', null)
     const productToSupplier: Record<string, string> = {}
-    for (const p of (productIdRows ?? []) as { id: string; preferred_supplier: string }[]) {
-      if (p.preferred_supplier?.trim()) productToSupplier[p.id] = p.preferred_supplier.trim()
+    for (const p of (productRows ?? []) as { id: string; preferred_supplier: string | null }[]) {
+      const s = p.preferred_supplier?.trim()
+      if (s) {
+        productCounts[s] = (productCounts[s] ?? 0) + 1
+        productToSupplier[p.id] = s
+      }
     }
 
     const lastPurchase: Record<string, string> = {}
@@ -157,15 +155,12 @@ export default function SuppliersPage() {
     const website = form.website.trim() || null
     const notes = form.notes.trim() || null
     const min_order_value = form.min_order_value.trim() ? parseFloat(form.min_order_value) : null
+    const payload = { name: newName, website, notes, min_order_value, search_paths: form.search_paths, is_active: form.is_active }
     if (!isNew && oldName && oldName !== newName) {
       // Rename: insert new row, update products (match by name OR domain variant), delete old row
-      await supabase.from('suppliers').upsert(
-        { name: newName, website, notes, min_order_value, search_paths: form.search_paths, is_active: form.is_active },
-        { onConflict: 'name' }
-      )
-      // Update products that reference the old name directly
+      const { error } = await supabase.from('suppliers').upsert(payload, { onConflict: 'name' })
+      if (error) { setToast(`Fehler: ${error.message}`); setSaving(false); return }
       await supabase.from('products').update({ preferred_supplier: newName }).eq('preferred_supplier', oldName)
-      // Also update products that reference the domain variant (e.g. "aera-online.de" vs full URL name)
       if (website) {
         try {
           const domain = new URL(website).hostname.replace(/^www\./, '')
@@ -176,10 +171,8 @@ export default function SuppliersPage() {
       }
       await supabase.from('suppliers').delete().eq('name', oldName)
     } else {
-      await supabase.from('suppliers').upsert(
-        { name: newName, website, notes, min_order_value, search_paths: form.search_paths, is_active: form.is_active },
-        { onConflict: 'name' }
-      )
+      const { error } = await supabase.from('suppliers').upsert(payload, { onConflict: 'name' })
+      if (error) { setToast(`Fehler: ${error.message}`); setSaving(false); return }
     }
     setToast('Lieferant gespeichert')
     await load()
@@ -308,7 +301,16 @@ export default function SuppliersPage() {
             </div>
             <div className="divide-y divide-slate-100 dark:divide-slate-700/50">
               {paginated.map(s => (
-                <div key={s.name} onClick={() => openExisting(s)} className="bg-white hover:bg-slate-50 cursor-pointer transition-colors dark:bg-slate-800/50 dark:hover:bg-slate-700/50">
+                <SwipeToDelete key={s.name} onDelete={async () => {
+                  const [{ error: pe }, { error: se }] = await Promise.all([
+                    supabase.from('products').update({ preferred_supplier: null }).eq('preferred_supplier', s.name),
+                    supabase.from('suppliers').delete().eq('name', s.name),
+                  ])
+                  if (pe || se) { setToast(`Fehler: ${(pe ?? se)?.message}`); return }
+                  setToast('Lieferant gelöscht')
+                  load()
+                }}>
+                <div onClick={() => openExisting(s)} className="bg-white hover:bg-slate-50 cursor-pointer transition-colors dark:bg-slate-800/50 dark:hover:bg-slate-700/50">
                   {/* Desktop */}
                   <div className="hidden md:grid items-center" style={{ gridTemplateColumns: '1.5fr 1.5fr 0.6fr 1fr 0.7fr 2rem' }}>
                     <div className="px-4 py-3.5">
@@ -344,6 +346,7 @@ export default function SuppliersPage() {
                     <ChevronRight size={14} className="text-slate-300 shrink-0 dark:text-slate-600" />
                   </div>
                 </div>
+                </SwipeToDelete>
               ))}
             </div>
             {filtered.length === 0 && (

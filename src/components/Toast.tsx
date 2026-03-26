@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { Check, X } from 'lucide-react'
 
 interface Props {
@@ -13,7 +14,7 @@ export default function Toast({ message, onClose, onUndo }: Props) {
     return () => clearTimeout(t)
   }, [message, onClose])
 
-  return (
+  return createPortal(
     <div className="fixed top-4 left-4 right-4 z-[100] flex justify-center pointer-events-none">
       <div className="pointer-events-auto w-full max-w-md bg-slate-900 text-white rounded-2xl shadow-2xl px-4 py-3 flex items-center gap-3 animate-slide-in-down">
         <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
@@ -30,6 +31,7 @@ export default function Toast({ message, onClose, onUndo }: Props) {
           <X size={16} />
         </button>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

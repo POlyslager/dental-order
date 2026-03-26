@@ -2,10 +2,19 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import type { CartItem, Order, OrderItem, PriceAlternative, Role } from '../lib/types'
-import { ShoppingCart, Package, Plus, Minus, CheckCircle, ExternalLink, Check, Trash2, Undo2, ScanLine, X, Pencil, ChevronDown, Clock, XCircle, TrendingDown } from 'lucide-react'
+import { ShoppingCart, Package, Plus, Minus, CheckCircle, ExternalLink, Check, Trash2, Undo2, ScanLine, X, Pencil, ChevronDown, Clock, XCircle, TrendingDown, Flashlight, FlashlightOff } from 'lucide-react'
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
 
 interface Props { role: Role | null; user: User; onBadgeChange: (n: number) => void; forceOpenTab?: number; forceScanMode?: number }
+
+const HS_SUPPLIER = 'Henry Schein Dental'
+
+function hsEffectivePrice(product: { last_price: number | null; preferred_supplier: string | null; brand: string | null } | undefined): number | null {
+  if (!product?.last_price) return null
+  if (product.preferred_supplier !== HS_SUPPLIER) return product.last_price
+  const discount = product.brand === 'Henry Schein' ? 0.29 : 0.28
+  return product.last_price * (1 - discount)
+}
 
 // Extract domain from a URL, e.g. "https://www.dental-shop.de/..." → "dental-shop.de"
 function getDomain(url: string | null | undefined): string | null {
@@ -28,7 +37,7 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
   const [placingItem, setPlacingItem] = useState<string | null>(null)
   const [editItem, setEditItem] = useState<CartItem | null>(null)
   const [editClosing, setEditClosing] = useState(false)
-  const [editForm, setEditForm] = useState<{ supplier: string; price: string; quantity: number }>({ supplier: '', price: '', quantity: 1 })
+  const [editForm, setEditForm] = useState<{ price: string; quantity: number }>({ price: '', quantity: 1 })
   const [editSaving, setEditSaving] = useState(false)
   const [suppliers, setSuppliers] = useState<string[]>([])
   const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>({})
@@ -38,13 +47,21 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [scannedCounts, setScannedCounts] = useState<Record<string, number>>({})
   const [scanToggle, setScanToggle] = useState(false)
-  const [scanConfirm, setScanConfirm] = useState<{ item: OrderItem; order: Order; lot?: string } | null>(null)
   const [receiving, setReceiving] = useState<string | null>(null)
   const rejectedOrdersRef = useRef<Order[]>([])
   const einbuchenScannerRef = useRef<Html5Qrcode | null>(null)
+  const priceHitAbortRef = useRef<AbortController | null>(null)
+  const scannedCountsRef = useRef<Record<string, number>>({})
+  const ordersRef = useRef<Order[]>([])
   const scannerStartingRef = useRef(false)
+  const [einbuchenTorchOn, setEinbuchenTorchOn] = useState(false)
+  const [einbuchenTorchSupported, setEinbuchenTorchSupported] = useState(false)
+  const [einbuchenManual, setEinbuchenManual] = useState('')
+  const [scanFlashError, setScanFlashError] = useState(false)
   const scanToggleRef = useRef(false)
   const prevTabRef = useRef<'cart' | 'open' | 'approval'>('cart')
+  const forceOpenTabInitRef = useRef(forceOpenTab)
+  const forceScanModeInitRef = useRef(forceScanMode)
   const EINBUCHEN_SCAN_DIV = 'einbuchen-scanner-div'
   const [dragPos, setDragPos] = useState(() => ({
     x: typeof window !== 'undefined' ? Math.max(16, Math.floor(window.innerWidth / 2) - 160) : 16,
@@ -72,20 +89,25 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
   }, [])
 
   useEffect(() => {
-    if (forceOpenTab) setTab('open')
+    if (forceOpenTab === forceOpenTabInitRef.current) return
+    setTab('open')
   }, [forceOpenTab])
 
   useEffect(() => {
-    if (forceScanMode) {
-      setTab('open')
-      setScanToggle(true)
-      scanToggleRef.current = true
-    }
+    if (forceScanMode === forceScanModeInitRef.current) return
+    setTab('open')
+    setScanToggle(true)
+    scanToggleRef.current = true
   }, [forceScanMode])
 
-  // Stop scanner on unmount + cancel any unread rejected orders
+  // Keep refs in sync with state so scanner callbacks always see fresh values
+  useEffect(() => { scannedCountsRef.current = scannedCounts }, [scannedCounts])
+  useEffect(() => { ordersRef.current = orders }, [orders])
+
+  // Stop scanner on unmount + cancel any unread rejected orders + abort price lookups
   useEffect(() => () => {
     stopInlineScanner()
+    priceHitAbortRef.current?.abort()
     const ids = rejectedOrdersRef.current.map(o => o.id)
     if (ids.length > 0) void supabase.from('orders').update({ status: 'cancelled' }).in('id', ids)
   }, [])
@@ -125,21 +147,25 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
 
   function fetchPriceHits(items: CartItem[]) {
     if (items.length === 0) return
-    items.forEach(async item => {
+    priceHitAbortRef.current?.abort()
+    const controller = new AbortController()
+    priceHitAbortRef.current = controller
+    Promise.all(items.map(async item => {
       try {
         const res = await fetch('/api/find-alternatives', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ productName: item.product?.name, brand: item.product?.brand }),
+          signal: controller.signal,
         })
         const data = await res.json()
-        const currentPrice = item.product?.last_price ?? 0
+        const currentPrice = hsEffectivePrice(item.product) ?? 0
         const alternatives = (data.results ?? []).filter((a: PriceAlternative) =>
           currentPrice <= 0 || (currentPrice - a.price) / currentPrice <= 0.90
         ) as PriceAlternative[]
         setPriceHits(prev => ({ ...prev, [item.product_id]: alternatives }))
-      } catch { /* ignore */ }
-    })
+      } catch (e) { if ((e as Error).name !== 'AbortError') { /* ignore other errors */ } }
+    }))
   }
 
   async function applyAlternative(item: CartItem, alt: PriceAlternative) {
@@ -209,7 +235,12 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
     return acc
   }, {})
 
-  const grandTotal = cartItems.reduce((s, i) => s + (i.quantity * (i.product?.last_price ?? 0)), 0)
+  const grandTotal = cartItems.reduce((s, i) => s + (i.quantity * (hsEffectivePrice(i.product) ?? 0)), 0)
+
+  const hsTotal = cartItems
+    .filter(i => i.product?.preferred_supplier === HS_SUPPLIER)
+    .reduce((s, i) => s + (i.quantity * (hsEffectivePrice(i.product) ?? 0)), 0)
+  const hsVolumeBonus = hsTotal > 1000 ? (hsTotal - 1000) * 0.01 : 0
 
   const ordersBySupplier = useMemo<[string, Order[]][]>(() => {
     const grouped: [string, Order[]][] = []
@@ -271,7 +302,6 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
     setEditItem(item)
     setEditClosing(false)
     setEditForm({
-      supplier: item.product?.preferred_supplier ?? '',
       price: item.product?.last_price != null
         ? item.product.last_price.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
         : '',
@@ -289,15 +319,8 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
     setEditSaving(true)
     const n = parseFloat(editForm.price.replace(',', '.'))
     const price = isNaN(n) || n < 0 ? null : n
-    const newSupplier = editForm.supplier.trim()
-    const supplierChanged = newSupplier !== (editItem.product?.preferred_supplier ?? '')
-    const productUpdates: Record<string, unknown> = { preferred_supplier: newSupplier || null, last_price: price }
-    if (supplierChanged) {
-      const { data: sup } = await supabase.from('suppliers').select('website').eq('name', newSupplier).single()
-      productUpdates.supplier_url = sup?.website ?? null
-    }
     await Promise.all([
-      supabase.from('products').update(productUpdates).eq('id', editItem.product_id),
+      supabase.from('products').update({ last_price: price }).eq('id', editItem.product_id),
       supabase.from('cart_items').update({ is_edited: true, quantity: editForm.quantity }).eq('id', editItem.id),
     ])
     await fetchCart()
@@ -460,7 +483,7 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
       await supabase.from('orders').update({ status: 'received', received_at: new Date().toISOString() }).eq('id', order.id)
       // Only show "Alle Artikel" toast if no other orders from the same supplier remain
       const supplierKey = resolveSupplier(order.supplier ?? items[0]?.product?.preferred_supplier, items[0]?.product?.supplier_url, 'Unbekannter Lieferant')
-      const remainingFromSupplier = orders.filter(o => {
+      const remainingFromSupplier = ordersRef.current.filter(o => {
         if (o.id === order.id) return false
         const oItems = o.items ?? []
         const key = resolveSupplier(o.supplier ?? oItems[0]?.product?.preferred_supplier, oItems[0]?.product?.supplier_url, 'Unbekannter Lieferant')
@@ -473,11 +496,12 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
     }
   }
 
-  // Called by scan confirm modal — increments by 1 unit
+  // Called on each scan — increments by 1 unit
   async function scanReceiveUnit(item: OrderItem, order: Order, lot?: string) {
-    const current = scannedCounts[item.id] ?? 0
+    const current = scannedCountsRef.current[item.id] ?? 0
     const next = current + 1
-    const newCounts = { ...scannedCounts, [item.id]: next }
+    const newCounts = { ...scannedCountsRef.current, [item.id]: next }
+    scannedCountsRef.current = newCounts
     setScannedCounts(newCounts)
     showToast(`${item.product?.name ?? 'Artikel'}: ${next}/${item.quantity} gescannt`)
     if (lot && item.product_id) {
@@ -514,37 +538,35 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
         Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8,
         Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.CODE_39,
         Html5QrcodeSupportedFormats.UPC_A, Html5QrcodeSupportedFormats.QR_CODE,
+        Html5QrcodeSupportedFormats.DATA_MATRIX,
       ]
-      const s = new Html5Qrcode(EINBUCHEN_SCAN_DIV, { formatsToSupport: formats, verbose: false })
+      const s = new Html5Qrcode(EINBUCHEN_SCAN_DIV, { formatsToSupport: formats, verbose: false, experimentalFeatures: { useBarCodeDetectorIfSupported: true } })
       einbuchenScannerRef.current = s
       await s.start(
         { facingMode: 'environment' },
-        { fps: 15, qrbox: (w, h) => ({ width: Math.min(w, h) * 0.8, height: Math.min(w, h) * 0.5 }) },
+        { fps: 25, qrbox: (w, h) => ({ width: Math.min(w, h) * 0.8, height: Math.min(w, h) * 0.5 }) },
         async (raw) => {
           await s.stop()
+          s.clear()
           einbuchenScannerRef.current = null
-          const clean = raw.replace(/^\][A-Za-z][0-9]/, '').replace(/[^\x20-\x7E]/g, '').trim()
-          const gtin = clean.match(/^01(\d{14})/)
-          const barcode = gtin ? gtin[1] : clean
-          const lotMatch = clean.match(/10([^\x1d]{1,20})/)
-          const lot = lotMatch?.[1]
-          // Find matching order item
-          for (const order of orders) {
-            const item = (order.items ?? []).find(i => i.product?.barcode === barcode && (scannedCounts[i.id] ?? 0) < i.quantity)
-            if (item) {
-              setScanConfirm({ item, order, lot })
-              return
-            }
+          const found = await processEinbuchenBarcode(raw)
+          if (!found) {
+            showToast('Artikel nicht in offenen Bestellungen gefunden')
+            setScanFlashError(true)
           }
-          // Not found — show toast and restart scanner after short pause
-          showToast('Artikel nicht in offenen Bestellungen gefunden')
           if (scanToggleRef.current) {
-            await new Promise(r => setTimeout(r, 800))
+            await new Promise(r => setTimeout(r, found ? 500 : 800))
+            setScanFlashError(false)
             startInlineScanner()
           }
         },
         () => {}
       )
+      // Detect torch support after scanner is running
+      try {
+        const caps = s.getRunningTrackCameraCapabilities()
+        if (caps.torchFeature().isSupported()) setEinbuchenTorchSupported(true)
+      } catch { /* torch not available */ }
     } catch {
       // Camera error — turn off toggle
       setScanToggle(false)
@@ -552,9 +574,36 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
     }
   }
 
+  async function processEinbuchenBarcode(raw: string): Promise<boolean> {
+    const clean = raw.replace(/^\][A-Za-z][0-9]/, '').replace(/[^\x20-\x7E]/g, '').trim()
+    const gtin = clean.match(/^01(\d{14})/)
+    const raw14 = gtin ? gtin[1] : clean
+    const barcode = raw14.length === 14 && raw14.startsWith('0') ? raw14.slice(1) : raw14
+    const lotMatch = clean.match(/10([^\x1d]{1,20})/)
+    const lot = lotMatch?.[1]
+    for (const order of ordersRef.current) {
+      const item = (order.items ?? []).find(i => i.product?.barcode === barcode && (scannedCountsRef.current[i.id] ?? 0) < i.quantity)
+      if (item) { await scanReceiveUnit(item, order, lot); return true }
+    }
+    return false
+  }
+
+  async function toggleEinbuchenTorch() {
+    if (!einbuchenScannerRef.current) return
+    try {
+      const caps = einbuchenScannerRef.current.getRunningTrackCameraCapabilities()
+      await caps.torchFeature().apply(!einbuchenTorchOn)
+      setEinbuchenTorchOn(v => !v)
+    } catch { /* ignore */ }
+  }
+
   function stopInlineScanner() {
-    einbuchenScannerRef.current?.stop().catch(() => {})
+    const s = einbuchenScannerRef.current
     einbuchenScannerRef.current = null
+    setEinbuchenTorchSupported(false)
+    setEinbuchenTorchOn(false)
+    if (s?.isScanning) s.stop().then(() => s.clear()).catch(() => {})
+    else s?.clear()
   }
 
   function handleToggleScan() {
@@ -597,17 +646,10 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
     dragOrigin.current = { mouseX: point.clientX, mouseY: point.clientY, posX: dragPos.x, posY: dragPos.y }
   }
 
-  // Start scanner when toggle turns on (and no confirm showing)
+  // Start scanner when toggle turns on
   useEffect(() => {
-    if (scanToggle && !scanConfirm) startInlineScanner()
+    if (scanToggle) startInlineScanner()
   }, [scanToggle])
-
-  // Restart scanner after confirm modal is dismissed (if toggle still on)
-  useEffect(() => {
-    if (!scanConfirm && scanToggleRef.current) {
-      startInlineScanner()
-    }
-  }, [scanConfirm])
 
   const openCount = ordersBySupplier.length
   const cartCount = cartItems.length
@@ -752,7 +794,7 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
               <table className="w-full text-sm">
                 <tbody>
                   {Object.entries(cartByDomain).map(([domain, items], idx) => {
-                    const domainTotal = items.reduce((s, i) => s + (i.quantity * (i.product?.last_price ?? 0)), 0)
+                    const domainTotal = items.reduce((s, i) => s + (i.quantity * (hsEffectivePrice(i.product) ?? 0)), 0)
                     return (
                       <React.Fragment key={domain}>
                         {/* Spacer between groups */}
@@ -764,9 +806,24 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
                           <td colSpan={7} className="px-4 py-2.5">
                             <div className="flex items-center justify-between gap-3">
                               <p className="font-semibold text-slate-800 dark:text-slate-100 text-base">{domain}</p>
-                              <span className="text-xs text-slate-500 dark:text-slate-400 hidden sm:inline">
-                                Gesamt: <span className="font-semibold text-slate-700 dark:text-slate-200">€ {domainTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                              </span>
+                              <div className="flex flex-col items-end gap-0.5 hidden sm:flex">
+                                {domain === HS_SUPPLIER && hsVolumeBonus === 0 && hsTotal > 0 && (
+                                  <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+                                    Noch {(1000 - hsTotal).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € bis Volumenbonus
+                                  </span>
+                                )}
+                                <span className="text-xs text-slate-500 dark:text-slate-400">
+                                  Gesamt: <span className={`font-semibold ${domain === HS_SUPPLIER && hsVolumeBonus > 0 ? 'line-through text-slate-400 dark:text-slate-500' : 'text-slate-700 dark:text-slate-200'}`}>€ {domainTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                </span>
+                                {domain === HS_SUPPLIER && hsVolumeBonus > 0 && (
+                                  <span className="inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
+                                    <TrendingDown size={11} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                    Volumenbonus: <span className="font-semibold text-emerald-600 dark:text-emerald-400">−€ {hsVolumeBonus.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                    {' · '}
+                                    <span className="font-semibold text-slate-700 dark:text-slate-200">€ {(domainTotal - hsVolumeBonus).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </td>
                         </tr>
@@ -988,7 +1045,7 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
           <div className="h-20 md:hidden" />
         </div>
       )}
-      {tab === 'cart' && cartItems.length > 0 && grandTotal <= 2000 && Object.keys(cartByDomain).length > 1 && (
+      {tab === 'cart' && cartItems.length > 0 && grandTotal <= 2000 && (
         <div className="shrink-0 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700">
           <div className="px-4 py-3 flex items-center justify-between">
             <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Gesamtsumme Warenkorb</p>
@@ -1058,14 +1115,6 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-5 space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Lieferant</label>
-                <SupplierSelect
-                  value={editForm.supplier}
-                  onChange={v => setEditForm(f => ({ ...f, supplier: v }))}
-                  options={suppliers}
-                />
-              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Menge</label>
@@ -1089,7 +1138,7 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Preis pro Einheit (€)</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Listenpreis (€)</label>
                   <input
                     type="text"
                     inputMode="decimal"
@@ -1104,19 +1153,34 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
 
               {/* Pricing summary */}
               {(() => {
-                const prevTotal = (editItem?.quantity ?? 0) * (editItem?.product?.last_price ?? 0)
-                const newPrice = parseFloat(editForm.price.replace(',', '.'))
-                const newTotal = editForm.quantity * (isNaN(newPrice) ? 0 : newPrice)
+                const isHS = editItem?.product?.preferred_supplier === HS_SUPPLIER
+                const prevListTotal = (editItem?.quantity ?? 0) * (editItem?.product?.last_price ?? 0)
+                const prevEff = hsEffectivePrice(editItem?.product) ?? (editItem?.product?.last_price ?? 0)
+                const prevEffTotal = (editItem?.quantity ?? 0) * prevEff
+                const newListPrice = parseFloat(editForm.price.replace(',', '.'))
+                const newEffPrice = isNaN(newListPrice) ? 0 : (() => {
+                  if (!isHS) return newListPrice
+                  const discount = editItem?.product?.brand === 'Henry Schein' ? 0.29 : 0.28
+                  return newListPrice * (1 - discount)
+                })()
+                const newListTotal = editForm.quantity * (isNaN(newListPrice) ? 0 : newListPrice)
+                const newEffTotal = editForm.quantity * newEffPrice
                 const fmt = (n: number) => `€ ${Math.abs(n).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                 return (
                   <div className="bg-slate-50 dark:bg-slate-800 rounded-xl px-4 py-3 space-y-2 text-sm">
                     <div className="flex justify-between text-slate-500 dark:text-slate-400">
                       <span>Vorher</span>
-                      <span>{fmt(prevTotal)}</span>
+                      <span className="flex items-center gap-2">
+                        {isHS && <span className="line-through text-slate-400 dark:text-slate-500">{fmt(prevListTotal)}</span>}
+                        <span>{fmt(prevEffTotal)}</span>
+                      </span>
                     </div>
                     <div className="flex justify-between font-medium text-slate-800 dark:text-slate-100">
                       <span>Neu</span>
-                      <span>{fmt(newTotal)}</span>
+                      <span className="flex items-center gap-2">
+                        {isHS && <span className="line-through text-slate-400 dark:text-slate-500 font-normal">{fmt(newListTotal)}</span>}
+                        <span>{fmt(newEffTotal)}</span>
+                      </span>
                     </div>
                   </div>
                 )
@@ -1234,58 +1298,78 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
         >
           {/* Drag handle */}
           <div
-            className="flex items-center justify-between px-4 py-3 bg-slate-800 cursor-grab active:cursor-grabbing touch-none"
+            className="flex items-center justify-between px-4 py-3 bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-transparent cursor-grab active:cursor-grabbing touch-none"
             onMouseDown={onDragStart}
             onTouchStart={onDragStart}
           >
             <div className="flex items-center gap-2">
               <ScanLine size={15} className="text-slate-400" />
-              <span className="text-white text-sm font-medium">Scannen</span>
+              <span className="text-slate-700 dark:text-white text-sm font-medium">Scannen</span>
             </div>
-            <button
-              onMouseDown={e => e.stopPropagation()}
-              onTouchStart={e => e.stopPropagation()}
-              onClick={handleToggleScan}
-              className="text-slate-400 hover:text-white transition-colors p-1 rounded"
-            >
-              <X size={16} />
-            </button>
+            <div className="flex items-center gap-1">
+              {einbuchenTorchSupported && (
+                <button
+                  onMouseDown={e => e.stopPropagation()}
+                  onTouchStart={e => e.stopPropagation()}
+                  onClick={toggleEinbuchenTorch}
+                  className={`p-1 rounded transition-colors ${einbuchenTorchOn ? 'text-amber-400' : 'text-slate-400 hover:text-slate-700 dark:hover:text-white'}`}
+                >
+                  {einbuchenTorchOn ? <Flashlight size={16} /> : <FlashlightOff size={16} />}
+                </button>
+              )}
+              <button
+                onMouseDown={e => e.stopPropagation()}
+                onTouchStart={e => e.stopPropagation()}
+                onClick={handleToggleScan}
+                className="text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors p-1 rounded"
+              >
+                <X size={16} />
+              </button>
+            </div>
           </div>
 
           {/* Camera */}
-          <div id={EINBUCHEN_SCAN_DIV} className="w-full bg-slate-900" style={{ minHeight: 220 }} />
-          {!scanConfirm && (
-            <p className="text-center text-xs text-slate-400 py-2 bg-slate-900">Barcode vor die Kamera halten</p>
-          )}
-
-          {/* Confirm panel */}
-          {scanConfirm && (
-            <div className="p-4 border-t border-slate-100 dark:border-slate-800">
-              <p className="text-xs text-slate-500 dark:text-slate-400 mb-1.5">Richtiger Artikel?</p>
-              <p className="font-semibold text-slate-800 dark:text-slate-100 text-sm leading-snug">{scanConfirm.item.product?.name ?? '—'}</p>
-              <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5 mb-4">
-                {scanConfirm.order.supplier ?? 'Lieferant'} · gescannt: {scannedCounts[scanConfirm.item.id] ?? 0}/{scanConfirm.item.quantity}
-              </p>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setScanConfirm(null)}
-                  className="flex-1 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-                >
-                  Nicht korrekt
-                </button>
-                <button
-                  onClick={async () => {
-                    const { item, order, lot } = scanConfirm
-                    setScanConfirm(null)
-                    await scanReceiveUnit(item, order, lot)
-                  }}
-                  className="flex-1 px-3 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium transition-colors"
-                >
-                  +1 bestätigen
-                </button>
+          <div className="relative bg-slate-900" style={{ minHeight: 220 }}>
+            <div id={EINBUCHEN_SCAN_DIV} className="w-full" style={{ minHeight: 220 }} />
+            {scanFlashError && (
+              <div className="absolute inset-0 flex items-center justify-center z-10 bg-red-500/80">
+                <p className="text-white text-sm font-medium text-center px-4">Artikel nicht in offenen Bestellungen gefunden</p>
               </div>
-            </div>
-          )}
+            )}
+          </div>
+          <form
+            onSubmit={async e => {
+              e.preventDefault()
+              const val = einbuchenManual.trim()
+              if (!val) return
+              setEinbuchenManual('')
+              stopInlineScanner()
+              const found = await processEinbuchenBarcode(val)
+              if (!found) {
+                showToast('Artikel nicht in offenen Bestellungen gefunden')
+                setScanFlashError(true)
+                await new Promise(r => setTimeout(r, 800))
+                setScanFlashError(false)
+              }
+              if (scanToggleRef.current) startInlineScanner()
+            }}
+            className="px-3 py-2 bg-slate-100 dark:bg-slate-900 flex gap-2"
+          >
+            <input
+              type="text"
+              value={einbuchenManual}
+              onChange={e => setEinbuchenManual(e.target.value)}
+              placeholder="Barcode manuell eingeben…"
+              className="flex-1 text-xs border border-slate-300 dark:border-slate-600 rounded-lg px-2.5 py-1.5 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500"
+            />
+            <button
+              type="submit"
+              disabled={!einbuchenManual.trim()}
+              className="text-xs px-2.5 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-600 disabled:opacity-40 text-white font-medium transition-colors"
+            >
+              OK
+            </button>
+          </form>
         </div>
       )}
     </div>
@@ -1304,10 +1388,12 @@ function CartItemRow({ item, placing, requiresApproval, onUpdateQuantity, onPlac
   alternatives?: PriceAlternative[]
   onShowAlternatives?: (item: CartItem) => void
 }) {
-  const price = item.product?.last_price ?? null
-  const rowTotal = item.quantity * (price ?? 0)
-  const currentPrice = item.product?.last_price ?? null
-  const cheaperAlts = (alternatives ?? []).filter(a => currentPrice != null && a.price < currentPrice)
+  const listPrice = item.product?.last_price ?? null
+  const effectivePrice = hsEffectivePrice(item.product)
+  const price = effectivePrice
+  const hasDiscount = effectivePrice != null && listPrice != null && effectivePrice < listPrice
+  const rowTotal = item.quantity * (effectivePrice ?? 0)
+  const cheaperAlts = (alternatives ?? []).filter(a => effectivePrice != null && a.price < effectivePrice)
 
   return (
     <tr className="bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors border-b border-slate-100 dark:border-slate-800">
@@ -1351,16 +1437,34 @@ function CartItemRow({ item, placing, requiresApproval, onUpdateQuantity, onPlac
         </div>
       </td>
       {/* Price */}
-      <td className="px-3 py-3 text-right hidden sm:table-cell">
-        <span className="text-sm text-slate-600 dark:text-slate-300">
-          {price != null ? `€ ${price.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
-        </span>
+      <td className="px-3 py-3 text-right hidden sm:table-cell w-28 whitespace-nowrap">
+        {price != null ? (
+          <div className="flex flex-col items-end tabular-nums">
+            {hasDiscount && (
+              <span className="text-xs text-slate-400 dark:text-slate-500 line-through">
+                € {listPrice!.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            )}
+            <span className="text-sm text-slate-600 dark:text-slate-300">
+              € {price.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+          </div>
+        ) : '—'}
       </td>
       {/* Row total */}
-      <td className="px-3 py-3 text-right font-semibold text-slate-800 dark:text-slate-100 whitespace-nowrap">
-        {price != null
-          ? `€ ${rowTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-          : '—'}
+      <td className="px-3 py-3 text-right w-32 whitespace-nowrap">
+        {price != null ? (
+          <div className="flex flex-col items-end tabular-nums">
+            {hasDiscount && (
+              <span className="text-xs text-slate-400 dark:text-slate-500 line-through">
+                € {(item.quantity * listPrice!).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            )}
+            <span className="font-semibold text-slate-800 dark:text-slate-100">
+              € {rowTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+          </div>
+        ) : '—'}
       </td>
       {/* Website link */}
       <td className="px-3 py-3 hidden sm:table-cell">

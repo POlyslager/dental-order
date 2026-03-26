@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { Search, X, Trash2, ChevronRight, Pencil } from 'lucide-react'
 import Toast from '../components/Toast'
 import ConfirmDialog from '../components/ConfirmDialog'
+import SwipeToDelete from '../components/SwipeToDelete'
 
 interface CategoryRow {
   name: string
@@ -126,7 +127,12 @@ export default function CategoriesPage() {
   }
 
   async function handleDelete() {
-    if (!selected || selected.productCount > 0) return
+    if (!selected) return
+    if (selected.productCount > 0) {
+      setToast(`Nicht möglich: ${selected.productCount} Artikel sind dieser Kategorie zugeordnet`)
+      setConfirmDelete(false)
+      return
+    }
     await supabase.from('categories').delete().eq('name', selected.name)
     setToast('Kategorie gelöscht')
     await load()
@@ -193,7 +199,12 @@ export default function CategoriesPage() {
             </div>
             <div className="divide-y divide-slate-100 dark:divide-slate-700/50">
               {paginated.map(c => (
-                <div key={c.name} onClick={() => openExisting(c)} className="bg-white hover:bg-slate-50 dark:bg-slate-800/50 dark:hover:bg-slate-700/50 cursor-pointer transition-colors">
+                <SwipeToDelete key={c.name} disabled={c.productCount > 0} onDelete={async () => {
+                  await supabase.from('categories').delete().eq('name', c.name)
+                  setToast('Kategorie gelöscht')
+                  load()
+                }}>
+                <div onClick={() => openExisting(c)} className="bg-white hover:bg-slate-50 dark:bg-slate-800/50 dark:hover:bg-slate-700/50 cursor-pointer transition-colors">
                   <div className="hidden md:grid items-center" style={{ gridTemplateColumns: '2fr 0.6fr 0.6fr 2rem' }}>
                     <div className="px-4 py-3.5">
                       <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{c.name}</p>
@@ -212,6 +223,7 @@ export default function CategoriesPage() {
                     <ChevronRight size={14} className="text-slate-300 dark:text-slate-600 shrink-0" />
                   </div>
                 </div>
+                </SwipeToDelete>
               ))}
             </div>
             {filtered.length === 0 && (
@@ -269,25 +281,26 @@ export default function CategoriesPage() {
 
             {/* View mode */}
             {!editing && !isNew ? (
-              <div className="flex-1 overflow-y-auto p-5 space-y-4">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl px-4 py-3">
-                    <p className="text-xs text-slate-400 mb-0.5">Artikel</p>
-                    <p className="text-xl font-bold text-slate-800 dark:text-slate-100">{selected?.productCount}</p>
+              <div className="flex-1 overflow-y-auto p-5 space-y-5">
+                <div className="grid grid-cols-2 gap-x-4 gap-y-4">
+                  <div>
+                    <p className="text-xs text-slate-400 mb-0.5">Name</p>
+                    <p className="text-sm text-slate-800 dark:text-slate-100">{selected?.name ?? '—'}</p>
                   </div>
-                  <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl px-4 py-3">
+                  <div>
+                    <p className="text-xs text-slate-400 mb-0.5">Artikel</p>
+                    <p className="text-sm text-slate-800 dark:text-slate-100">{selected?.productCount ?? 0}</p>
+                  </div>
+                  <div>
                     <p className="text-xs text-slate-400 mb-0.5">Lieferanten</p>
-                    <p className="text-xl font-bold text-slate-800 dark:text-slate-100">{selected?.supplierCount}</p>
+                    <p className="text-sm text-slate-800 dark:text-slate-100">{selected?.supplierCount ?? 0}</p>
                   </div>
                 </div>
                 {selected?.description && (
-                  <div>
+                  <div className="border-t border-slate-100 dark:border-slate-700 pt-4">
                     <p className="text-xs text-slate-400 mb-0.5">Beschreibung</p>
                     <p className="text-sm text-slate-800 dark:text-slate-100 whitespace-pre-wrap">{selected.description}</p>
                   </div>
-                )}
-                {(selected?.productCount ?? 0) === 0 && (
-                  <p className="text-xs text-slate-400 pt-2">Keine Artikel in dieser Kategorie.</p>
                 )}
               </div>
             ) : (
@@ -307,22 +320,15 @@ export default function CategoriesPage() {
             )}
 
             {!editing && !isNew ? (
-              <div className="border-t border-slate-100 dark:border-slate-700 px-5 pt-4 pb-3 flex flex-col gap-2 shrink-0">
-                <div className="flex gap-3">
-                  <button onClick={() => setEditing(true)}
-                    className="flex-1 flex items-center justify-center gap-2 border border-slate-300 dark:border-slate-600 rounded-xl py-3 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
-                    <Pencil size={14} /> Bearbeiten
-                  </button>
-                  <button onClick={() => setConfirmDelete(true)} disabled={(selected?.productCount ?? 0) > 0}
-                    className="flex-1 flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 disabled:opacity-40 text-white rounded-xl py-3 text-sm font-medium transition-colors">
-                    <Trash2 size={14} /> Löschen
-                  </button>
-                </div>
-                {(selected?.productCount ?? 0) > 0 && (
-                  <p className="text-xs text-slate-400 text-center pb-1">
-                    Kann nicht gelöscht werden – noch {selected?.productCount} {selected?.productCount === 1 ? 'Artikel' : 'Artikel'} zugewiesen.
-                  </p>
-                )}
+              <div className="border-t border-slate-100 dark:border-slate-700 px-5 py-4 flex gap-3 shrink-0">
+                <button onClick={() => setEditing(true)}
+                  className="flex-1 flex items-center justify-center gap-2 border border-slate-300 dark:border-slate-600 rounded-xl py-3 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+                  <Pencil size={14} /> Bearbeiten
+                </button>
+                <button onClick={() => setConfirmDelete(true)}
+                  className="flex-1 flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 text-white rounded-xl py-3 text-sm font-medium transition-colors">
+                  <Trash2 size={14} /> Löschen
+                </button>
               </div>
             ) : (editing || isNew) ? (
               <div className="border-t border-slate-100 dark:border-slate-700 px-5 py-4 flex gap-3 shrink-0">

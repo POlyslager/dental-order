@@ -3,6 +3,7 @@
   "short_name": "DentalOrder",
   "start_url": "/",
   "display": "standalone",
+  "orientation": "landscape",
   "background_color": "#f8fafc",
   "theme_color": "#0ea5e9",
   "icons": [

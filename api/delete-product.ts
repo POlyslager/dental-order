@@ -15,6 +15,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   await adminClient.from('stock_movements').delete().eq('product_id', id)
   await adminClient.from('cart_items').delete().eq('product_id', id)
   await adminClient.from('order_items').delete().eq('product_id', id)
+  await adminClient.from('product_supplier_history').delete().eq('product_id', id)
   const { data, error } = await adminClient.from('products').delete().eq('id', id).select('id')
 
   if (error) return res.status(500).json({ error: error.message })

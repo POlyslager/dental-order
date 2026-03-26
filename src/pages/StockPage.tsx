@@ -5,7 +5,9 @@ import { supabase, getCurrentUser } from '../lib/supabase'
 import type { Product, Role, PriceAlternative } from '../lib/types'
 import ProductDetailPage from './ProductDetailPage'
 import CategorySelect from '../components/CategorySelect'
-import { Search, Plus, X, Camera, Activity, ChevronUp, ChevronDown, Package, PackageCheck, PackageX, TriangleAlert, Check, ShoppingCart, TrendingDown } from 'lucide-react'
+import BarcodeScanModal from '../components/BarcodeScanModal'
+import { Search, Plus, X, Camera, Activity, ChevronUp, ChevronDown, Package, PackageCheck, PackageX, TriangleAlert, Check, ShoppingCart, TrendingDown, AlertTriangle } from 'lucide-react'
+import SwipeToDelete from '../components/SwipeToDelete'
 
 const SCAN_FORMATS = [
   Html5QrcodeSupportedFormats.QR_CODE, Html5QrcodeSupportedFormats.DATA_MATRIX,
@@ -27,6 +29,13 @@ const STORAGE_LOCATIONS = [
   'Steri', 'Rezeption', 'Büro', 'Radiologie', 'Keller',
 ]
 const UNITS = ['Stück', 'Packung', 'Flasche', 'Kanister']
+
+function effectivePrice(p: { last_price: number | null; preferred_supplier: string | null; brand: string | null }): number | null {
+  if (p.last_price == null) return null
+  if (p.preferred_supplier !== 'Henry Schein Dental') return p.last_price
+  const discount = p.brand === 'Henry Schein' ? 0.29 : 0.28
+  return p.last_price * (1 - discount)
+}
 
 function SweepModal({
   results,
@@ -163,7 +172,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [selectedStatus, setSelectedStatus] = useState<StatusFilter>('all')
-  const [sortKey, setSortKey] = useState<'name' | 'category' | 'article_number' | 'preferred_supplier' | 'current_stock' | 'status'>('status')
+  const [sortKey, setSortKey] = useState<'name' | 'category' | 'article_number' | 'preferred_supplier' | 'last_price' | 'current_stock' | 'status'>('status')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [page, setPage] = useState(1)
   const PAGE_SIZE = 20
@@ -199,14 +208,15 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
     // flushSync ensures the div is visible in the DOM before Html5Qrcode attaches
     flushSync(() => setScanning(true))
 
-    const scanner = new Html5Qrcode('barcode-scanner', { formatsToSupport: SCAN_FORMATS, verbose: false })
+    const scanner = new Html5Qrcode('barcode-scanner', { formatsToSupport: SCAN_FORMATS, verbose: false, experimentalFeatures: { useBarCodeDetectorIfSupported: true } })
     scannerRef.current = scanner
     try {
       await scanner.start(
         { facingMode: 'environment' },
-        { fps: 15, qrbox: (w, h) => ({ width: Math.min(w, h) * 0.85, height: Math.min(w, h) * 0.85 }) },
+        { fps: 25, qrbox: (w, h) => ({ width: Math.min(w, h) * 0.85, height: Math.min(w, h) * 0.85 }) },
         async (raw) => {
           await scanner.stop()
+          scanner.clear()
           scannerRef.current = null
           setScanning(false)
           await applyScannedCode(raw)
@@ -223,7 +233,8 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
 
     // Parse GS1 fields if present
     const gtin14 = clean.match(/^01(\d{14})/)
-    const barcode = gtin14 ? gtin14[1] : clean
+    const raw14 = gtin14 ? gtin14[1] : clean
+    const barcode = raw14.length === 14 && raw14.startsWith('0') ? raw14.slice(1) : raw14
 
     // Parse optional GS1 fields: lot (10), expiry (17)
     const lot    = clean.match(/10([^\x1d]{1,20})/)
@@ -232,10 +243,10 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
     if (lot)    notes += `Charge: ${lot[1]}`
     if (expiry) notes += (notes ? ' · ' : '') + `Ablauf: 20${expiry[1].slice(0,2)}-${expiry[1].slice(2,4)}-${expiry[1].slice(4,6)}`
 
-    // Check if product with this barcode already exists
-    const { data: existing } = await supabase.from('products').select('*').eq('barcode', barcode).maybeSingle()
+    // Check if product with this barcode already exists (use already-loaded list)
+    const existing = products.find(p => p.barcode === barcode)
     if (existing) {
-      setDuplicateProduct(existing as Product)
+      setDuplicateProduct(existing)
       return
     }
 
@@ -263,9 +274,11 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
   }
 
   function stopBarcodeScanner() {
-    if (scannerRef.current?.isScanning) scannerRef.current.stop()
+    const s = scannerRef.current
     scannerRef.current = null
     setScanning(false)
+    if (s?.isScanning) s.stop().then(() => s.clear()).catch(() => {})
+    else s?.clear()
   }
 
   async function lookupProduct() {
@@ -462,6 +475,23 @@ useEffect(() => {
   const categories = useMemo(() => ['all', ...productCategories], [productCategories])
   const brands = suppliers
 
+  // Duplicate detection: tokenize product names and find similar ones
+  function tokenize(s: string): Set<string> {
+    return new Set(s.toLowerCase().replace(/[^\w\s]/g, ' ').split(/\s+/).filter(w => w.length >= 4))
+  }
+  const similarProducts = useMemo(() => {
+    const q = form.name.trim()
+    if (q.length < 5) return []
+    const qTokens = tokenize(q)
+    if (qTokens.size === 0) return []
+    return products.filter(p => {
+      const pTokens = tokenize(p.name)
+      let matches = 0
+      for (const t of qTokens) { if (pTokens.has(t)) matches++ }
+      return matches >= Math.min(2, qTokens.size)
+    }).slice(0, 3)
+  }, [form.name, products])
+
   const stockHealth = useMemo(() => ({
     green:  products.filter(p => p.current_stock > p.min_stock * 1.5).length,
     orange: products.filter(p => p.current_stock > p.min_stock && p.current_stock <= p.min_stock * 1.5).length,
@@ -480,7 +510,6 @@ useEffect(() => {
     const q = search.toLowerCase()
     const matchesSearch =
       p.name.toLowerCase().includes(q) ||
-      p.category.toLowerCase().includes(q) ||
       (p.article_number?.toLowerCase().includes(q) ?? false)
     const matchesStatus = (() => {
       if (selectedStatus === 'all')      return true
@@ -504,6 +533,7 @@ useEffect(() => {
       case 'category':           return dir * a.category.localeCompare(b.category)
       case 'article_number':     return dir * (a.article_number ?? '').localeCompare(b.article_number ?? '')
       case 'preferred_supplier': return dir * (a.preferred_supplier ?? '').localeCompare(b.preferred_supplier ?? '')
+      case 'last_price':         return dir * ((a.last_price ?? 0) - (b.last_price ?? 0))
       case 'current_stock':      return dir * (a.current_stock - b.current_stock)
       case 'status':             return dir * (stockRank(a) - stockRank(b))
       default:                   return 0
@@ -554,7 +584,6 @@ useEffect(() => {
     onDeleted: (id: string) => {
       const deleted = { ...selectedProduct }
       setProducts(prev => prev.filter(p => p.id !== id))
-      fetchProducts()
       closeProduct()
       setCartToastAction(null)
       setCartToastUndo(() => async () => {
@@ -582,6 +611,7 @@ useEffect(() => {
     },
     availableCategories: productCategories,
     availableSuppliers: suppliers,
+    availableBrands: brandOptions,
   } : null
 
   return (
@@ -702,10 +732,11 @@ useEffect(() => {
       </div>
 
       {/* Desktop header (md+) */}
-      <div className="hidden md:grid border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 sticky top-0 z-10" style={{ gridTemplateColumns: '1.7fr 1fr 1fr 0.8fr 1fr' }}>
+      <div className="hidden md:grid border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 sticky top-0 z-10" style={{ gridTemplateColumns: '1.7fr 1fr 1fr 0.8fr 0.8fr 1fr' }}>
         <ColHeader label="Name"      col="name"               onClick={toggleSort} SortIcon={SortIcon} />
         <ColHeader label="Kategorie" col="category"           onClick={toggleSort} SortIcon={SortIcon} />
         <ColHeader label="Lieferant" col="preferred_supplier" onClick={toggleSort} SortIcon={SortIcon} />
+        <ColHeader label="Preis"     col="last_price"          onClick={toggleSort} SortIcon={SortIcon} />
         <ColHeader label="Bestand"   col="current_stock"      onClick={toggleSort} SortIcon={SortIcon} />
         <ColHeader label="Status"    col="status"             onClick={toggleSort} SortIcon={SortIcon} />
       </div>
@@ -720,13 +751,23 @@ useEffect(() => {
       {/* Rows */}
       <div className="divide-y divide-slate-100 dark:divide-slate-800">
         {paginated.map(p => (
+          <SwipeToDelete key={p.id} onDelete={async () => {
+            await fetch('/api/delete-product', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: p.id }) })
+            setProducts(prev => prev.filter(x => x.id !== p.id))
+            setCartToast(`${p.name} wurde gelöscht`)
+            setCartToastAction(null)
+            setCartToastUndo(() => async () => {
+              const { created_at, updated_at, ...fields } = p as any
+              await supabase.from('products').insert(fields)
+              fetchProducts()
+            })
+          }}>
           <div
-            key={p.id}
             onClick={() => setSelectedProduct(p)}
             className={`bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-colors ${selectedProduct?.id === p.id ? 'bg-sky-50 dark:bg-sky-950' : ''}`}
           >
             {/* Desktop row */}
-            <div className="hidden md:grid items-center" style={{ gridTemplateColumns: '1.7fr 1fr 1fr 0.8fr 1fr' }}>
+            <div className="hidden md:grid items-center" style={{ gridTemplateColumns: '1.7fr 1fr 1fr 0.8fr 0.8fr 1fr' }}>
               <div className="min-w-0 px-4 py-3.5">
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{p.name}</p>
@@ -744,6 +785,18 @@ useEffect(() => {
               </div>
               <div className="min-w-0 px-4 py-3.5 text-sm text-slate-500 dark:text-slate-400 truncate">{p.category}</div>
               <div className="min-w-0 px-4 py-3.5 text-sm text-slate-500 dark:text-slate-400 truncate">{p.preferred_supplier ?? '—'}</div>
+              <div className="px-4 py-3.5">
+                {(() => {
+                  const eff = effectivePrice(p)
+                  const hasDiscount = eff != null && p.last_price != null && eff < p.last_price
+                  return eff != null ? (
+                    <div className="flex flex-col">
+                      <span className="text-sm text-slate-600 dark:text-slate-300">{eff.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}</span>
+                      {hasDiscount && <span className="text-xs text-slate-400 dark:text-slate-500 line-through">{p.last_price!.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}</span>}
+                    </div>
+                  ) : <span className="text-sm text-slate-400">—</span>
+                })()}
+              </div>
               <div className="px-4 py-3.5">
                 <span className="text-sm font-bold text-slate-800 dark:text-slate-100">{p.current_stock}</span>
                 <span className="text-xs text-slate-400 dark:text-slate-500 ml-1">{p.unit}</span>
@@ -763,6 +816,7 @@ useEffect(() => {
               <div className="w-28 px-4 py-3.5 shrink-0"><StockStatus product={p} /></div>
             </div>
           </div>
+          </SwipeToDelete>
         ))}
         {sorted.length === 0 && (
           <p className="px-4 py-12 text-center text-slate-400 dark:text-slate-500 text-sm">Keine Artikel gefunden</p>
@@ -875,21 +929,7 @@ useEffect(() => {
             </div>
 
             {/* Scanner modal */}
-            {scanning && (
-              <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/60">
-                <div className="bg-white dark:bg-slate-800 w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl shadow-2xl overflow-hidden">
-                  <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-700">
-                    <span className="font-semibold text-slate-800 dark:text-slate-100 text-sm">Barcode scannen</span>
-                    <button type="button" onClick={stopBarcodeScanner}
-                      className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
-                      <X size={18} />
-                    </button>
-                  </div>
-                  <div id="barcode-scanner" className="w-full bg-slate-900" style={{ minHeight: 260 }} />
-                  <p className="text-center text-xs text-slate-400 py-2 bg-slate-900">Barcode vor die Kamera halten</p>
-                </div>
-              </div>
-            )}
+            {scanning && <BarcodeScanModal divId="barcode-scanner" onClose={stopBarcodeScanner} scannerRef={scannerRef} onManualEntry={code => { stopBarcodeScanner(); applyScannedCode(code) }} />}
 
             {/* Form */}
             <form onSubmit={handleCreate} className="p-4 pb-10 space-y-4">
@@ -899,6 +939,20 @@ useEffect(() => {
                 {form.barcode ? 'Barcode gescannt ✓' : 'Barcode scannen'}
               </button>
               <Field label="Name *" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} required />
+              {similarProducts.length > 0 && (
+                <div className="rounded-xl px-3 py-2.5 space-y-1.5" style={{ backgroundColor: '#ffedd4' }}>
+                  <div className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: '#ff6a00' }}>
+                    <AlertTriangle size={13} />
+                    Ähnliche Artikel vorhanden
+                  </div>
+                  {similarProducts.map(p => (
+                    <button key={p.id} type="button" onClick={() => { setShowForm(false); setSelectedProduct(p) }}
+                      className="w-full text-left text-xs hover:underline truncate" style={{ color: '#ff6a00' }}>
+                      → {p.name}
+                    </button>
+                  ))}
+                </div>
+              )}
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Kategorie *</label>
                 <CategorySelect value={form.category} onChange={v => setForm(f => ({ ...f, category: v }))} categories={productCategories} required />
@@ -1002,7 +1056,7 @@ useEffect(() => {
             className={`hidden md:block fixed inset-0 bg-black/30 z-40 ${closingProduct ? 'animate-fade-in' : 'animate-fade-in'}`}
             onClick={closeProduct}
           />
-          <div className={`fixed inset-0 bg-white dark:bg-slate-900 z-50 overflow-y-auto md:inset-auto md:top-4 md:bottom-4 md:right-4 md:w-[520px] md:rounded-2xl md:shadow-2xl ${closingProduct ? 'animate-slide-out-right' : 'animate-slide-in-right'}`}>
+          <div className={`fixed inset-0 bg-white dark:bg-slate-900 z-50 overflow-hidden flex flex-col md:inset-auto md:top-4 md:bottom-4 md:right-4 md:w-[520px] md:rounded-2xl md:shadow-2xl ${closingProduct ? 'animate-slide-out-right' : 'animate-slide-in-right'}`}>
             <ProductDetailPage {...productDetailProps} isModal />
           </div>
         </>

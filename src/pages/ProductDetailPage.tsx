@@ -1,12 +1,23 @@
 import { useEffect, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
 import { supabase } from '../lib/supabase'
-import type { PriceAlternative, Product, SupplierHistoryEntry } from '../lib/types'
+import type { Product, SupplierHistoryEntry } from '../lib/types'
 import CategorySelect from '../components/CategorySelect'
 import Toast from '../components/Toast'
+import BarcodeScanModal from '../components/BarcodeScanModal'
 import {
   ChevronLeft, Pencil, Trash2, ShoppingCart, Check, ExternalLink, X, Minus, Plus,
-  Search, ChevronDown, RotateCcw,
+  Search, ChevronDown, RotateCcw, Camera,
 } from 'lucide-react'
+
+const SCAN_FORMATS = [
+  Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8,
+  Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.CODE_39,
+  Html5QrcodeSupportedFormats.UPC_A, Html5QrcodeSupportedFormats.QR_CODE,
+  Html5QrcodeSupportedFormats.DATA_MATRIX,
+]
+const BARCODE_SCAN_DIV = 'product-detail-barcode-scanner'
 
 const STORAGE_LOCATIONS = [
   'Behandlungsraum 1', 'Behandlungsraum 2', 'Behandlungsraum 3',
@@ -20,8 +31,11 @@ const TREATMENT_TYPE_OPTIONS = [
 ]
 
 function stockStatus(p: Product): 'red' | 'orange' | 'green' {
-  if (p.current_stock <= p.min_stock) return 'red'
-  if (p.current_stock <= p.min_stock * 1.5) return 'orange'
+  const cur = parseFloat(String(p.current_stock))
+  const min = parseFloat(String(p.min_stock))
+  if (isNaN(cur) || isNaN(min)) return 'green'
+  if (cur <= min) return 'red'
+  if (cur <= min * 1.5) return 'orange'
   return 'green'
 }
 
@@ -50,9 +64,10 @@ interface Props {
   isModal?: boolean
   availableCategories?: string[]
   availableSuppliers?: string[]
+  availableBrands?: string[]
 }
 
-export default function ProductDetailPage({ product, onBack, onUpdated, onDeleted, onAddToCart, onCartItemAdded, onItemTaken, onNavigateToOrders, isModal, availableCategories, availableSuppliers }: Props) {
+export default function ProductDetailPage({ product, onBack, onUpdated, onDeleted, onAddToCart, onCartItemAdded, onItemTaken, onNavigateToOrders, isModal, availableCategories, availableSuppliers, availableBrands }: Props) {
   const [form, setForm] = useState(product)
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -70,11 +85,11 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
   const [categories, setCategories] = useState<string[]>([])
   const [suppliers, setSuppliers] = useState<string[]>([])
   const [brands, setBrands] = useState<string[]>([])
-  const [altState, setAltState] = useState<'idle' | 'loading' | 'done'>('idle')
-  const [altResults, setAltResults] = useState<PriceAlternative[]>([])
-  const [supplierHistory, setSupplierHistory] = useState<SupplierHistoryEntry[]>([])
+const [supplierHistory, setSupplierHistory] = useState<SupplierHistoryEntry[]>([])
   const [historyOpen, setHistoryOpen] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
+  const [scanning, setScanning] = useState(false)
+  const scannerRef = useRef<Html5Qrcode | null>(null)
 
   const status = stockStatus(form)
 
@@ -128,14 +143,18 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
         setSuppliers([...new Set([...fromProducts, ...fromSuppliers])].filter(Boolean).sort())
       })
     }
-    Promise.all([
-      supabase.from('products').select('brand').not('brand', 'is', null),
-      supabase.from('brands').select('name'),
-    ]).then(([{ data: prodData }, { data: brandData }]) => {
-      const fromProducts = (prodData ?? []).map(p => p.brand as string)
-      const fromBrands = (brandData ?? []).map(b => b.name as string)
-      setBrands([...new Set([...fromProducts, ...fromBrands])].filter(Boolean).sort())
-    })
+    if (availableBrands) {
+      setBrands(availableBrands)
+    } else {
+      Promise.all([
+        supabase.from('products').select('brand').not('brand', 'is', null),
+        supabase.from('brands').select('name'),
+      ]).then(([{ data: prodData }, { data: brandData }]) => {
+        const fromProducts = (prodData ?? []).map(p => p.brand as string)
+        const fromBrands = (brandData ?? []).map(b => b.name as string)
+        setBrands([...new Set([...fromProducts, ...fromBrands])].filter(Boolean).sort())
+      })
+    }
     fetchHistory()
 
     // Check cart and open orders
@@ -154,13 +173,13 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
     })()
   }, [product.id])
 
-  useEffect(() => { searchAlternatives() }, [product.id])
 
   async function handleSave() {
     setSaving(true)
     const parseNum = (v: unknown) => { const n = parseFloat(String(v).replace(',', '.')); return isNaN(n) ? null : n }
     const { data, error } = await supabase.from('products').update({
       article_number: form.article_number,
+      barcode: form.barcode || null,
       name: form.name,
       description: form.description,
       category: form.category,
@@ -194,12 +213,14 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
     setConfirmDelete(false)
     deleteSpinnerTimer.current = setTimeout(() => setShowDeleteSpinner(true), 5000)
     try {
-      const res = await fetch('/api/delete-product', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: product.id }),
-      })
-      if (res.ok) {
+      await Promise.all([
+        supabase.from('stock_movements').delete().eq('product_id', product.id),
+        supabase.from('cart_items').delete().eq('product_id', product.id),
+        supabase.from('order_items').delete().eq('product_id', product.id),
+        supabase.from('product_supplier_history').delete().eq('product_id', product.id),
+      ])
+      const { error } = await supabase.from('products').delete().eq('id', product.id)
+      if (!error) {
         onDeleted(product.id)
         onBack()
       }
@@ -244,28 +265,13 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
   async function fetchHistory() {
     const { data } = await supabase
       .from('product_supplier_history')
-      .select('*')
+      .select('id, product_id, supplier_name, supplier_url, price, set_at, set_by, source')
       .eq('product_id', product.id)
       .order('set_at', { ascending: false })
     setSupplierHistory((data ?? []) as SupplierHistoryEntry[])
   }
 
-  async function searchAlternatives() {
-    setAltState('loading')
-    setAltResults([])
-    try {
-      const res = await fetch('/api/find-alternatives', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productName: product.name, brand: product.brand }),
-      })
-      const data = await res.json()
-      setAltResults(data.results ?? [])
-    } catch { /* network error */ }
-    setAltState('done')
-  }
-
-  async function saveCurrentToHistory(source: string) {
+async function saveCurrentToHistory(source: string) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!form.preferred_supplier && !form.supplier_url && form.last_price == null) return
     await supabase.from('product_supplier_history').insert({
@@ -278,18 +284,7 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
     })
   }
 
-  async function setAsDefault(alt: PriceAlternative) {
-    await saveCurrentToHistory('auto')
-    const { data } = await supabase.from('products').update({
-      preferred_supplier: alt.domain,
-      supplier_url: alt.url,
-      last_price: alt.price,
-    }).eq('id', product.id).select().single()
-    if (data) { onUpdated(data as Product); setForm(data as Product) }
-    fetchHistory()
-  }
-
-  async function restoreSupplier(entry: SupplierHistoryEntry) {
+async function restoreSupplier(entry: SupplierHistoryEntry) {
     await saveCurrentToHistory('manual')
     const { data } = await supabase.from('products').update({
       preferred_supplier: entry.supplier_name,
@@ -298,6 +293,38 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
     }).eq('id', product.id).select().single()
     if (data) { onUpdated(data as Product); setForm(data as Product) }
     fetchHistory()
+  }
+
+  async function startBarcodeScanner() {
+    flushSync(() => setScanning(true))
+    const scanner = new Html5Qrcode(BARCODE_SCAN_DIV, { formatsToSupport: SCAN_FORMATS, verbose: false, experimentalFeatures: { useBarCodeDetectorIfSupported: true } })
+    scannerRef.current = scanner
+    try {
+      await scanner.start(
+        { facingMode: 'environment' },
+        { fps: 25, qrbox: (w, h) => ({ width: Math.min(w, h) * 0.85, height: Math.min(w, h) * 0.85 }) },
+        async (raw) => {
+          await scanner.stop()
+          scanner.clear()
+          scannerRef.current = null
+          setScanning(false)
+          const clean = raw.replace(/^\][A-Za-z][0-9]/, '').replace(/[^\x20-\x7E]/g, '').trim()
+          const gtin = clean.match(/^01(\d{14})/)
+          const raw14 = gtin ? gtin[1] : clean
+          const barcode = raw14.length === 14 && raw14.startsWith('0') ? raw14.slice(1) : raw14
+          setForm(p => ({ ...p, barcode }))
+        },
+        () => {}
+      )
+    } catch { setScanning(false) }
+  }
+
+  function stopBarcodeScanner() {
+    const s = scannerRef.current
+    scannerRef.current = null
+    setScanning(false)
+    if (s?.isScanning) s.stop().then(() => s.clear()).catch(() => {})
+    else s?.clear()
   }
 
   const inputCls = 'w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100'
@@ -330,7 +357,7 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
             type={type === 'number' ? 'text' : type}
             inputMode={type === 'number' ? 'decimal' : undefined}
             pattern={type === 'number' ? '[0-9.,]*' : undefined}
-            value={String(val ?? '')}
+            value={type === 'number' ? String(val ?? '').replace('.', ',') : String(val ?? '')}
             onChange={e => setForm(p => ({
               ...p,
               [key]: type === 'number' ? (e.target.value as unknown as number) : e.target.value,
@@ -343,7 +370,7 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
   }
 
   return (
-    <div className="min-h-full bg-slate-50 dark:bg-slate-900 overflow-x-hidden">
+    <div className={`bg-slate-50 dark:bg-slate-900 overflow-x-hidden ${isModal ? 'flex flex-col h-full' : 'min-h-full'}`}>
       {toast && <Toast message={toast} onClose={() => setToast(null)} />}
       {/* Slow operation spinner */}
       {showDeleteSpinner && (
@@ -394,6 +421,7 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
         )}
       </div>
 
+      <div className={isModal ? 'flex-1 overflow-y-auto' : ''}>
       <div className="max-w-2xl mx-auto p-4 space-y-4"
         style={{ paddingBottom: editing && !isModal ? '80px' : undefined }}>
 
@@ -467,8 +495,8 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
                     </div>
                     {form.last_price != null ? (
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs text-slate-400 dark:text-slate-500">€ {Number(form.last_price).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / {form.unit}</p>
-                        <p className="text-sm font-bold text-slate-800 dark:text-slate-100">€ {((parseInt(orderQty) || 0) * Number(form.last_price)).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                        <p className="text-xs text-slate-400 dark:text-slate-500">€ {parseFloat(String(form.last_price).replace(',', '.')).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / {form.unit}</p>
+                        <p className="text-sm font-bold text-slate-800 dark:text-slate-100">€ {((parseInt(orderQty) || 0) * parseFloat(String(form.last_price).replace(',', '.'))).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                       </div>
                     ) : <div className="flex-1" />}
                     <button onClick={handleAddToCart}
@@ -526,6 +554,23 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
                 <CategorySelect value={form.category ?? ''} onChange={v => setForm(p => ({ ...p, category: v }))} categories={categories} />
               </div>
               {editField('Artikelnummer', 'article_number')}
+              <div>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Barcode</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={form.barcode ?? ''}
+                    onChange={e => setForm(p => ({ ...p, barcode: e.target.value || null }))}
+                    placeholder="Barcode eingeben oder scannen"
+                    className={inputCls}
+                  />
+                  <button type="button" onClick={startBarcodeScanner} disabled={scanning}
+                    className="shrink-0 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-sky-500 hover:bg-sky-600 disabled:opacity-40 text-white text-sm font-medium transition-colors">
+                    <Camera size={16} />
+                  </button>
+                </div>
+                {scanning && <BarcodeScanModal divId={BARCODE_SCAN_DIV} onClose={stopBarcodeScanner} scannerRef={scannerRef} onManualEntry={code => { stopBarcodeScanner(); setForm(p => ({ ...p, barcode: code })) }} />}
+              </div>
               {editField('Stückpreis (€)', 'last_price', 'number')}
               {editField('Lagerort', 'storage_location', 'select')}
               {editField('Beschreibung', 'notes', 'textarea')}
@@ -623,7 +668,7 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
                 <Info label="Kategorie" value={form.category} />
                 <Info label="Einheit" value={form.unit} />
                 {form.article_number ? <Info label="Artikelnummer" value={form.article_number} /> : null}
-                {form.last_price != null ? <Info label="Stückpreis" value={`€ ${Number(form.last_price).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} /> : null}
+                {form.last_price != null ? <Info label="Stückpreis" value={`€ ${parseFloat(String(form.last_price).replace(',', '.')).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} /> : null}
                 {form.storage_location ? <Info label="Lagerort" value={form.storage_location} /> : null}
                 {lastScan ? <Info label="Zuletzt geprüft" value={new Date(lastScan).toLocaleDateString('de-DE')} /> : null}
               </div>
@@ -683,71 +728,7 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
                 ) : null}
               </div>
 
-              {/* ── Price alternatives ── */}
-              <div className="border-t border-slate-100 dark:border-slate-700 pt-4">
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Preisvergleich</p>
-                  <button
-                    onClick={searchAlternatives}
-                    disabled={altState === 'loading'}
-                    className="flex items-center gap-1.5 text-xs font-medium text-sky-600 hover:text-sky-700 disabled:opacity-40 transition-colors"
-                  >
-                    {altState === 'loading'
-                      ? <span className="w-3.5 h-3.5 border-2 border-sky-400 border-t-transparent rounded-full animate-spin inline-block" />
-                      : <Search size={12} />
-                    }
-                    {altState === 'loading' ? 'Suche läuft…' : 'Erneut suchen'}
-                  </button>
-                </div>
-
-                {altState === 'done' && altResults.length === 0 && (
-                  <p className="text-sm text-slate-400 dark:text-slate-500 py-1">Keine Ergebnisse gefunden</p>
-                )}
-
-                {altResults.map(alt => {
-                  const savings = form.last_price != null && form.last_price > 0
-                    ? ((form.last_price - alt.price) / form.last_price) * 100
-                    : null
-                  const isCheaper = savings != null && savings > 0.5
-                  const isCurrentSupplier = form.supplier_url?.includes(alt.domain)
-                  return (
-                    <div key={alt.url} className="flex items-center gap-2 py-2.5 border-b border-slate-50 dark:border-slate-700 last:border-0">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-slate-800 dark:text-slate-100">{alt.domain}</p>
-                        {alt.name && <p className="text-xs text-slate-400 dark:text-slate-500 truncate mt-0.5">{alt.name}</p>}
-                      </div>
-                      <div className="text-right shrink-0">
-                        <p className="text-sm font-bold text-slate-800 dark:text-slate-100">
-                          € {alt.price.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </p>
-                        {savings != null && (
-                          <span className={`text-xs font-medium ${isCheaper ? 'text-emerald-600' : 'text-slate-400 dark:text-slate-500'}`}>
-                            {isCheaper ? `−${Math.round(savings)}%` : savings < -0.5 ? `+${Math.round(-savings)}%` : '≈ gleich'}
-                          </span>
-                        )}
-                      </div>
-                      <a href={alt.url} target="_blank" rel="noopener noreferrer"
-                        className="flex items-center gap-1.5 text-xs font-medium text-sky-600 dark:text-sky-400 hover:text-sky-700 bg-sky-50 dark:bg-sky-900/30 hover:bg-sky-100 dark:hover:bg-sky-900/50 px-3 py-2 rounded-lg transition-colors shrink-0 whitespace-nowrap">
-                        <ExternalLink size={12} />
-                        Öffnen
-                      </a>
-                      {!isCurrentSupplier && (
-                        <button
-                          onClick={() => setAsDefault(alt)}
-                          className="text-xs font-medium bg-sky-50 dark:bg-sky-900/30 hover:bg-sky-100 dark:hover:bg-sky-900/50 text-sky-600 dark:text-sky-400 px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap shrink-0"
-                        >
-                          Standard
-                        </button>
-                      )}
-                      {isCurrentSupplier && (
-                        <span className="text-xs text-slate-400 dark:text-slate-500 px-2.5 py-1.5 whitespace-nowrap shrink-0">Aktuell</span>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-
-              {/* ── Supplier history ── */}
+{/* ── Supplier history ── */}
               {supplierHistory.length > 0 && (
                 <div className="border-t border-slate-100 dark:border-slate-700 pt-4">
                   <button
@@ -792,38 +773,54 @@ export default function ProductDetailPage({ product, onBack, onUpdated, onDelete
           )}
         </div>
 
-        {/* Edit / Delete buttons — modal only, shown below details when not editing */}
-        {isModal && !editing && (
-          <div className="flex gap-3 pt-2">
-            <button
-              onClick={() => setEditing(true)}
-              className="flex-1 flex items-center justify-center gap-2 border border-slate-300 dark:border-slate-600 rounded-xl py-3 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-            >
-              <Pencil size={15} />
-              Bearbeiten
-            </button>
-            <button
-              onClick={() => !inCart && !inOrdered && setConfirmDelete(true)}
-              disabled={inCart || inOrdered}
-              title={inCart ? 'Aktuell im Warenkorb' : inOrdered ? 'In offener Bestellung' : undefined}
-              className={`flex-1 flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-medium transition-colors ${
-                inCart || inOrdered
-                  ? 'bg-red-200 text-red-300 cursor-not-allowed'
-                  : 'bg-red-500 hover:bg-red-600 text-white'
-              }`}
-            >
-              <Trash2 size={15} />
-              Löschen
-            </button>
-          </div>
-        )}
-
       </div>
+      </div>{/* end scroll wrapper */}
 
-      {/* Edit footer */}
-      {editing && (
-        <div className={`${isModal ? '' : 'fixed bottom-0 left-0 right-0'} bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 px-4 py-4 flex gap-3 z-20`}>
-          <button onClick={() => { setForm(product); setEditing(false) }}
+      {/* Modal footer — sticky at bottom */}
+      {isModal && (
+        <div className="bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 px-4 py-4 flex gap-3 shrink-0">
+          {!editing ? (
+            <>
+              <button
+                onClick={() => setEditing(true)}
+                className="flex-1 flex items-center justify-center gap-2 border border-slate-300 dark:border-slate-600 rounded-xl py-3 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+              >
+                <Pencil size={15} />
+                Bearbeiten
+              </button>
+              <button
+                onClick={() => !inCart && !inOrdered && setConfirmDelete(true)}
+                disabled={inCart || inOrdered}
+                title={inCart ? 'Aktuell im Warenkorb' : inOrdered ? 'In offener Bestellung' : undefined}
+                className={`flex-1 flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-medium transition-colors ${
+                  inCart || inOrdered
+                    ? 'bg-red-200 text-red-300 cursor-not-allowed'
+                    : 'bg-red-500 hover:bg-red-600 text-white'
+                }`}
+              >
+                <Trash2 size={15} />
+                Löschen
+              </button>
+            </>
+          ) : (
+            <>
+              <button onClick={() => { stopBarcodeScanner(); setForm(product); setEditing(false) }}
+                className="flex-1 border border-slate-300 dark:border-slate-600 rounded-xl py-3 text-sm text-slate-600 dark:text-slate-300">
+                Abbrechen
+              </button>
+              <button onClick={handleSave} disabled={saving}
+                className="flex-1 bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white rounded-xl py-3 text-sm font-medium">
+                {saving ? 'Speichern…' : 'Speichern'}
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Edit footer — non-modal, fixed at bottom of page */}
+      {editing && !isModal && (
+        <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 px-4 py-4 flex gap-3 z-20">
+          <button onClick={() => { stopBarcodeScanner(); setForm(product); setEditing(false) }}
             className="flex-1 border border-slate-300 dark:border-slate-600 rounded-xl py-3 text-sm text-slate-600 dark:text-slate-300">
             Abbrechen
           </button>
