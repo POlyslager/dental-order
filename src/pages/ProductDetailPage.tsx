@@ -484,12 +484,12 @@ async function restoreSupplier(entry: SupplierHistoryEntry) {
                   <div className="flex items-center gap-3">
                     <div className="flex items-center border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden shrink-0">
                       <button onClick={() => setOrderQty(q => String(Math.max(1, (parseInt(q) || 1) - 1)))}
-                        className="w-9 h-10 flex items-center justify-center text-slate-500 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                        className="w-11 h-11 flex items-center justify-center text-slate-500 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
                         <Minus size={14} />
                       </button>
                       <span className="w-10 text-center text-sm font-semibold text-slate-800 dark:text-slate-100 select-none">{orderQty}</span>
                       <button onClick={() => setOrderQty(q => String((parseInt(q) || 0) + 1))}
-                        className="w-9 h-10 flex items-center justify-center text-slate-500 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                        className="w-11 h-11 flex items-center justify-center text-slate-500 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
                         <Plus size={14} />
                       </button>
                     </div>

@@ -1116,7 +1116,7 @@ const map: Record<string, string> = {}
                   <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Menge</label>
                   <div className="flex items-center gap-1">
                     <button type="button" onClick={() => setEditForm(f => ({ ...f, quantity: Math.max(1, f.quantity - 1) }))}
-                      className="w-8 h-9 flex items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors shrink-0">
+                      className="w-11 h-11 flex items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors shrink-0">
                       <Minus size={13} />
                     </button>
                     <input
@@ -1128,7 +1128,7 @@ const map: Record<string, string> = {}
                       className="w-full text-center border border-slate-300 dark:border-slate-600 rounded-lg py-2 text-sm bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
                     />
                     <button type="button" onClick={() => setEditForm(f => ({ ...f, quantity: f.quantity + 1 }))}
-                      className="w-8 h-9 flex items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors shrink-0">
+                      className="w-11 h-11 flex items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors shrink-0">
                       <Plus size={13} />
                     </button>
                   </div>

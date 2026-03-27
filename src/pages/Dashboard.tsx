@@ -168,7 +168,7 @@ export default function Dashboard({ user }: Props) {
           )}
           <button
             onClick={() => setSidebarCollapsed(c => !c)}
-            className="text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors shrink-0"
+            className="text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors shrink-0"
           >
             {sidebarCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
           </button>

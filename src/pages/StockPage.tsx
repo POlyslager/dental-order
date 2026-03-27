@@ -7,7 +7,6 @@ import ProductDetailPage from './ProductDetailPage'
 import CategorySelect from '../components/CategorySelect'
 import BarcodeScanModal from '../components/BarcodeScanModal'
 import { Search, Plus, X, Camera, Activity, ChevronUp, ChevronDown, Package, PackageCheck, PackageX, TriangleAlert, Check, ShoppingCart, TrendingDown, AlertTriangle } from 'lucide-react'
-import SwipeToDelete from '../components/SwipeToDelete'
 
 const SCAN_FORMATS = [
   Html5QrcodeSupportedFormats.QR_CODE, Html5QrcodeSupportedFormats.DATA_MATRIX,
@@ -751,17 +750,6 @@ useEffect(() => {
       {/* Rows */}
       <div className="divide-y divide-slate-100 dark:divide-slate-800">
         {paginated.map(p => (
-          <SwipeToDelete key={p.id} onDelete={async () => {
-            await fetch('/api/delete-product', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: p.id }) })
-            setProducts(prev => prev.filter(x => x.id !== p.id))
-            setCartToast(`${p.name} wurde gelöscht`)
-            setCartToastAction(null)
-            setCartToastUndo(() => async () => {
-              const { created_at, updated_at, ...fields } = p as any
-              await supabase.from('products').insert(fields)
-              fetchProducts()
-            })
-          }}>
           <div
             onClick={() => setSelectedProduct(p)}
             className={`bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-colors ${selectedProduct?.id === p.id ? 'bg-sky-50 dark:bg-sky-950' : ''}`}
@@ -816,7 +804,6 @@ useEffect(() => {
               <div className="w-28 px-4 py-3.5 shrink-0"><StockStatus product={p} /></div>
             </div>
           </div>
-          </SwipeToDelete>
         ))}
         {sorted.length === 0 && (
           <p className="px-4 py-12 text-center text-slate-400 dark:text-slate-500 text-sm">Keine Artikel gefunden</p>
@@ -833,14 +820,14 @@ useEffect(() => {
             <button
               onClick={() => setPage(1)}
               disabled={page === 1}
-              className="px-2 py-1.5 text-xs rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="px-2 py-2.5 text-xs rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
               «
             </button>
             <button
               onClick={() => setPage(p => Math.max(1, p - 1))}
               disabled={page === 1}
-              className="px-3 py-1.5 text-xs rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="px-3 py-2.5 text-xs rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
               Zurück
             </button>
@@ -858,7 +845,7 @@ useEffect(() => {
                   <button
                     key={n}
                     onClick={() => setPage(n as number)}
-                    className={`w-8 h-7 text-xs rounded-lg transition-colors ${
+                    className={`w-9 h-9 text-xs rounded-lg transition-colors ${
                       page === n ? 'bg-sky-500 text-white font-semibold' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                     }`}
                   >
@@ -870,14 +857,14 @@ useEffect(() => {
             <button
               onClick={() => setPage(p => Math.min(totalPages, p + 1))}
               disabled={page === totalPages}
-              className="px-3 py-1.5 text-xs rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="px-3 py-2.5 text-xs rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
               Weiter
             </button>
             <button
               onClick={() => setPage(totalPages)}
               disabled={page === totalPages}
-              className="px-2 py-1.5 text-xs rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="px-2 py-2.5 text-xs rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
               »
             </button>

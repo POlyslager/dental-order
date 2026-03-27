@@ -3,7 +3,6 @@ import { supabase } from '../lib/supabase'
 import { Search, X, Trash2, ChevronRight, Pencil } from 'lucide-react'
 import Toast from '../components/Toast'
 import ConfirmDialog from '../components/ConfirmDialog'
-import SwipeToDelete from '../components/SwipeToDelete'
 
 interface CategoryRow {
   name: string
@@ -199,12 +198,7 @@ export default function CategoriesPage() {
             </div>
             <div className="divide-y divide-slate-100 dark:divide-slate-700/50">
               {paginated.map(c => (
-                <SwipeToDelete key={c.name} disabled={c.productCount > 0} onDelete={async () => {
-                  await supabase.from('categories').delete().eq('name', c.name)
-                  setToast('Kategorie gelöscht')
-                  load()
-                }}>
-                <div onClick={() => openExisting(c)} className="bg-white hover:bg-slate-50 dark:bg-slate-800/50 dark:hover:bg-slate-700/50 cursor-pointer transition-colors">
+                <div key={c.name} onClick={() => openExisting(c)} className="bg-white hover:bg-slate-50 dark:bg-slate-800/50 dark:hover:bg-slate-700/50 cursor-pointer transition-colors">
                   <div className="hidden md:grid items-center" style={{ gridTemplateColumns: '2fr 0.6fr 0.6fr 2rem' }}>
                     <div className="px-4 py-3.5">
                       <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{c.name}</p>
@@ -223,7 +217,6 @@ export default function CategoriesPage() {
                     <ChevronRight size={14} className="text-slate-300 dark:text-slate-600 shrink-0" />
                   </div>
                 </div>
-                </SwipeToDelete>
               ))}
             </div>
             {filtered.length === 0 && (
@@ -237,8 +230,8 @@ export default function CategoriesPage() {
               {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} von {filtered.length} Kategorien
             </p>
             <div className="flex-1 flex items-center justify-center gap-1">
-              <button onClick={() => setPage(1)} disabled={page === 1} className="px-2 py-1.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">«</button>
-              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="px-3 py-1.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">Zurück</button>
+              <button onClick={() => setPage(1)} disabled={page === 1} className="px-2 py-2.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">«</button>
+              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="px-3 py-2.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">Zurück</button>
               {Array.from({ length: totalPages }, (_, i) => i + 1)
                 .filter(n => n === 1 || n === totalPages || Math.abs(n - page) <= 1)
                 .reduce<(number | '…')[]>((acc, n, i, arr) => {
@@ -251,14 +244,14 @@ export default function CategoriesPage() {
                     <span key={`e-${i}`} className="px-2 py-1.5 text-xs text-slate-300">…</span>
                   ) : (
                     <button key={n} onClick={() => setPage(n as number)}
-                      className={`w-8 h-7 text-xs rounded-lg transition-colors ${page === n ? 'bg-sky-500 text-white font-semibold' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700'}`}>
+                      className={`w-9 h-9 text-xs rounded-lg transition-colors ${page === n ? 'bg-sky-500 text-white font-semibold' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700'}`}>
                       {n}
                     </button>
                   )
                 )
               }
-              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="px-3 py-1.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">Weiter</button>
-              <button onClick={() => setPage(totalPages)} disabled={page === totalPages} className="px-2 py-1.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">»</button>
+              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="px-3 py-2.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">Weiter</button>
+              <button onClick={() => setPage(totalPages)} disabled={page === totalPages} className="px-2 py-2.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">»</button>
             </div>
             <div className="w-40 shrink-0" />
           </div>

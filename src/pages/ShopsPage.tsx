@@ -256,8 +256,8 @@ export default function ShopsPage() {
               {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} von {filtered.length}
             </p>
             <div className="flex-1 flex items-center justify-center gap-1">
-              <button onClick={() => setPage(1)} disabled={page === 1} className="px-2 py-1.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">«</button>
-              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="px-3 py-1.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">Zurück</button>
+              <button onClick={() => setPage(1)} disabled={page === 1} className="px-2 py-2.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">«</button>
+              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="px-3 py-2.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">Zurück</button>
               {Array.from({ length: totalPages }, (_, i) => i + 1)
                 .filter(n => n === 1 || n === totalPages || Math.abs(n - page) <= 1)
                 .reduce<(number | '…')[]>((acc, n, i, arr) => {
@@ -270,14 +270,14 @@ export default function ShopsPage() {
                     <span key={`e-${i}`} className="px-2 py-1.5 text-xs text-slate-300">…</span>
                   ) : (
                     <button key={n} onClick={() => setPage(n as number)}
-                      className={`w-8 h-7 text-xs rounded-lg transition-colors ${page === n ? 'bg-sky-500 text-white font-semibold' : 'text-slate-600 hover:bg-slate-100'}`}>
+                      className={`w-9 h-9 text-xs rounded-lg transition-colors ${page === n ? 'bg-sky-500 text-white font-semibold' : 'text-slate-600 hover:bg-slate-100'}`}>
                       {n}
                     </button>
                   )
                 )
               }
-              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="px-3 py-1.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">Weiter</button>
-              <button onClick={() => setPage(totalPages)} disabled={page === totalPages} className="px-2 py-1.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">»</button>
+              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="px-3 py-2.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">Weiter</button>
+              <button onClick={() => setPage(totalPages)} disabled={page === totalPages} className="px-2 py-2.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">»</button>
             </div>
             <div className="w-40 shrink-0" />
           </div>

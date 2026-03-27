@@ -2,7 +2,7 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --breakpoint-md: 700px;
+  --breakpoint-md: 500px;
 }
 
 * {
@@ -29,6 +29,26 @@ input, select, textarea {
 /* Prevent double-tap zoom on buttons */
 button, a {
   touch-action: manipulation;
+}
+
+/* Remove iOS tap highlight — we provide active states instead */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Visual tap feedback on touch */
+button:active:not(:disabled),
+a:active {
+  opacity: 0.75;
+}
+
+/* Only apply hover effects on devices that actually support hover (not touch screens) */
+@custom-variant hover {
+  @media (hover: hover) {
+    &:hover {
+      @slot;
+    }
+  }
 }
 
 #root {

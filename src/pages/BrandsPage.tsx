@@ -3,7 +3,6 @@ import { supabase } from '../lib/supabase'
 import { Search, X, Trash2, ChevronRight, ExternalLink, Pencil, Plus } from 'lucide-react'
 import Toast from '../components/Toast'
 import ConfirmDialog from '../components/ConfirmDialog'
-import SwipeToDelete from '../components/SwipeToDelete'
 
 interface BrandRow {
   name: string
@@ -191,13 +190,7 @@ export default function BrandsPage() {
             </div>
             <div className="divide-y divide-slate-100 dark:divide-slate-700/50">
               {paginated.map(b => (
-                <SwipeToDelete key={b.name} onDelete={async () => {
-                  if (b.productCount > 0) { setToast(`Nicht möglich: ${b.productCount} Artikel zugeordnet`); return }
-                  await supabase.from('brands').delete().eq('name', b.name)
-                  setToast('Hersteller gelöscht')
-                  load()
-                }}>
-                <div onClick={() => openExisting(b)} className="bg-white hover:bg-slate-50 dark:bg-slate-800/50 dark:hover:bg-slate-700/50 cursor-pointer transition-colors">
+                <div key={b.name} onClick={() => openExisting(b)} className="bg-white hover:bg-slate-50 dark:bg-slate-800/50 dark:hover:bg-slate-700/50 cursor-pointer transition-colors">
                   {/* Desktop */}
                   <div className="hidden md:grid items-center" style={{ gridTemplateColumns: '1.5fr 1.5fr 0.6fr 2rem' }}>
                     <div className="px-4 py-3.5">
@@ -218,7 +211,6 @@ export default function BrandsPage() {
                     <ChevronRight size={14} className="text-slate-300 dark:text-slate-600 shrink-0" />
                   </div>
                 </div>
-                </SwipeToDelete>
               ))}
             </div>
             {filtered.length === 0 && (
@@ -232,8 +224,8 @@ export default function BrandsPage() {
               {filtered.length === 0 ? '0' : `${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, filtered.length)}`} von {filtered.length} Herstellern
             </p>
             <div className="flex-1 flex items-center justify-center gap-1">
-              <button onClick={() => setPage(1)} disabled={page === 1} className="px-2 py-1.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">«</button>
-              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="px-3 py-1.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">Zurück</button>
+              <button onClick={() => setPage(1)} disabled={page === 1} className="px-2 py-2.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">«</button>
+              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="px-3 py-2.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">Zurück</button>
               {Array.from({ length: totalPages }, (_, i) => i + 1)
                 .filter(n => n === 1 || n === totalPages || Math.abs(n - page) <= 1)
                 .reduce<(number | '…')[]>((acc, n, i, arr) => {
@@ -246,14 +238,14 @@ export default function BrandsPage() {
                     <span key={`e-${i}`} className="px-2 py-1.5 text-xs text-slate-300">…</span>
                   ) : (
                     <button key={n} onClick={() => setPage(n as number)}
-                      className={`w-8 h-7 text-xs rounded-lg transition-colors ${page === n ? 'bg-sky-500 text-white font-semibold' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700'}`}>
+                      className={`w-9 h-9 text-xs rounded-lg transition-colors ${page === n ? 'bg-sky-500 text-white font-semibold' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700'}`}>
                       {n}
                     </button>
                   )
                 )
               }
-              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="px-3 py-1.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">Weiter</button>
-              <button onClick={() => setPage(totalPages)} disabled={page === totalPages} className="px-2 py-1.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">»</button>
+              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="px-3 py-2.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">Weiter</button>
+              <button onClick={() => setPage(totalPages)} disabled={page === totalPages} className="px-2 py-2.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">»</button>
             </div>
             <div className="w-40 shrink-0" />
           </div>

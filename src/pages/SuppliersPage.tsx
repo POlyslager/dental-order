@@ -3,7 +3,6 @@ import { supabase } from '../lib/supabase'
 import { Search, X, Trash2, ChevronRight, ExternalLink, Pencil, Plus } from 'lucide-react'
 import Toast from '../components/Toast'
 import ConfirmDialog from '../components/ConfirmDialog'
-import SwipeToDelete from '../components/SwipeToDelete'
 
 interface SupplierRow {
   name: string
@@ -301,16 +300,7 @@ export default function SuppliersPage() {
             </div>
             <div className="divide-y divide-slate-100 dark:divide-slate-700/50">
               {paginated.map(s => (
-                <SwipeToDelete key={s.name} onDelete={async () => {
-                  const [{ error: pe }, { error: se }] = await Promise.all([
-                    supabase.from('products').update({ preferred_supplier: null }).eq('preferred_supplier', s.name),
-                    supabase.from('suppliers').delete().eq('name', s.name),
-                  ])
-                  if (pe || se) { setToast(`Fehler: ${(pe ?? se)?.message}`); return }
-                  setToast('Lieferant gelöscht')
-                  load()
-                }}>
-                <div onClick={() => openExisting(s)} className="bg-white hover:bg-slate-50 cursor-pointer transition-colors dark:bg-slate-800/50 dark:hover:bg-slate-700/50">
+                <div key={s.name} onClick={() => openExisting(s)} className="bg-white hover:bg-slate-50 cursor-pointer transition-colors dark:bg-slate-800/50 dark:hover:bg-slate-700/50">
                   {/* Desktop */}
                   <div className="hidden md:grid items-center" style={{ gridTemplateColumns: '1.5fr 1.5fr 0.6fr 1fr 0.7fr 2rem' }}>
                     <div className="px-4 py-3.5">
@@ -346,7 +336,6 @@ export default function SuppliersPage() {
                     <ChevronRight size={14} className="text-slate-300 shrink-0 dark:text-slate-600" />
                   </div>
                 </div>
-                </SwipeToDelete>
               ))}
             </div>
             {filtered.length === 0 && (
@@ -360,8 +349,8 @@ export default function SuppliersPage() {
               {filtered.length === 0 ? '0' : `${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, filtered.length)}`} von {filtered.length} Lieferanten
             </p>
             <div className="flex-1 flex items-center justify-center gap-1">
-              <button onClick={() => setPage(1)} disabled={page === 1} className="px-2 py-1.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors dark:text-slate-400 dark:hover:bg-slate-700">«</button>
-              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="px-3 py-1.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors dark:text-slate-400 dark:hover:bg-slate-700">Zurück</button>
+              <button onClick={() => setPage(1)} disabled={page === 1} className="px-2 py-2.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors dark:text-slate-400 dark:hover:bg-slate-700">«</button>
+              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="px-3 py-2.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors dark:text-slate-400 dark:hover:bg-slate-700">Zurück</button>
               {Array.from({ length: totalPages }, (_, i) => i + 1)
                 .filter(n => n === 1 || n === totalPages || Math.abs(n - page) <= 1)
                 .reduce<(number | '…')[]>((acc, n, i, arr) => {
@@ -374,14 +363,14 @@ export default function SuppliersPage() {
                     <span key={`e-${i}`} className="px-2 py-1.5 text-xs text-slate-300">…</span>
                   ) : (
                     <button key={n} onClick={() => setPage(n as number)}
-                      className={`w-8 h-7 text-xs rounded-lg transition-colors ${page === n ? 'bg-sky-500 text-white font-semibold' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700'}`}>
+                      className={`w-9 h-9 text-xs rounded-lg transition-colors ${page === n ? 'bg-sky-500 text-white font-semibold' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700'}`}>
                       {n}
                     </button>
                   )
                 )
               }
-              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="px-3 py-1.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors dark:text-slate-400 dark:hover:bg-slate-700">Weiter</button>
-              <button onClick={() => setPage(totalPages)} disabled={page === totalPages} className="px-2 py-1.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors dark:text-slate-400 dark:hover:bg-slate-700">»</button>
+              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="px-3 py-2.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors dark:text-slate-400 dark:hover:bg-slate-700">Weiter</button>
+              <button onClick={() => setPage(totalPages)} disabled={page === totalPages} className="px-2 py-2.5 text-xs rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors dark:text-slate-400 dark:hover:bg-slate-700">»</button>
             </div>
             <div className="w-40 shrink-0" />
           </div>
