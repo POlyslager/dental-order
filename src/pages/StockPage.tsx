@@ -590,18 +590,11 @@ useEffect(() => {
       setSelectedProduct(updated)
     },
     onDeleted: (id: string) => {
-      const deleted = { ...selectedProduct }
       setProducts(prev => prev.filter(p => p.id !== id))
       closeProduct()
       setCartToastAction(null)
-      setCartToastUndo(() => async () => {
-        const { created_at, updated_at, ...fields } = deleted as any
-        await supabase.from('products').insert(fields)
-        fetchProducts()
-        setCartToast(null)
-        setCartToastUndo(null)
-      })
-      setCartToast(`${deleted.name} wurde gelöscht`)
+      setCartToastUndo(null)
+      setCartToast(`Artikel wurde gelöscht`)
     },
     onAddToCart: addToCart,
     onCartItemAdded: (name: string) => {
@@ -1207,7 +1200,8 @@ function CartToast({ message, onClose, onNavigate, onUndo }: { message: string; 
   useEffect(() => {
     const t = setTimeout(onClose, 5000)
     return () => clearTimeout(t)
-  }, [message, onClose])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [message])
   return (
     <div className="fixed top-4 left-4 right-4 z-[100] flex justify-center pointer-events-none">
       <div className="pointer-events-auto bg-slate-900 text-white rounded-2xl shadow-2xl px-4 py-4 flex items-center gap-3 animate-slide-in-down max-w-[calc(100vw-2rem)]">
