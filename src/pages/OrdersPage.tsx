@@ -42,6 +42,7 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
   const [editForm, setEditForm] = useState<{ price: string; quantity: number }>({ price: '', quantity: 1 })
   const [editSaving, setEditSaving] = useState(false)
 const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>({})
+  const [supplierDelivery, setSupplierDelivery] = useState<Record<string, { delivery_cost: number | null; free_delivery_threshold: number | null }>>({})
   const [deleteConfirm, setDeleteConfirm] = useState<CartItem | null>(null)
   const [approvingOrder, setApprovingOrder] = useState<string | null>(null)
   const [toast, setToast] = useState<{ message: string; onUndo?: () => void; variant?: 'error' } | null>(null)
@@ -130,17 +131,20 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
         .select('id, product_id, quantity, created_at, is_edited, product:products(id, name, current_stock, unit, last_price, alternative_price, alternative_url, alternative_supplier, supplier_url, preferred_supplier, brand)')
         .order('created_at'),
       supabase.from('products').select('preferred_supplier').not('preferred_supplier', 'is', null).limit(10000),
-      supabase.from('suppliers').select('name, website').not('website', 'is', null),
+      supabase.from('suppliers').select('name, website, delivery_cost, free_delivery_threshold'),
     ])
     const loadedItems = (data as unknown as CartItem[]) ?? []
     setCartItems(loadedItems)
     if (loadedItems.length > 0) fetchPriceHits(loadedItems)
-const map: Record<string, string> = {}
-    for (const r of (supRows ?? []) as { name: string; website: string }[]) {
+    const map: Record<string, string> = {}
+    const delivery: Record<string, { delivery_cost: number | null; free_delivery_threshold: number | null }> = {}
+    for (const r of (supRows ?? []) as { name: string; website: string | null; delivery_cost: number | null; free_delivery_threshold: number | null }[]) {
       const domain = getDomain(r.website)
       if (domain) map[domain] = r.name
+      delivery[r.name] = { delivery_cost: r.delivery_cost, free_delivery_threshold: r.free_delivery_threshold }
     }
     setDomainToSupplier(map)
+    setSupplierDelivery(delivery)
   }
 
   function fetchPriceHits(items: CartItem[]) {
@@ -809,23 +813,41 @@ const map: Record<string, string> = {}
                           <td colSpan={7} className="px-4 py-2.5">
                             <div className="flex items-center justify-between gap-3">
                               <p className="font-semibold text-slate-800 dark:text-slate-100 text-base">{domain}</p>
-                              <div className={`flex-col items-end gap-0.5 ${isDesktop ? 'flex' : 'hidden'}`}>
-                                {domain === HS_SUPPLIER && hsVolumeBonus === 0 && hsTotal > 0 && (
-                                  <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">
-                                    Noch {(1000 - hsTotal).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € bis Volumenbonus
+                              <div className="flex flex-col items-end gap-0.5">
+                                {(() => {
+                                  const dr = supplierDelivery[domain]
+                                  if (!dr?.delivery_cost) return null
+                                  const threshold = dr.free_delivery_threshold
+                                  const isFree = threshold != null && domainTotal >= threshold
+                                  const missing = threshold != null ? threshold - domainTotal : null
+                                  if (isFree) return (
+                                    <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">Gratislieferung</span>
+                                  )
+                                  return (
+                                    <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+                                      € {dr.delivery_cost.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Versand
+                                      {missing != null && missing > 0 && ` · noch € ${missing.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} bis Gratislieferung`}
+                                    </span>
+                                  )
+                                })()}
+                                <div className={`flex-col items-end gap-0.5 ${isDesktop ? 'flex' : 'hidden'}`}>
+                                  {domain === HS_SUPPLIER && hsVolumeBonus === 0 && hsTotal > 0 && (
+                                    <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+                                      Noch {(1000 - hsTotal).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € bis Volumenbonus
+                                    </span>
+                                  )}
+                                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                                    Gesamt: <span className={`font-semibold ${domain === HS_SUPPLIER && hsVolumeBonus > 0 ? 'line-through text-slate-400 dark:text-slate-500' : 'text-slate-700 dark:text-slate-200'}`}>€ {domainTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                   </span>
-                                )}
-                                <span className="text-xs text-slate-500 dark:text-slate-400">
-                                  Gesamt: <span className={`font-semibold ${domain === HS_SUPPLIER && hsVolumeBonus > 0 ? 'line-through text-slate-400 dark:text-slate-500' : 'text-slate-700 dark:text-slate-200'}`}>€ {domainTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                                </span>
-                                {domain === HS_SUPPLIER && hsVolumeBonus > 0 && (
-                                  <span className="inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
-                                    <TrendingDown size={11} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
-                                    Volumenbonus: <span className="font-semibold text-emerald-600 dark:text-emerald-400">−€ {hsVolumeBonus.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                                    {' · '}
-                                    <span className="font-semibold text-slate-700 dark:text-slate-200">€ {(domainTotal - hsVolumeBonus).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                                  </span>
-                                )}
+                                  {domain === HS_SUPPLIER && hsVolumeBonus > 0 && (
+                                    <span className="inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
+                                      <TrendingDown size={11} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                      Volumenbonus: <span className="font-semibold text-emerald-600 dark:text-emerald-400">−€ {hsVolumeBonus.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                      {' · '}
+                                      <span className="font-semibold text-slate-700 dark:text-slate-200">€ {(domainTotal - hsVolumeBonus).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           </td>
