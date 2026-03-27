@@ -8,7 +8,7 @@ function urlBase64ToUint8Array(base64: string): Uint8Array {
 }
 
 export function isPushSupported(): boolean {
-  return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window && !!VAPID_PUBLIC_KEY
+  return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
 }
 
 export function currentPermission(): NotificationPermission | 'unsupported' {
