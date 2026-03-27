@@ -850,17 +850,15 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
                                             Noch € {untilBonus.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} bis Volumenbonus
                                           </span>
                                         )}
-                                        <span className="text-xs text-slate-500 dark:text-slate-400">
-                                          Gesamt: <span className={`font-semibold ${volumeBonus > 0 ? 'line-through text-slate-400 dark:text-slate-500' : 'text-slate-700 dark:text-slate-200'}`}>€ {domainTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                                        </span>
                                         {volumeBonus > 0 && (
                                           <span className="inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
                                             <TrendingDown size={11} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
                                             Volumenbonus: <span className="font-semibold text-emerald-600 dark:text-emerald-400">−€ {volumeBonus.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                                            {' · '}
-                                            <span className="font-semibold text-slate-700 dark:text-slate-200">€ {(domainTotal - volumeBonus).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                           </span>
                                         )}
+                                        <span className="text-xs text-slate-500 dark:text-slate-400">
+                                          Gesamt: <span className="font-semibold text-slate-700 dark:text-slate-200">€ {(domainTotal - volumeBonus).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                        </span>
                                       </div>
                                     )
                                   })()}
