@@ -825,6 +825,7 @@ function OpenOrdersList({ openOrders, receivedItems, onSelectItem }: {
   onSelectItem: (orderId: string, itemId: string, product: Product, qty: number) => void
 }) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const isDesktop = useIsDesktop()
 
   // Detect dates with multiple orders so we can add time for disambiguation
   const dateCounts = openOrders.reduce<Record<string, number>>((acc, o) => {
