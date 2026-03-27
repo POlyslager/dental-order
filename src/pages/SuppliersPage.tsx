@@ -536,7 +536,7 @@ export default function SuppliersPage() {
                   <label className="block text-xs font-medium text-slate-600 mb-1 dark:text-slate-400">Mindestbestellwert (€)</label>
                   <input type="number" min="0" step="0.01" value={form.min_order_value}
                     onChange={e => setForm(f => ({ ...f, min_order_value: e.target.value }))}
-                    placeholder="z.B. 50.00" className={inputCls} />
+                    placeholder="z.B. 50,00" className={inputCls} />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>

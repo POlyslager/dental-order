@@ -430,7 +430,7 @@ export default function ShopsPage() {
                   <input type="number" min="0" step="0.01"
                     value={form.min_order_value ?? ''}
                     onChange={e => setForm(f => ({ ...f, min_order_value: e.target.value ? parseFloat(e.target.value) : null }))}
-                    placeholder="z.B. 50.00" className={inputCls} />
+                    placeholder="z.B. 50,00" className={inputCls} />
                 </Field>
                 <Field label="Notizen">
                   <textarea rows={3}
