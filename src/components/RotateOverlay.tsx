@@ -3,18 +3,19 @@ import { createPortal } from 'react-dom'
 import { RotateCcw } from 'lucide-react'
 
 export default function RotateOverlay() {
-  const [isPortrait, setIsPortrait] = useState(
-    () => typeof window !== 'undefined' && window.matchMedia('(orientation: portrait)').matches
+  const [show, setShow] = useState(
+    () => typeof window !== 'undefined' &&
+      window.matchMedia('(orientation: portrait) and (max-width: 767px)').matches
   )
 
   useEffect(() => {
-    const mq = window.matchMedia('(orientation: portrait)')
-    function handler(e: MediaQueryListEvent) { setIsPortrait(e.matches) }
+    const mq = window.matchMedia('(orientation: portrait) and (max-width: 767px)')
+    function handler(e: MediaQueryListEvent) { setShow(e.matches) }
     mq.addEventListener('change', handler)
     return () => mq.removeEventListener('change', handler)
   }, [])
 
-  if (!isPortrait) return null
+  if (!show) return null
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] bg-slate-900 flex flex-col items-center justify-center gap-6 text-white">
