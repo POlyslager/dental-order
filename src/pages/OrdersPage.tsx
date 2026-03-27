@@ -1215,14 +1215,14 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
                     <div className="flex justify-between text-slate-500 dark:text-slate-400">
                       <span>Vorher</span>
                       <span className="flex items-center gap-2">
-                        {isHS && <span className="line-through text-slate-400 dark:text-slate-500">{fmt(prevListTotal)}</span>}
+                        {prevEffTotal !== prevListTotal && <span className="line-through text-slate-400 dark:text-slate-500">{fmt(prevListTotal)}</span>}
                         <span>{fmt(prevEffTotal)}</span>
                       </span>
                     </div>
                     <div className="flex justify-between font-medium text-slate-800 dark:text-slate-100">
                       <span>Neu</span>
                       <span className="flex items-center gap-2">
-                        {isHS && <span className="line-through text-slate-400 dark:text-slate-500 font-normal">{fmt(newListTotal)}</span>}
+                        {newEffTotal !== newListTotal && <span className="line-through text-slate-400 dark:text-slate-500 font-normal">{fmt(newListTotal)}</span>}
                         <span>{fmt(newEffTotal)}</span>
                       </span>
                     </div>
