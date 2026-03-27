@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { Search, X, Trash2, ChevronRight, ExternalLink, Pencil, Plus } from 'lucide-react'
 import Toast from '../components/Toast'
 import ConfirmDialog from '../components/ConfirmDialog'
+import { useIsDesktop } from '../hooks/useIsDesktop'
 
 interface BrandRow {
   name: string
@@ -28,6 +29,7 @@ export default function BrandsPage() {
   const [undoBrand, setUndoBrand] = useState<{ name: string; website: string | null; notes: string | null; productIds: string[] } | null>(null)
   const [page, setPage] = useState(1)
   const PAGE_SIZE = 25
+  const isDesktop = useIsDesktop()
 
   useEffect(() => { load() }, [])
 
@@ -170,7 +172,7 @@ export default function BrandsPage() {
           className="ml-auto bg-sky-500 hover:bg-sky-600 text-white px-4 py-2 rounded-xl transition-colors flex items-center gap-2 text-sm font-medium shrink-0"
         >
           <Plus size={16} />
-          <span className="hidden sm:inline">Neuer Hersteller</span>
+          <span className={isDesktop ? 'inline' : 'hidden'}>Neuer Hersteller</span>
         </button>
       </div>
 
@@ -182,7 +184,7 @@ export default function BrandsPage() {
         <div className="flex-1 flex flex-col overflow-hidden">
           <div className="flex-1 overflow-y-auto">
             {/* Desktop header */}
-            <div className="hidden md:grid border-b border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700 sticky top-0 z-10" style={{ gridTemplateColumns: '1.5fr 1.5fr 0.6fr 2rem' }}>
+            <div className={`${isDesktop ? 'grid' : 'hidden'} border-b border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700 sticky top-0 z-10`} style={{ gridTemplateColumns: '1.5fr 1.5fr 0.6fr 2rem' }}>
               {['Hersteller', 'Website', 'Artikel'].map(h => (
                 <div key={h} className="px-4 py-2.5 text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">{h}</div>
               ))}
@@ -192,7 +194,7 @@ export default function BrandsPage() {
               {paginated.map(b => (
                 <div key={b.name} onClick={() => openExisting(b)} className="bg-white hover:bg-slate-50 dark:bg-slate-800/50 dark:hover:bg-slate-700/50 cursor-pointer transition-colors">
                   {/* Desktop */}
-                  <div className="hidden md:grid items-center" style={{ gridTemplateColumns: '1.5fr 1.5fr 0.6fr 2rem' }}>
+                  <div className={`${isDesktop ? 'grid' : 'hidden'} items-center`} style={{ gridTemplateColumns: '1.5fr 1.5fr 0.6fr 2rem' }}>
                     <div className="px-4 py-3.5">
                       <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{b.name}</p>
                     </div>
@@ -203,7 +205,7 @@ export default function BrandsPage() {
                     <div className="py-3.5 text-slate-300 dark:text-slate-600"><ChevronRight size={14} /></div>
                   </div>
                   {/* Mobile */}
-                  <div className="flex md:hidden items-center px-4 py-3.5 gap-3">
+                  <div className={`${isDesktop ? 'hidden' : 'flex'} items-center px-4 py-3.5 gap-3`}>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{b.name}</p>
                       <p className="text-xs text-slate-400 mt-0.5">{b.productCount} Artikel</p>
@@ -255,8 +257,8 @@ export default function BrandsPage() {
       {/* Detail panel */}
       {(panelOpen || closing) && (
         <>
-          <div className="hidden md:block fixed inset-0 bg-black/30 z-40" onClick={closePanel} />
-          <div className={`fixed inset-0 bg-white dark:bg-slate-800 z-50 flex flex-col md:inset-auto md:top-4 md:bottom-4 md:right-4 md:w-[520px] md:rounded-2xl md:shadow-2xl ${closing ? 'animate-slide-out-right' : 'animate-slide-in-right'}`}>
+          <div className={`${isDesktop ? 'block' : 'hidden'} fixed inset-0 bg-black/30 z-40`} onClick={closePanel} />
+          <div className={`fixed bg-white dark:bg-slate-800 z-50 flex flex-col ${isDesktop ? 'inset-auto top-4 bottom-4 right-4 w-[520px] rounded-2xl shadow-2xl overflow-hidden' : 'inset-0 overflow-y-auto'} ${closing ? 'animate-slide-out-right' : 'animate-slide-in-right'}`}>
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700 shrink-0">
               <h2 className="font-semibold text-slate-800 dark:text-slate-100 truncate flex-1 mr-2">
                 {isNew ? 'Neuer Hersteller' : selected?.name}

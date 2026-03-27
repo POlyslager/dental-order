@@ -7,6 +7,7 @@ import ProductDetailPage from './ProductDetailPage'
 import CategorySelect from '../components/CategorySelect'
 import BarcodeScanModal from '../components/BarcodeScanModal'
 import { Search, Plus, X, Camera, Activity, ChevronUp, ChevronDown, Package, PackageCheck, PackageX, TriangleAlert, Check, ShoppingCart, TrendingDown, AlertTriangle } from 'lucide-react'
+import { useIsDesktop } from '../hooks/useIsDesktop'
 
 const SCAN_FORMATS = [
   Html5QrcodeSupportedFormats.QR_CODE, Html5QrcodeSupportedFormats.DATA_MATRIX,
@@ -188,6 +189,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
   const [cartProductIds, setCartProductIds] = useState<Set<string>>(new Set())
   const [orderedProductIds, setOrderedProductIds] = useState<Set<string>>(new Set())
 
+  const isDesktop = useIsDesktop()
   const [scanning, setScanning] = useState(false)
   const [looking, setLooking] = useState(false)
   const [closingProduct, setClosingProduct] = useState(false)
@@ -727,20 +729,20 @@ useEffect(() => {
             className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 px-4 py-2 rounded-xl transition-colors flex items-center gap-2 text-sm font-medium whitespace-nowrap shrink-0 disabled:opacity-50"
           >
             <TrendingDown size={16} />
-            <span className="hidden sm:inline">Preisscan</span>
+            <span className={isDesktop ? 'inline' : 'hidden'}>Preisscan</span>
           </button>
           <button
             onClick={() => setShowForm(true)}
             className="bg-sky-500 hover:bg-sky-600 text-white px-4 py-2 rounded-xl transition-colors flex items-center gap-2 text-sm font-medium whitespace-nowrap shrink-0"
           >
             <Plus size={16} />
-            <span className="hidden sm:inline">Neuer Artikel</span>
+            <span className={isDesktop ? 'inline' : 'hidden'}>Neuer Artikel</span>
           </button>
         </div>
       </div>
 
       {/* Desktop header (md+) */}
-      <div className="hidden md:grid border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 sticky top-0 z-10" style={{ gridTemplateColumns: '1.7fr 1fr 1fr 0.8fr 0.8fr 1fr' }}>
+      <div className={`${isDesktop ? 'grid' : 'hidden'} border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 sticky top-0 z-10`} style={{ gridTemplateColumns: '1.7fr 1fr 1fr 0.8fr 0.8fr 1fr' }}>
         <ColHeader label="Name"      col="name"               onClick={toggleSort} SortIcon={SortIcon} />
         <ColHeader label="Kategorie" col="category"           onClick={toggleSort} SortIcon={SortIcon} />
         <ColHeader label="Lieferant" col="preferred_supplier" onClick={toggleSort} SortIcon={SortIcon} />
@@ -750,7 +752,7 @@ useEffect(() => {
       </div>
 
       {/* Mobile header */}
-      <div className="flex md:hidden border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 sticky top-0 z-10">
+      <div className={`${isDesktop ? 'hidden' : 'flex'} border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 sticky top-0 z-10`}>
         <ColHeader label="Artikel"  col="name"          onClick={toggleSort} SortIcon={SortIcon} className="flex-1" />
         <ColHeader label="Bestand"  col="current_stock" onClick={toggleSort} SortIcon={SortIcon} align="right" className="w-24" />
         <ColHeader label="Status"   col="status"        onClick={toggleSort} SortIcon={SortIcon} className="w-28" />
@@ -764,7 +766,7 @@ useEffect(() => {
             className={`bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-colors ${selectedProduct?.id === p.id ? 'bg-sky-50 dark:bg-sky-950' : ''}`}
           >
             {/* Desktop row */}
-            <div className="hidden md:grid items-center" style={{ gridTemplateColumns: '1.7fr 1fr 1fr 0.8fr 0.8fr 1fr' }}>
+            <div className={`${isDesktop ? 'grid' : 'hidden'} items-center`} style={{ gridTemplateColumns: '1.7fr 1fr 1fr 0.8fr 0.8fr 1fr' }}>
               <div className="min-w-0 px-4 py-3.5">
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{p.name}</p>
@@ -801,7 +803,7 @@ useEffect(() => {
               <div className="px-4 py-3.5"><StockStatus product={p} /></div>
             </div>
             {/* Mobile row */}
-            <div className="flex md:hidden items-center">
+            <div className={`${isDesktop ? 'hidden' : 'flex'} items-center`}>
               <div className="flex-1 min-w-0 px-4 py-3.5">
                 <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{p.name}</p>
                 <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5 truncate">{p.category}</p>
@@ -821,7 +823,7 @@ useEffect(() => {
 
       {/* Pagination (md+) */}
       {totalPages > 1 && (
-        <div className="hidden md:flex items-center px-4 py-3 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 sticky bottom-0 z-10">
+        <div className={`${isDesktop ? 'flex' : 'hidden'} items-center px-4 py-3 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 sticky bottom-0 z-10`}>
           <p className="text-xs text-slate-400 dark:text-slate-500 w-40 shrink-0">
             {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, sorted.length)} von {sorted.length} Artikeln
           </p>
@@ -914,8 +916,8 @@ useEffect(() => {
       {/* New article form — slide-in panel */}
       {(showForm || closingForm) && !selectedProduct && (
         <>
-          <div className="hidden md:block fixed inset-0 bg-black/30 z-40" onClick={closeForm} />
-          <div className={`fixed inset-0 bg-white dark:bg-slate-900 z-50 overflow-y-auto md:inset-auto md:top-4 md:bottom-4 md:right-4 md:w-[520px] md:rounded-2xl md:shadow-2xl ${closingForm ? 'animate-slide-out-right' : 'animate-slide-in-right'}`}>
+          <div className={`${isDesktop ? 'block' : 'hidden'} fixed inset-0 bg-black/30 z-40`} onClick={closeForm} />
+          <div className={`fixed bg-white dark:bg-slate-900 z-50 overflow-y-auto ${isDesktop ? 'inset-auto top-4 bottom-4 right-4 w-[520px] rounded-2xl shadow-2xl' : 'inset-0'} ${closingForm ? 'animate-slide-out-right' : 'animate-slide-in-right'}`}>
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-4 border-b border-slate-100 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-900 z-10">
               <h2 className="font-semibold text-slate-800 dark:text-slate-100">Neuer Artikel</h2>
@@ -1050,10 +1052,10 @@ useEffect(() => {
       {(selectedProduct || closingProduct) && productDetailProps && (
         <>
           <div
-            className={`hidden md:block fixed inset-0 bg-black/30 z-40 ${closingProduct ? 'animate-fade-in' : 'animate-fade-in'}`}
+            className={`${isDesktop ? 'block' : 'hidden'} fixed inset-0 bg-black/30 z-40`}
             onClick={closeProduct}
           />
-          <div className={`fixed inset-0 bg-white dark:bg-slate-900 z-50 overflow-hidden flex flex-col md:inset-auto md:top-4 md:bottom-4 md:right-4 md:w-[520px] md:rounded-2xl md:shadow-2xl ${closingProduct ? 'animate-slide-out-right' : 'animate-slide-in-right'}`}>
+          <div className={`fixed bg-white dark:bg-slate-900 z-50 overflow-hidden flex flex-col ${isDesktop ? 'inset-auto top-4 bottom-4 right-4 w-[520px] rounded-2xl shadow-2xl' : 'inset-0'} ${closingProduct ? 'animate-slide-out-right' : 'animate-slide-in-right'}`}>
             <ProductDetailPage {...productDetailProps} isModal />
           </div>
         </>

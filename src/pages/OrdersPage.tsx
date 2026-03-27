@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import type { CartItem, Order, OrderItem, PriceAlternative, Role } from '../lib/types'
 import { ShoppingCart, Package, Plus, Minus, CheckCircle, ExternalLink, Check, Trash2, Undo2, ScanLine, X, Pencil, Clock, XCircle, TrendingDown, Flashlight, FlashlightOff } from 'lucide-react'
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
+import { useIsDesktop } from '../hooks/useIsDesktop'
 
 interface Props { role: Role | null; user: User; onBadgeChange: (n: number) => void; forceOpenTab?: number; forceScanMode?: number }
 
@@ -27,6 +28,7 @@ function getDomain(url: string | null | undefined): string | null {
 }
 
 export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, forceScanMode }: Props) {
+  const isDesktop = useIsDesktop()
   const [tab, setTab] = useState<'cart' | 'open' | 'approval'>('cart')
   const [cartItems, setCartItems] = useState<CartItem[]>([])
   const [orders, setOrders] = useState<Order[]>([])
@@ -802,7 +804,7 @@ const map: Record<string, string> = {}
                           <td colSpan={7} className="px-4 py-2.5">
                             <div className="flex items-center justify-between gap-3">
                               <p className="font-semibold text-slate-800 dark:text-slate-100 text-base">{domain}</p>
-                              <div className="flex flex-col items-end gap-0.5 hidden sm:flex">
+                              <div className={`flex-col items-end gap-0.5 ${isDesktop ? 'flex' : 'hidden'}`}>
                                 {domain === HS_SUPPLIER && hsVolumeBonus === 0 && hsTotal > 0 && (
                                   <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">
                                     Noch {(1000 - hsTotal).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € bis Volumenbonus
@@ -826,11 +828,11 @@ const map: Record<string, string> = {}
                         {/* Column headers */}
                         <tr className="border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
                           <th className="text-left text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-4 py-3">Artikel</th>
-                          <th className="text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-4 py-3 hidden md:table-cell">Bestand</th>
+                          <th className={`text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-4 py-3 ${isDesktop ? 'table-cell' : 'hidden'}`}>Bestand</th>
                           <th className="text-center text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Menge</th>
-                          <th className="text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap hidden sm:table-cell">Preis/Einheit</th>
+                          <th className={`text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap ${isDesktop ? 'table-cell' : 'hidden'}`}>Preis/Einheit</th>
                           <th className="text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Gesamt</th>
-                          <th className="text-left text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap hidden sm:table-cell">Website</th>
+                          <th className={`text-left text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap ${isDesktop ? 'table-cell' : 'hidden'}`}>Website</th>
                           <th className="text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Aktion</th>
                         </tr>
                         {/* Item rows */}
@@ -932,7 +934,7 @@ const map: Record<string, string> = {}
                                 <td colSpan={4} className="px-4 py-2.5">
                                   <div className="flex items-center justify-between gap-3">
                                     <p className="font-semibold text-slate-800 dark:text-slate-100 text-base">{domain}</p>
-                                    <span className="text-xs text-slate-500 dark:text-slate-400 hidden sm:inline">
+                                    <span className={`text-xs text-slate-500 dark:text-slate-400 ${isDesktop ? 'inline' : 'hidden'}`}>
                                       Gesamt: <span className="font-semibold text-slate-700 dark:text-slate-200">€ {domainTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                     </span>
                                   </div>
@@ -941,7 +943,7 @@ const map: Record<string, string> = {}
                               <tr className="border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
                                 <th className="text-left text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-4 py-3">Artikel</th>
                                 <th className="text-center text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Menge</th>
-                                <th className="text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap hidden sm:table-cell">Preis/Einheit</th>
+                                <th className={`text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap ${isDesktop ? 'table-cell' : 'hidden'}`}>Preis/Einheit</th>
                                 <th className="text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Gesamt</th>
                               </tr>
                               {domainItems.map(item => {
@@ -950,7 +952,7 @@ const map: Record<string, string> = {}
                                 return (
                                   <tr key={item.id} className="bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors border-b border-slate-100 dark:border-slate-800">
                                     <td className="px-4 py-3">
-                                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate max-w-[160px] md:max-w-xs">{item.product?.name ?? '—'}</p>
+                                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate max-w-[160px]">{item.product?.name ?? '—'}</p>
                                       {item.product?.brand && (
                                         <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{item.product.brand}</p>
                                       )}
@@ -958,7 +960,7 @@ const map: Record<string, string> = {}
                                     <td className="px-3 py-3 text-center">
                                       <span className="font-semibold text-slate-800 dark:text-slate-100">{item.quantity}</span>
                                     </td>
-                                    <td className="px-3 py-3 text-right hidden sm:table-cell">
+                                    <td className={`px-3 py-3 text-right ${isDesktop ? 'table-cell' : 'hidden'}`}
                                       <span className="text-sm text-slate-600 dark:text-slate-300">
                                         {price != null ? `€ ${price.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
                                       </span>
@@ -1038,7 +1040,7 @@ const map: Record<string, string> = {}
               € {grandTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </p>
           </div>
-          <div className="h-20 md:hidden" />
+          <div className={isDesktop ? 'hidden' : 'h-20'} />
         </div>
       )}
       {tab === 'cart' && cartItems.length > 0 && grandTotal <= 2000 && (
@@ -1049,7 +1051,7 @@ const map: Record<string, string> = {}
               € {grandTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </p>
           </div>
-          <div className="h-20 md:hidden" />
+          <div className={isDesktop ? 'hidden' : 'h-20'} />
         </div>
       )}
       {tab === 'approval' && role === 'admin' && pendingOrders.length > 0 && (() => {
@@ -1080,7 +1082,7 @@ const map: Record<string, string> = {}
                 € {total.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
             </div>
-            <div className="h-20 md:hidden" />
+            <div className={isDesktop ? 'hidden' : 'h-20'} />
           </div>
         )
       })()}
@@ -1094,7 +1096,7 @@ const map: Record<string, string> = {}
                 € {openTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
             </div>
-            <div className="h-20 md:hidden" />
+            <div className={isDesktop ? 'hidden' : 'h-20'} />
           </div>
         )
       })()}
@@ -1102,8 +1104,8 @@ const map: Record<string, string> = {}
       {/* Edit cart item panel */}
       {(editItem || editClosing) && (
         <>
-          <div className="hidden md:block fixed inset-0 bg-black/30 z-40" onClick={closeEditPanel} />
-          <div className={`fixed inset-0 bg-white dark:bg-slate-900 z-50 flex flex-col md:inset-auto md:top-4 md:bottom-4 md:right-4 md:w-[400px] md:rounded-2xl md:shadow-2xl ${editClosing ? 'animate-slide-out-right' : 'animate-slide-in-right'}`}>
+          <div className={`${isDesktop ? 'block' : 'hidden'} fixed inset-0 bg-black/30 z-40`} onClick={closeEditPanel} />
+          <div className={`fixed bg-white dark:bg-slate-900 z-50 flex flex-col ${isDesktop ? 'inset-auto top-4 bottom-4 right-4 w-[400px] rounded-2xl shadow-2xl overflow-hidden' : 'inset-0 overflow-y-auto'} ${editClosing ? 'animate-slide-out-right' : 'animate-slide-in-right'}`}>
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800 shrink-0">
               <h2 className="font-semibold text-slate-800 dark:text-slate-100 truncate flex-1 mr-2">{editItem?.product?.name}</h2>
               <button onClick={closeEditPanel} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-1.5 transition-colors">
@@ -1384,6 +1386,7 @@ function CartItemRow({ item, placing, requiresApproval, onUpdateQuantity, onPlac
   alternatives?: PriceAlternative[]
   onShowAlternatives?: (item: CartItem) => void
 }) {
+  const isDesktop = useIsDesktop()
   const listPrice = item.product?.last_price ?? null
   const effectivePrice = hsEffectivePrice(item.product)
   const price = effectivePrice
@@ -1414,7 +1417,7 @@ function CartItemRow({ item, placing, requiresApproval, onUpdateQuantity, onPlac
         )}
       </td>
       {/* Current stock */}
-      <td className="px-4 py-3 text-right hidden md:table-cell">
+      <td className={`px-4 py-3 text-right ${isDesktop ? 'table-cell' : 'hidden'}`}>
         <span className="text-sm font-bold text-slate-800 dark:text-slate-100">{item.product?.current_stock ?? '—'}</span>
         {item.product?.unit && <span className="text-xs text-slate-400 dark:text-slate-500 ml-1">{item.product.unit}</span>}
       </td>
@@ -1433,7 +1436,7 @@ function CartItemRow({ item, placing, requiresApproval, onUpdateQuantity, onPlac
         </div>
       </td>
       {/* Price */}
-      <td className="px-3 py-3 text-right hidden sm:table-cell w-28 whitespace-nowrap">
+      <td className={`px-3 py-3 text-right w-28 whitespace-nowrap ${isDesktop ? 'table-cell' : 'hidden'}`}>
         {price != null ? (
           <div className="flex flex-col items-end tabular-nums">
             {hasDiscount && (
@@ -1463,7 +1466,7 @@ function CartItemRow({ item, placing, requiresApproval, onUpdateQuantity, onPlac
         ) : '—'}
       </td>
       {/* Website link */}
-      <td className="px-3 py-3 hidden sm:table-cell">
+      <td className={`px-3 py-3 ${isDesktop ? 'table-cell' : 'hidden'}`}>
         {item.product?.supplier_url ? (
           <a href={item.product.supplier_url} target="_blank" rel="noopener noreferrer"
             onClick={e => e.stopPropagation()}
@@ -1533,6 +1536,7 @@ function OpenOrderSection({ order, isFirstOverall, isFirstInGroup, scannedCounts
   scannedCounts: Record<string, number>; receiving: string | null
   onReceiveItem: (item: OrderItem) => void
 }) {
+  const isDesktop = useIsDesktop()
   const items = order.items ?? []
   const domain = order.supplier ?? items[0]?.product?.preferred_supplier ?? getDomain(items[0]?.product?.supplier_url) ?? 'Unbekannter Lieferant'
   const doneCount = items.filter(i => (scannedCounts[i.id] ?? 0) >= i.quantity).length
@@ -1571,10 +1575,10 @@ function OpenOrderSection({ order, isFirstOverall, isFirstInGroup, scannedCounts
       {isFirstInGroup && (
         <tr className="border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
           <th className="text-left text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-4 py-3">Artikel</th>
-          <th className="text-left text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap hidden sm:table-cell">Datum</th>
+          <th className={`text-left text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap ${isDesktop ? 'table-cell' : 'hidden'}`}>Datum</th>
           <th className="text-center text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Bestellt</th>
           <th className="text-center text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Gescannt</th>
-          <th className="text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap hidden sm:table-cell">Preis/Stück</th>
+          <th className={`text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap ${isDesktop ? 'table-cell' : 'hidden'}`}>Preis/Stück</th>
           <th className="text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Gesamt</th>
           <th className="text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Aktion</th>
         </tr>
@@ -1592,7 +1596,7 @@ function OpenOrderSection({ order, isFirstOverall, isFirstInGroup, scannedCounts
               <p className={`text-sm font-semibold truncate max-w-[180px] md:max-w-xs ${done ? 'text-slate-400 dark:text-slate-500' : 'text-slate-800 dark:text-slate-100'}`}>{item.product?.name ?? '—'}</p>
               {item.product?.brand && <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{item.product.brand}</p>}
             </td>
-            <td className="px-3 py-3.5 text-sm text-slate-500 dark:text-slate-400 whitespace-nowrap hidden sm:table-cell">{orderDate}</td>
+            <td className={`px-3 py-3.5 text-sm text-slate-500 dark:text-slate-400 whitespace-nowrap ${isDesktop ? 'table-cell' : 'hidden'}`}>{orderDate}</td>
             <td className="px-3 py-3.5 text-center text-slate-500 dark:text-slate-400">{item.quantity}</td>
             <td className="px-3 py-3.5 text-center">
               {done ? (
@@ -1605,7 +1609,7 @@ function OpenOrderSection({ order, isFirstOverall, isFirstInGroup, scannedCounts
                 <span className="text-slate-300 dark:text-slate-600">—</span>
               )}
             </td>
-            <td className="px-3 py-3.5 text-right text-slate-500 dark:text-slate-400 whitespace-nowrap hidden sm:table-cell">
+            <td className={`px-3 py-3.5 text-right text-slate-500 dark:text-slate-400 whitespace-nowrap ${isDesktop ? 'table-cell' : 'hidden'}`}>
               {item.estimated_price != null
                 ? `€ ${item.estimated_price.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                 : '—'}

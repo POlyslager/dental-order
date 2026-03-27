@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { Search, X, Trash2, ChevronRight, Pencil } from 'lucide-react'
 import Toast from '../components/Toast'
 import ConfirmDialog from '../components/ConfirmDialog'
+import { useIsDesktop } from '../hooks/useIsDesktop'
 
 interface CategoryRow {
   name: string
@@ -27,6 +28,7 @@ export default function CategoriesPage() {
   const [toast, setToast] = useState<string | null>(null)
   const [page, setPage] = useState(1)
   const PAGE_SIZE = 25
+  const isDesktop = useIsDesktop()
 
   useEffect(() => { load() }, [])
 
@@ -177,8 +179,8 @@ export default function CategoriesPage() {
         </div>
         <button onClick={openNew}
           className="ml-auto bg-sky-500 hover:bg-sky-600 text-white px-4 py-2 rounded-xl transition-colors flex items-center gap-2 text-sm font-medium shrink-0">
-          <span className="hidden sm:inline text-sm">+ Neue Kategorie</span>
-          <span className="sm:hidden text-sm">+</span>
+          <span className={`${isDesktop ? 'inline' : 'hidden'} text-sm`}>+ Neue Kategorie</span>
+          <span className={`${isDesktop ? 'hidden' : 'inline'} text-sm`}>+</span>
         </button>
       </div>
 
@@ -190,7 +192,7 @@ export default function CategoriesPage() {
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Scrollable list */}
           <div className="flex-1 overflow-y-auto">
-            <div className="hidden md:grid border-b border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700 sticky top-0 z-10" style={{ gridTemplateColumns: '2fr 0.6fr 0.6fr 2rem' }}>
+            <div className={`${isDesktop ? 'grid' : 'hidden'} border-b border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700 sticky top-0 z-10`} style={{ gridTemplateColumns: '2fr 0.6fr 0.6fr 2rem' }}>
               {['Kategorie', 'Artikel', 'Lieferanten'].map(h => (
                 <div key={h} className="px-4 py-2.5 text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">{h}</div>
               ))}
@@ -199,7 +201,7 @@ export default function CategoriesPage() {
             <div className="divide-y divide-slate-100 dark:divide-slate-700/50">
               {paginated.map(c => (
                 <div key={c.name} onClick={() => openExisting(c)} className="bg-white hover:bg-slate-50 dark:bg-slate-800/50 dark:hover:bg-slate-700/50 cursor-pointer transition-colors">
-                  <div className="hidden md:grid items-center" style={{ gridTemplateColumns: '2fr 0.6fr 0.6fr 2rem' }}>
+                  <div className={`${isDesktop ? 'grid' : 'hidden'} items-center`} style={{ gridTemplateColumns: '2fr 0.6fr 0.6fr 2rem' }}>
                     <div className="px-4 py-3.5">
                       <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{c.name}</p>
                       {c.description && <p className="text-xs text-slate-400 truncate mt-0.5">{c.description}</p>}
@@ -208,7 +210,7 @@ export default function CategoriesPage() {
                     <div className="px-4 py-3.5 text-sm text-slate-400">{c.supplierCount}</div>
                     <div className="py-3.5 text-slate-300 dark:text-slate-600"><ChevronRight size={14} /></div>
                   </div>
-                  <div className="flex md:hidden items-center px-4 py-3.5 gap-3">
+                  <div className={`${isDesktop ? 'hidden' : 'flex'} items-center px-4 py-3.5 gap-3`}>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{c.name}</p>
                       {c.description && <p className="text-xs text-slate-400 truncate mt-0.5">{c.description}</p>}
@@ -260,8 +262,8 @@ export default function CategoriesPage() {
 
       {(panelOpen || closing) && (
         <>
-          <div className="hidden md:block fixed inset-0 bg-black/30 z-40" onClick={closePanel} />
-          <div className={`fixed inset-0 bg-white dark:bg-slate-800 z-50 flex flex-col md:inset-auto md:top-4 md:bottom-4 md:right-4 md:w-[520px] md:rounded-2xl md:shadow-2xl ${closing ? 'animate-slide-out-right' : 'animate-slide-in-right'}`}>
+          <div className={`${isDesktop ? 'block' : 'hidden'} fixed inset-0 bg-black/30 z-40`} onClick={closePanel} />
+          <div className={`fixed bg-white dark:bg-slate-800 z-50 flex flex-col ${isDesktop ? 'inset-auto top-4 bottom-4 right-4 w-[520px] rounded-2xl shadow-2xl overflow-hidden' : 'inset-0 overflow-y-auto'} ${closing ? 'animate-slide-out-right' : 'animate-slide-in-right'}`}>
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700 shrink-0">
               <h2 className="font-semibold text-slate-800 dark:text-slate-100 truncate flex-1 mr-2">
                 {isNew ? 'Neue Kategorie' : selected?.name}

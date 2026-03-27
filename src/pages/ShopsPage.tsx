@@ -4,6 +4,7 @@ import type { PriceComparisonShop } from '../lib/types'
 import { Plus, Search, X, Trash2, ChevronRight, Pencil, ExternalLink } from 'lucide-react'
 import Toast from '../components/Toast'
 import ConfirmDialog from '../components/ConfirmDialog'
+import { useIsDesktop } from '../hooks/useIsDesktop'
 
 const inputCls = 'w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm'
 
@@ -39,6 +40,7 @@ export default function ShopsPage() {
   const [undoShop, setUndoShop] = useState<PriceComparisonShop | null>(null)
   const [page, setPage] = useState(1)
   const PAGE_SIZE = 25
+  const isDesktop = useIsDesktop()
 
   useEffect(() => { load() }, [])
 
@@ -193,7 +195,7 @@ export default function ShopsPage() {
           className="ml-auto bg-sky-500 hover:bg-sky-600 text-white px-4 py-2 rounded-xl transition-colors flex items-center gap-2 text-sm font-medium shrink-0"
         >
           <Plus size={16} />
-          <span className="hidden sm:inline">Neuer Shop</span>
+          <span className={isDesktop ? 'inline' : 'hidden'}>Neuer Shop</span>
         </button>
       </div>
 
@@ -206,7 +208,7 @@ export default function ShopsPage() {
           {/* Scrollable list */}
           <div className="flex-1 overflow-y-auto">
             {/* Desktop header */}
-            <div className="hidden md:grid border-b border-slate-200 bg-white sticky top-0 z-10" style={{ gridTemplateColumns: '2fr 0.9fr 0.7fr 0.7fr 2rem' }}>
+            <div className={`${isDesktop ? 'grid' : 'hidden'} border-b border-slate-200 bg-white sticky top-0 z-10`} style={{ gridTemplateColumns: '2fr 0.9fr 0.7fr 0.7fr 2rem' }}>
               {['URL', 'Min. Bestellwert', 'Such-Pfade', 'Status'].map(h => (
                 <div key={h} className="px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">{h}</div>
               ))}
@@ -216,7 +218,7 @@ export default function ShopsPage() {
               {paginated.map(shop => (
                 <div key={shop.id} onClick={() => openExisting(shop)} className="bg-white hover:bg-slate-50 cursor-pointer transition-colors">
                   {/* Desktop */}
-                  <div className="hidden md:grid items-center" style={{ gridTemplateColumns: '2fr 0.9fr 0.7fr 0.7fr 2rem' }}>
+                  <div className={`${isDesktop ? 'grid' : 'hidden'} items-center`} style={{ gridTemplateColumns: '2fr 0.9fr 0.7fr 0.7fr 2rem' }}>
                     <div className="px-4 py-3.5 text-sm font-semibold text-slate-800 truncate">{displayUrl(shop.base_url)}</div>
                     <div className="px-4 py-3.5 text-sm text-slate-400">
                       {shop.min_order_value != null ? `€ ${shop.min_order_value.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
@@ -232,7 +234,7 @@ export default function ShopsPage() {
                     <div className="py-3.5 text-slate-300"><ChevronRight size={14} /></div>
                   </div>
                   {/* Mobile */}
-                  <div className="flex md:hidden items-center px-4 py-3.5 gap-3">
+                  <div className={`${isDesktop ? 'hidden' : 'flex'} items-center px-4 py-3.5 gap-3`}>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-slate-800 truncate">{displayUrl(shop.base_url)}</p>
                       <p className="text-xs text-slate-400 mt-0.5">{shop.search_paths.length} Pfad(e)</p>
@@ -287,8 +289,8 @@ export default function ShopsPage() {
       {/* Detail panel */}
       {(panelOpen || closing) && (
         <>
-          <div className="hidden md:block fixed inset-0 bg-black/30 z-40" onClick={closePanel} />
-          <div className={`fixed inset-0 bg-white z-50 flex flex-col overflow-y-auto md:inset-auto md:top-4 md:bottom-4 md:right-4 md:w-[520px] md:rounded-2xl md:shadow-2xl md:overflow-hidden ${closing ? 'animate-slide-out-right' : 'animate-slide-in-right'}`}>
+          <div className={`${isDesktop ? 'block' : 'hidden'} fixed inset-0 bg-black/30 z-40`} onClick={closePanel} />
+          <div className={`fixed bg-white z-50 flex flex-col ${isDesktop ? 'inset-auto top-4 bottom-4 right-4 w-[520px] rounded-2xl shadow-2xl overflow-hidden' : 'inset-0 overflow-y-auto'} ${closing ? 'animate-slide-out-right' : 'animate-slide-in-right'}`}>
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0">
               <h2 className="font-semibold text-slate-800 truncate flex-1 mr-2">

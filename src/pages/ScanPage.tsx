@@ -3,6 +3,7 @@ import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
 import { supabase, getCurrentUser } from '../lib/supabase'
 import type { Order, Product } from '../lib/types'
 import { Plus, Check, X, PackageCheck, ScanLine, Search, ShoppingCart, ChevronLeft, ChevronRight } from 'lucide-react'
+import { useIsDesktop } from '../hooks/useIsDesktop'
 
 type ScanMode = 'in' | 'out'
 type View = 'home' | 'scanner' | 'search'
@@ -24,6 +25,7 @@ export default function ScanPage({ onAddWithBarcode, onSubview }: Props) {
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const searchInputRef = useRef<HTMLInputElement | null>(null)
 
+  const isDesktop = useIsDesktop()
   const [view, setView] = useState<View>('home')
   const [mode, setMode] = useState<ScanMode>('out')
   const [scanning, setScanning] = useState(false)
@@ -538,9 +540,9 @@ export default function ScanPage({ onAddWithBarcode, onSubview }: Props) {
                 <thead>
                   <tr className="border-b border-slate-200">
                     <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide px-4 py-3">Name</th>
-                    <th className="hidden md:table-cell text-left text-xs font-semibold text-slate-400 uppercase tracking-wide px-4 py-3">Kategorie</th>
-                    <th className="hidden md:table-cell text-left text-xs font-semibold text-slate-400 uppercase tracking-wide px-4 py-3">Artikelnr.</th>
-                    <th className="hidden md:table-cell text-left text-xs font-semibold text-slate-400 uppercase tracking-wide px-4 py-3">Lieferant</th>
+                    <th className={`${isDesktop ? 'table-cell' : 'hidden'} text-left text-xs font-semibold text-slate-400 uppercase tracking-wide px-4 py-3`}>Kategorie</th>
+                    <th className={`${isDesktop ? 'table-cell' : 'hidden'} text-left text-xs font-semibold text-slate-400 uppercase tracking-wide px-4 py-3`}>Artikelnr.</th>
+                    <th className={`${isDesktop ? 'table-cell' : 'hidden'} text-left text-xs font-semibold text-slate-400 uppercase tracking-wide px-4 py-3`}>Lieferant</th>
                     <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide px-4 py-3">Bestand</th>
                     <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide px-4 py-3">Status</th>
                   </tr>
@@ -553,9 +555,9 @@ export default function ScanPage({ onAddWithBarcode, onSubview }: Props) {
                         <p className="text-sm font-semibold text-slate-800">{p.name}</p>
                         <p className="text-xs text-slate-400 md:hidden mt-0.5">{p.category}</p>
                       </td>
-                      <td className="hidden md:table-cell px-4 py-3.5 text-sm text-slate-500">{p.category}</td>
-                      <td className="hidden md:table-cell px-4 py-3.5 text-sm text-slate-500">{p.article_number ?? '—'}</td>
-                      <td className="hidden md:table-cell px-4 py-3.5 text-sm text-slate-500">{p.preferred_supplier ?? '—'}</td>
+                      <td className={`${isDesktop ? 'table-cell' : 'hidden'} px-4 py-3.5 text-sm text-slate-500`}>{p.category}</td>
+                      <td className={`${isDesktop ? 'table-cell' : 'hidden'} px-4 py-3.5 text-sm text-slate-500`}>{p.article_number ?? '—'}</td>
+                      <td className={`${isDesktop ? 'table-cell' : 'hidden'} px-4 py-3.5 text-sm text-slate-500`}>{p.preferred_supplier ?? '—'}</td>
                       <td className="px-4 py-3.5 text-right">
                         <span className="text-sm font-bold text-slate-800">{p.current_stock}</span>
                         <span className="text-xs text-slate-400 ml-1">{p.unit}</span>
@@ -849,9 +851,9 @@ function OpenOrdersList({ openOrders, receivedItems, onSelectItem }: {
             <tr className="border-b border-slate-100">
               <th className="text-left px-4 py-3 text-xs font-medium text-slate-400 w-4"></th>
               <th className="text-left px-3 py-3 text-xs font-medium text-slate-400">Lieferant</th>
-              <th className="text-left px-3 py-3 text-xs font-medium text-slate-400 hidden sm:table-cell">Datum</th>
+              <th className={`text-left px-3 py-3 text-xs font-medium text-slate-400 ${isDesktop ? 'table-cell' : 'hidden'}`}>Datum</th>
               <th className="text-center px-3 py-3 text-xs font-medium text-slate-400">Artikel</th>
-              <th className="text-right px-3 py-3 text-xs font-medium text-slate-400 hidden sm:table-cell">Gesamt</th>
+              <th className={`text-right px-3 py-3 text-xs font-medium text-slate-400 ${isDesktop ? 'table-cell' : 'hidden'}`}>Gesamt</th>
               <th className="text-center px-3 py-3 text-xs font-medium text-slate-400">Fortschritt</th>
             </tr>
           </thead>
@@ -874,15 +876,15 @@ function OpenOrdersList({ openOrders, receivedItems, onSelectItem }: {
                     </td>
                     <td className="px-3 py-3 font-medium text-slate-800">
                       {order.supplier ?? 'Unbekannt'}
-                      <p className="text-xs text-slate-400 sm:hidden mt-0.5">{formatOrderDate(order.created_at)}</p>
+                      <p className={`text-xs text-slate-400 mt-0.5 ${isDesktop ? 'hidden' : ''}`}>{formatOrderDate(order.created_at)}</p>
                     </td>
-                    <td className="px-3 py-3 text-slate-500 whitespace-nowrap hidden sm:table-cell">
+                    <td className={`px-3 py-3 text-slate-500 whitespace-nowrap ${isDesktop ? 'table-cell' : 'hidden'}`}>
                       {formatOrderDate(order.created_at)}
                     </td>
                     <td className="px-3 py-3 text-center text-slate-600">
                       {items.length}
                     </td>
-                    <td className="px-3 py-3 text-right font-semibold text-slate-700 whitespace-nowrap hidden sm:table-cell">
+                    <td className={`px-3 py-3 text-right font-semibold text-slate-700 whitespace-nowrap ${isDesktop ? 'table-cell' : 'hidden'}`}>
                       {order.total_estimate != null
                         ? `€ ${order.total_estimate.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                         : '—'
@@ -936,7 +938,7 @@ function OpenOrdersList({ openOrders, receivedItems, onSelectItem }: {
                                 </span>
                                 <span className="text-xs text-slate-400 shrink-0">{item.quantity}×</span>
                                 {item.estimated_price != null && (
-                                  <span className="text-xs text-slate-400 shrink-0 hidden sm:inline">
+                                  <span className={`text-xs text-slate-400 shrink-0 ${isDesktop ? 'inline' : 'hidden'}`}>
                                     € {(item.quantity * item.estimated_price).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                   </span>
                                 )}
