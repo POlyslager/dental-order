@@ -841,9 +841,8 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
                                     const dr = supplierRules[domain]
                                     const bonusThreshold = dr?.volume_bonus_threshold
                                     const bonusPct = dr?.volume_bonus_pct
-                                    if (!bonusThreshold || !bonusPct) return null
-                                    const volumeBonus = domainTotal > bonusThreshold ? (domainTotal - bonusThreshold) * (bonusPct / 100) : 0
-                                    const untilBonus = domainTotal < bonusThreshold ? bonusThreshold - domainTotal : 0
+                                    const volumeBonus = bonusThreshold && bonusPct && domainTotal > bonusThreshold ? (domainTotal - bonusThreshold) * (bonusPct / 100) : 0
+                                    const untilBonus = bonusThreshold && bonusPct && domainTotal < bonusThreshold ? bonusThreshold - domainTotal : 0
                                     return (
                                       <div className={`flex-col items-end gap-0.5 ${isDesktop ? 'flex' : 'hidden'}`}>
                                         {untilBonus > 0 && (
