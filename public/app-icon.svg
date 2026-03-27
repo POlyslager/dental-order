@@ -1,13 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="112" fill="#0f172a"/>
-  <text
-    x="256"
-    y="338"
-    font-family="Inter, ui-sans-serif, system-ui, -apple-system, sans-serif"
-    font-weight="800"
-    font-size="248"
-    fill="white"
-    text-anchor="middle"
-    letter-spacing="-8"
-  >DO</text>
+  <rect width="512" height="512" rx="112" fill="white"/>
+  <g transform="translate(8.32 158.47) scale(2.144)" fill="#71cdde">
+    <rect x="23.7" y="48.23" width="22.02" height="30.53"/>
+    <rect x="111.23" y="-56.94" width="12.3" height="187.36" transform="translate(80.65 154.12) rotate(-90)"/>
+    <polygon points="79.46 78.76 57.44 78.76 57.44 48.23 75.28 48.23 79.46 78.76"/>
+    <polygon points="112.59 78.76 90.57 78.76 94.49 48.23 108.41 48.23 112.59 78.76"/>
+    <rect x="189.04" y="48.23" width="22.02" height="30.53" transform="translate(400.1 126.99) rotate(-180)"/>
+    <polygon points="156.82 78.76 178.84 78.76 178.84 48.23 161 48.23 156.82 78.76"/>
+    <polygon points="123.7 78.76 145.71 78.76 141.79 48.23 127.88 48.23 123.7 78.76"/>
+    <rect x="89.81" y="14.25" width="55.14" height="10.99"/>
+  </g>
 </svg>
