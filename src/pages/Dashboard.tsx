@@ -211,7 +211,7 @@ export default function Dashboard({ user }: Props) {
 
               {/* Settings entry — all users */}
               <button
-                onClick={() => !sidebarCollapsed && setSettingsOpen(true)}
+                onClick={() => { if (sidebarCollapsed) setSidebarCollapsed(false); setSettingsOpen(true) }}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl transition-colors text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 ${sidebarCollapsed ? 'justify-center' : ''}`}
               >
                 <Settings size={20} className="shrink-0" />
