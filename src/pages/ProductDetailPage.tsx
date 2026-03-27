@@ -213,17 +213,28 @@ const [supplierHistory, setSupplierHistory] = useState<SupplierHistoryEntry[]>([
     setConfirmDelete(false)
     deleteSpinnerTimer.current = setTimeout(() => setShowDeleteSpinner(true), 5000)
     try {
-      await Promise.all([
+      const related = await Promise.all([
         supabase.from('stock_movements').delete().eq('product_id', product.id),
         supabase.from('cart_items').delete().eq('product_id', product.id),
         supabase.from('order_items').delete().eq('product_id', product.id),
         supabase.from('product_supplier_history').delete().eq('product_id', product.id),
       ])
-      const { error } = await supabase.from('products').delete().eq('id', product.id)
-      if (!error) {
-        onDeleted(product.id)
-        onBack()
+      const relatedError = related.find(r => r.error)?.error
+      if (relatedError) {
+        alert(`Fehler beim Löschen verknüpfter Daten: ${relatedError.message}`)
+        return
       }
+      const { data: deleted, error } = await supabase.from('products').delete().eq('id', product.id).select()
+      if (error) {
+        alert(`Fehler: ${error.message}`)
+        return
+      }
+      if (!deleted || deleted.length === 0) {
+        alert('Artikel konnte nicht gelöscht werden (möglicherweise fehlende Berechtigung).')
+        return
+      }
+      onDeleted(product.id)
+      onBack()
     } finally {
       if (deleteSpinnerTimer.current) clearTimeout(deleteSpinnerTimer.current)
       setShowDeleteSpinner(false)
