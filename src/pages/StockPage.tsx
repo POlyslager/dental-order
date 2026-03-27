@@ -53,8 +53,8 @@ function SweepModal({
   domainToSupplier: Record<string, string>
 }) {
   return (
-    <div className="fixed inset-0 bg-black/40 dark:bg-black/60 z-50 flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+    <div className="fixed inset-0 bg-black/40 dark:bg-black/60 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700 shrink-0">
           <div className="flex items-center gap-3">
@@ -408,7 +408,7 @@ useEffect(() => {
     setSweepLoading(true)
     setSweepOpen(true)
     setSweepResults([])
-    const targets = products.filter(p => p.last_price != null && p.last_price > 0)
+    const targets = products
     const settled = await Promise.allSettled(
       targets.map(async product => {
         const res = await fetch('/api/find-alternatives', {
@@ -418,7 +418,9 @@ useEffect(() => {
         })
         const data = await res.json()
         const alts = (data.results ?? []) as PriceAlternative[]
-        const cheaper = alts.filter(a => a.price < product.last_price! && (product.last_price! - a.price) / product.last_price! <= 0.90)
+        const cheaper = product.last_price != null && product.last_price > 0
+          ? alts.filter(a => a.price < product.last_price! && (product.last_price! - a.price) / product.last_price! <= 0.90)
+          : alts
         return { product, cheaper }
       })
     )
@@ -1039,7 +1041,7 @@ useEffect(() => {
         <SweepModal
           results={sweepResults}
           loading={sweepLoading}
-          productCount={products.filter(p => p.last_price != null && p.last_price > 0).length}
+          productCount={products.length}
           onClose={() => setSweepOpen(false)}
           onApply={applySweepAlternative}
           domainToSupplier={domainToSupplier}

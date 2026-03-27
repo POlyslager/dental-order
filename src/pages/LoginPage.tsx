@@ -66,7 +66,13 @@ export default function LoginPage() {
       <div className="w-full max-w-xs bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-8 flex flex-col items-center gap-6">
         {/* Header */}
         <div className="text-center">
-          <div className="text-5xl mb-3">🦷</div>
+          <div className="flex justify-center mb-4">
+            <svg width="52" height="52" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect width="52" height="52" rx="13" fill="#0f172a"/>
+              <rect x="23" y="12" width="6" height="28" rx="3" fill="white"/>
+              <rect x="12" y="23" width="28" height="6" rx="3" fill="white"/>
+            </svg>
+          </div>
           <h1 className="text-2xl font-semibold text-slate-800 dark:text-slate-100">DentalOrder</h1>
           <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Praxis Senefelder</p>
         </div>
