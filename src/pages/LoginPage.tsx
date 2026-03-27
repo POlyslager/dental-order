@@ -67,18 +67,18 @@ export default function LoginPage() {
         {/* Header */}
         <div className="text-center">
           <div className="flex justify-center mb-4">
-            <svg width="72" height="48" viewBox="0 0 100 65" fill="#38bdf8" xmlns="http://www.w3.org/2000/svg">
-              <rect x="30" y="0" width="40" height="8" rx="1"/>
-              <rect x="0" y="10" width="100" height="11" rx="1"/>
-              <path d="M1 23 L19 23 L17.5 63 L2.5 63 Z"/>
-              <path d="M21 23 L39 23 L37.5 63 L22.5 63 Z"/>
-              <path d="M41 23 L59 23 L57.5 63 L42.5 63 Z"/>
-              <path d="M61 23 L79 23 L77.5 63 L62.5 63 Z"/>
-              <path d="M81 23 L99 23 L97.5 63 L82.5 63 Z"/>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="20 12 196 70" width="140" height="50" fill="#71cdde">
+              <rect x="23.7" y="48.23" width="22.02" height="30.53"/>
+              <rect x="111.23" y="-56.94" width="12.3" height="187.36" transform="translate(80.65 154.12) rotate(-90)"/>
+              <polygon points="79.46 78.76 57.44 78.76 57.44 48.23 75.28 48.23 79.46 78.76"/>
+              <polygon points="112.59 78.76 90.57 78.76 94.49 48.23 108.41 48.23 112.59 78.76"/>
+              <rect x="189.04" y="48.23" width="22.02" height="30.53" transform="translate(400.1 126.99) rotate(-180)"/>
+              <polygon points="156.82 78.76 178.84 78.76 178.84 48.23 161 48.23 156.82 78.76"/>
+              <polygon points="123.7 78.76 145.71 78.76 141.79 48.23 127.88 48.23 123.7 78.76"/>
+              <rect x="89.81" y="14.25" width="55.14" height="10.99"/>
             </svg>
           </div>
           <h1 className="text-2xl font-semibold text-slate-800 dark:text-slate-100">DentalOrder</h1>
-          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Praxis Senefelder</p>
         </div>
 
         {/* PIN dots */}
