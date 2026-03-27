@@ -12,6 +12,10 @@ interface SupplierRow {
   min_order_value: number | null
   delivery_cost: number | null
   free_delivery_threshold: number | null
+  discount_own_brand: number | null
+  discount_other_brand: number | null
+  volume_bonus_threshold: number | null
+  volume_bonus_pct: number | null
   search_paths: string[]
   is_active: boolean
   productCount: number
@@ -26,15 +30,15 @@ export default function SuppliersPage() {
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState<SupplierRow | null>(null)
   const [isNew, setIsNew] = useState(false)
-  const [form, setForm] = useState<{ name: string; website: string; notes: string; min_order_value: string; delivery_cost: string; free_delivery_threshold: string; search_paths: string[]; is_active: boolean }>({
-    name: '', website: '', notes: '', min_order_value: '', delivery_cost: '', free_delivery_threshold: '', search_paths: [], is_active: true,
+  const [form, setForm] = useState<{ name: string; website: string; notes: string; min_order_value: string; delivery_cost: string; free_delivery_threshold: string; discount_own_brand: string; discount_other_brand: string; volume_bonus_threshold: string; volume_bonus_pct: string; search_paths: string[]; is_active: boolean }>({
+    name: '', website: '', notes: '', min_order_value: '', delivery_cost: '', free_delivery_threshold: '', discount_own_brand: '', discount_other_brand: '', volume_bonus_threshold: '', volume_bonus_pct: '', search_paths: [], is_active: true,
   })
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [closing, setClosing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
-  const [undoSupplier, setUndoSupplier] = useState<{ name: string; website: string | null; notes: string | null; min_order_value: number | null; delivery_cost: number | null; free_delivery_threshold: number | null; search_paths: string[]; is_active: boolean; productIds: string[] } | null>(null)
+  const [undoSupplier, setUndoSupplier] = useState<{ name: string; website: string | null; notes: string | null; min_order_value: number | null; delivery_cost: number | null; free_delivery_threshold: number | null; discount_own_brand: number | null; discount_other_brand: number | null; volume_bonus_threshold: number | null; volume_bonus_pct: number | null; search_paths: string[]; is_active: boolean; productIds: string[] } | null>(null)
   const [page, setPage] = useState(1)
   const isDesktop = useIsDesktop()
   const [detecting, setDetecting] = useState(false)
@@ -48,7 +52,7 @@ export default function SuppliersPage() {
   async function load() {
     const [{ data: productRows }, { data: metaRows }, { data: orderItemRows }] = await Promise.all([
       supabase.from('products').select('id, preferred_supplier'),
-      supabase.from('suppliers').select('name, website, notes, min_order_value, delivery_cost, free_delivery_threshold, search_paths, is_active'),
+      supabase.from('suppliers').select('name, website, notes, min_order_value, delivery_cost, free_delivery_threshold, discount_own_brand, discount_other_brand, volume_bonus_threshold, volume_bonus_pct, search_paths, is_active'),
       supabase.from('order_items')
         .select('product_id, orders!inner(created_at)')
         .eq('orders.status', 'received'),
@@ -62,7 +66,7 @@ export default function SuppliersPage() {
     )
 
     // All names: union of product suppliers and standalone suppliers table entries
-    const metaList = (metaRows ?? []) as { name: string; website: string | null; notes: string | null; min_order_value: number | null; delivery_cost: number | null; free_delivery_threshold: number | null; search_paths: string[] | null; is_active: boolean | null }[]
+    const metaList = (metaRows ?? []) as { name: string; website: string | null; notes: string | null; min_order_value: number | null; delivery_cost: number | null; free_delivery_threshold: number | null; discount_own_brand: number | null; discount_other_brand: number | null; volume_bonus_threshold: number | null; volume_bonus_pct: number | null; search_paths: string[] | null; is_active: boolean | null }[]
     const allNames = [...new Set([...namesFromProducts, ...metaList.map(r => r.name)])].sort((a, b) => a.localeCompare(b))
 
     const websiteMap: Record<string, string | null> = {}
@@ -70,6 +74,10 @@ export default function SuppliersPage() {
     const minOrderMap: Record<string, number | null> = {}
     const deliveryCostMap: Record<string, number | null> = {}
     const freeDeliveryMap: Record<string, number | null> = {}
+    const discountOwnBrandMap: Record<string, number | null> = {}
+    const discountOtherBrandMap: Record<string, number | null> = {}
+    const volumeBonusThresholdMap: Record<string, number | null> = {}
+    const volumeBonusPctMap: Record<string, number | null> = {}
     const searchPathsMap: Record<string, string[]> = {}
     const isActiveMap: Record<string, boolean> = {}
     for (const r of metaList) {
@@ -78,6 +86,10 @@ export default function SuppliersPage() {
       minOrderMap[r.name] = r.min_order_value
       deliveryCostMap[r.name] = r.delivery_cost
       freeDeliveryMap[r.name] = r.free_delivery_threshold
+      discountOwnBrandMap[r.name] = r.discount_own_brand
+      discountOtherBrandMap[r.name] = r.discount_other_brand
+      volumeBonusThresholdMap[r.name] = r.volume_bonus_threshold
+      volumeBonusPctMap[r.name] = r.volume_bonus_pct
       searchPathsMap[r.name] = r.search_paths ?? []
       isActiveMap[r.name] = r.is_active ?? true
     }
@@ -107,6 +119,10 @@ export default function SuppliersPage() {
       min_order_value: minOrderMap[name] ?? null,
       delivery_cost: deliveryCostMap[name] ?? null,
       free_delivery_threshold: freeDeliveryMap[name] ?? null,
+      discount_own_brand: discountOwnBrandMap[name] ?? null,
+      discount_other_brand: discountOtherBrandMap[name] ?? null,
+      volume_bonus_threshold: volumeBonusThresholdMap[name] ?? null,
+      volume_bonus_pct: volumeBonusPctMap[name] ?? null,
       search_paths: searchPathsMap[name] ?? [],
       is_active: isActiveMap[name] ?? true,
       productCount: productCounts[name] ?? 0,
@@ -116,7 +132,7 @@ export default function SuppliersPage() {
   }
 
   function openNew() {
-    setForm({ name: '', website: '', notes: '', min_order_value: '', delivery_cost: '', free_delivery_threshold: '', search_paths: [], is_active: true })
+    setForm({ name: '', website: '', notes: '', min_order_value: '', delivery_cost: '', free_delivery_threshold: '', discount_own_brand: '', discount_other_brand: '', volume_bonus_threshold: '', volume_bonus_pct: '', search_paths: [], is_active: true })
     setSelected(null)
     setIsNew(true)
     setEditing(true)
@@ -133,6 +149,10 @@ export default function SuppliersPage() {
       min_order_value: s.min_order_value != null ? String(s.min_order_value) : '',
       delivery_cost: s.delivery_cost != null ? String(s.delivery_cost) : '',
       free_delivery_threshold: s.free_delivery_threshold != null ? String(s.free_delivery_threshold) : '',
+      discount_own_brand: s.discount_own_brand != null ? String(s.discount_own_brand) : '',
+      discount_other_brand: s.discount_other_brand != null ? String(s.discount_other_brand) : '',
+      volume_bonus_threshold: s.volume_bonus_threshold != null ? String(s.volume_bonus_threshold) : '',
+      volume_bonus_pct: s.volume_bonus_pct != null ? String(s.volume_bonus_pct) : '',
       search_paths: s.search_paths,
       is_active: s.is_active,
     })
@@ -150,7 +170,7 @@ export default function SuppliersPage() {
       setSelected(null)
       setIsNew(false)
       setEditing(false)
-      setForm({ name: '', website: '', notes: '', min_order_value: '', delivery_cost: '', free_delivery_threshold: '', search_paths: [], is_active: true })
+      setForm({ name: '', website: '', notes: '', min_order_value: '', delivery_cost: '', free_delivery_threshold: '', discount_own_brand: '', discount_other_brand: '', volume_bonus_threshold: '', volume_bonus_pct: '', search_paths: [], is_active: true })
       setConfirmDelete(false)
       setClosing(false)
       setTestResult(null)
@@ -168,7 +188,11 @@ export default function SuppliersPage() {
     const min_order_value = form.min_order_value.trim() ? parseFloat(form.min_order_value) : null
     const delivery_cost = form.delivery_cost.trim() ? parseFloat(form.delivery_cost) : null
     const free_delivery_threshold = form.free_delivery_threshold.trim() ? parseFloat(form.free_delivery_threshold) : null
-    const payload = { name: newName, website, notes, min_order_value, delivery_cost, free_delivery_threshold, search_paths: form.search_paths, is_active: form.is_active }
+    const discount_own_brand = form.discount_own_brand.trim() ? parseFloat(form.discount_own_brand) : null
+    const discount_other_brand = form.discount_other_brand.trim() ? parseFloat(form.discount_other_brand) : null
+    const volume_bonus_threshold = form.volume_bonus_threshold.trim() ? parseFloat(form.volume_bonus_threshold) : null
+    const volume_bonus_pct = form.volume_bonus_pct.trim() ? parseFloat(form.volume_bonus_pct) : null
+    const payload = { name: newName, website, notes, min_order_value, delivery_cost, free_delivery_threshold, discount_own_brand, discount_other_brand, volume_bonus_threshold, volume_bonus_pct, search_paths: form.search_paths, is_active: form.is_active }
     if (!isNew && oldName && oldName !== newName) {
       // Rename: insert new row, update products (match by name OR domain variant), delete old row
       const { error } = await supabase.from('suppliers').upsert(payload, { onConflict: 'name' })
@@ -196,7 +220,7 @@ export default function SuppliersPage() {
   async function handleDelete() {
     if (!selected) return
     const { data: affected } = await supabase.from('products').select('id').eq('preferred_supplier', selected.name)
-    const snapshot = { ...selected, delivery_cost: selected.delivery_cost, free_delivery_threshold: selected.free_delivery_threshold, productIds: (affected ?? []).map(p => p.id) }
+    const snapshot = { ...selected, productIds: (affected ?? []).map(p => p.id) }
     const [{ error: prodError }, { error: supError }] = await Promise.all([
       supabase.from('products').update({ preferred_supplier: null }).eq('preferred_supplier', selected.name),
       supabase.from('suppliers').delete().eq('name', selected.name),
@@ -212,7 +236,7 @@ export default function SuppliersPage() {
     if (!undoSupplier) return
     await Promise.all([
       supabase.from('suppliers').upsert(
-        { name: undoSupplier.name, website: undoSupplier.website, notes: undoSupplier.notes, min_order_value: undoSupplier.min_order_value, delivery_cost: undoSupplier.delivery_cost, free_delivery_threshold: undoSupplier.free_delivery_threshold, search_paths: undoSupplier.search_paths, is_active: undoSupplier.is_active },
+        { name: undoSupplier.name, website: undoSupplier.website, notes: undoSupplier.notes, min_order_value: undoSupplier.min_order_value, delivery_cost: undoSupplier.delivery_cost, free_delivery_threshold: undoSupplier.free_delivery_threshold, discount_own_brand: undoSupplier.discount_own_brand, discount_other_brand: undoSupplier.discount_other_brand, volume_bonus_threshold: undoSupplier.volume_bonus_threshold, volume_bonus_pct: undoSupplier.volume_bonus_pct, search_paths: undoSupplier.search_paths, is_active: undoSupplier.is_active },
         { onConflict: 'name' }
       ),
       undoSupplier.productIds.length > 0
@@ -440,6 +464,30 @@ export default function SuppliersPage() {
                       {selected?.free_delivery_threshold != null ? `€ ${Number(selected.free_delivery_threshold).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
                     </p>
                   </div>
+                  <div>
+                    <p className="text-xs text-slate-400 mb-0.5">Eigenmarken-Rabatt</p>
+                    <p className="text-sm text-slate-800 dark:text-slate-100">
+                      {selected?.discount_own_brand != null ? `${selected.discount_own_brand} %` : '—'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-400 mb-0.5">Fremdmarken-Rabatt</p>
+                    <p className="text-sm text-slate-800 dark:text-slate-100">
+                      {selected?.discount_other_brand != null ? `${selected.discount_other_brand} %` : '—'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-400 mb-0.5">Volumenbonus ab</p>
+                    <p className="text-sm text-slate-800 dark:text-slate-100">
+                      {selected?.volume_bonus_threshold != null ? `€ ${Number(selected.volume_bonus_threshold).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-400 mb-0.5">Volumenbonus</p>
+                    <p className="text-sm text-slate-800 dark:text-slate-100">
+                      {selected?.volume_bonus_pct != null ? `${selected.volume_bonus_pct} %` : '—'}
+                    </p>
+                  </div>
                 </div>
                 {selected && selected.search_paths.length > 0 && (
                   <div className="border-t border-slate-100 pt-4 dark:border-slate-700">
@@ -502,6 +550,30 @@ export default function SuppliersPage() {
                     <input type="number" min="0" step="0.01" value={form.free_delivery_threshold}
                       onChange={e => setForm(f => ({ ...f, free_delivery_threshold: e.target.value }))}
                       placeholder="z.B. 250,00" className={inputCls} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1 dark:text-slate-400">Eigenmarken-Rabatt (%)</label>
+                    <input type="number" min="0" max="100" step="0.1" value={form.discount_own_brand}
+                      onChange={e => setForm(f => ({ ...f, discount_own_brand: e.target.value }))}
+                      placeholder="z.B. 12" className={inputCls} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1 dark:text-slate-400">Fremdmarken-Rabatt (%)</label>
+                    <input type="number" min="0" max="100" step="0.1" value={form.discount_other_brand}
+                      onChange={e => setForm(f => ({ ...f, discount_other_brand: e.target.value }))}
+                      placeholder="z.B. 5" className={inputCls} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1 dark:text-slate-400">Volumenbonus ab (€)</label>
+                    <input type="number" min="0" step="0.01" value={form.volume_bonus_threshold}
+                      onChange={e => setForm(f => ({ ...f, volume_bonus_threshold: e.target.value }))}
+                      placeholder="z.B. 1000,00" className={inputCls} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1 dark:text-slate-400">Volumenbonus (%)</label>
+                    <input type="number" min="0" max="100" step="0.1" value={form.volume_bonus_pct}
+                      onChange={e => setForm(f => ({ ...f, volume_bonus_pct: e.target.value }))}
+                      placeholder="z.B. 2" className={inputCls} />
                   </div>
                 </div>
 

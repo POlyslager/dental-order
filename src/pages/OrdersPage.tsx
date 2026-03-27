@@ -8,13 +8,25 @@ import { useIsDesktop } from '../hooks/useIsDesktop'
 
 interface Props { role: Role | null; user: User; onBadgeChange: (n: number) => void; forceOpenTab?: number; forceScanMode?: number }
 
-const HS_SUPPLIER = 'Henry Schein Dental'
+type SupplierRules = {
+  delivery_cost: number | null
+  free_delivery_threshold: number | null
+  discount_own_brand: number | null
+  discount_other_brand: number | null
+  volume_bonus_threshold: number | null
+  volume_bonus_pct: number | null
+}
 
-function hsEffectivePrice(product: { last_price: number | null; preferred_supplier: string | null; brand: string | null } | undefined): number | null {
+function effectivePrice(
+  product: { last_price: number | null; preferred_supplier: string | null; brand: string | null } | undefined,
+  rules: SupplierRules | undefined
+): number | null {
   if (!product?.last_price) return null
-  if (product.preferred_supplier !== HS_SUPPLIER) return product.last_price
-  const discount = product.brand === 'Henry Schein' ? 0.29 : 0.28
-  return product.last_price * (1 - discount)
+  if (!rules) return product.last_price
+  const isOwnBrand = product.brand === product.preferred_supplier
+  const discountPct = isOwnBrand ? rules.discount_own_brand : rules.discount_other_brand
+  if (!discountPct) return product.last_price
+  return product.last_price * (1 - discountPct / 100)
 }
 
 // Extract domain from a URL, e.g. "https://www.dental-shop.de/..." → "dental-shop.de"
@@ -42,7 +54,7 @@ export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, fo
   const [editForm, setEditForm] = useState<{ price: string; quantity: number }>({ price: '', quantity: 1 })
   const [editSaving, setEditSaving] = useState(false)
 const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>({})
-  const [supplierDelivery, setSupplierDelivery] = useState<Record<string, { delivery_cost: number | null; free_delivery_threshold: number | null }>>({})
+  const [supplierRules, setSupplierRules] = useState<Record<string, SupplierRules>>({})
   const [deleteConfirm, setDeleteConfirm] = useState<CartItem | null>(null)
   const [approvingOrder, setApprovingOrder] = useState<string | null>(null)
   const [toast, setToast] = useState<{ message: string; onUndo?: () => void; variant?: 'error' } | null>(null)
@@ -131,20 +143,20 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
         .select('id, product_id, quantity, created_at, is_edited, product:products(id, name, current_stock, unit, last_price, alternative_price, alternative_url, alternative_supplier, supplier_url, preferred_supplier, brand)')
         .order('created_at'),
       supabase.from('products').select('preferred_supplier').not('preferred_supplier', 'is', null).limit(10000),
-      supabase.from('suppliers').select('name, website, delivery_cost, free_delivery_threshold'),
+      supabase.from('suppliers').select('name, website, delivery_cost, free_delivery_threshold, discount_own_brand, discount_other_brand, volume_bonus_threshold, volume_bonus_pct'),
     ])
     const loadedItems = (data as unknown as CartItem[]) ?? []
     setCartItems(loadedItems)
     if (loadedItems.length > 0) fetchPriceHits(loadedItems)
     const map: Record<string, string> = {}
-    const delivery: Record<string, { delivery_cost: number | null; free_delivery_threshold: number | null }> = {}
-    for (const r of (supRows ?? []) as { name: string; website: string | null; delivery_cost: number | null; free_delivery_threshold: number | null }[]) {
+    const rules: Record<string, SupplierRules> = {}
+    for (const r of (supRows ?? []) as (SupplierRules & { name: string; website: string | null })[]) {
       const domain = getDomain(r.website)
       if (domain) map[domain] = r.name
-      delivery[r.name] = { delivery_cost: r.delivery_cost, free_delivery_threshold: r.free_delivery_threshold }
+      rules[r.name] = { delivery_cost: r.delivery_cost, free_delivery_threshold: r.free_delivery_threshold, discount_own_brand: r.discount_own_brand, discount_other_brand: r.discount_other_brand, volume_bonus_threshold: r.volume_bonus_threshold, volume_bonus_pct: r.volume_bonus_pct }
     }
     setDomainToSupplier(map)
-    setSupplierDelivery(delivery)
+    setSupplierRules(rules)
   }
 
   function fetchPriceHits(items: CartItem[]) {
@@ -161,7 +173,7 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
           signal: controller.signal,
         })
         const data = await res.json()
-        const currentPrice = hsEffectivePrice(item.product) ?? 0
+        const currentPrice = effectivePrice(item.product, supplierRules[item.product?.preferred_supplier ?? '']) ?? 0
         const alternatives = (data.results ?? []).filter((a: PriceAlternative) =>
           currentPrice <= 0 || (currentPrice - a.price) / currentPrice <= 0.90
         ) as PriceAlternative[]
@@ -237,12 +249,7 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
     return acc
   }, {})
 
-  const grandTotal = cartItems.reduce((s, i) => s + (i.quantity * (hsEffectivePrice(i.product) ?? 0)), 0)
-
-  const hsTotal = cartItems
-    .filter(i => i.product?.preferred_supplier === HS_SUPPLIER)
-    .reduce((s, i) => s + (i.quantity * (hsEffectivePrice(i.product) ?? 0)), 0)
-  const hsVolumeBonus = hsTotal > 1000 ? (hsTotal - 1000) * 0.01 : 0
+  const grandTotal = cartItems.reduce((s, i) => s + (i.quantity * (effectivePrice(i.product, supplierRules[i.product?.preferred_supplier ?? '']) ?? 0)), 0)
 
   const ordersBySupplier = useMemo<[string, Order[]][]>(() => {
     const grouped: [string, Order[]][] = []
@@ -801,7 +808,7 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
               <table className="w-full text-sm">
                 <tbody>
                   {Object.entries(cartByDomain).map(([domain, items], idx) => {
-                    const domainTotal = items.reduce((s, i) => s + (i.quantity * (hsEffectivePrice(i.product) ?? 0)), 0)
+                    const domainTotal = items.reduce((s, i) => s + (i.quantity * (effectivePrice(i.product, supplierRules[domain]) ?? 0)), 0)
                     return (
                       <React.Fragment key={domain}>
                         {/* Spacer between groups */}
@@ -815,7 +822,7 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
                               <p className="font-semibold text-slate-800 dark:text-slate-100 text-base">{domain}</p>
                               <div className="flex flex-col items-end gap-0.5">
                                 {(() => {
-                                  const dr = supplierDelivery[domain]
+                                  const dr = supplierRules[domain]
                                   if (!dr?.delivery_cost) return null
                                   const threshold = dr.free_delivery_threshold
                                   const isFree = threshold != null && domainTotal >= threshold
@@ -830,24 +837,34 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
                                     </span>
                                   )
                                 })()}
-                                <div className={`flex-col items-end gap-0.5 ${isDesktop ? 'flex' : 'hidden'}`}>
-                                  {domain === HS_SUPPLIER && hsVolumeBonus === 0 && hsTotal > 0 && (
-                                    <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">
-                                      Noch {(1000 - hsTotal).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € bis Volumenbonus
-                                    </span>
-                                  )}
-                                  <span className="text-xs text-slate-500 dark:text-slate-400">
-                                    Gesamt: <span className={`font-semibold ${domain === HS_SUPPLIER && hsVolumeBonus > 0 ? 'line-through text-slate-400 dark:text-slate-500' : 'text-slate-700 dark:text-slate-200'}`}>€ {domainTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                                  </span>
-                                  {domain === HS_SUPPLIER && hsVolumeBonus > 0 && (
-                                    <span className="inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
-                                      <TrendingDown size={11} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
-                                      Volumenbonus: <span className="font-semibold text-emerald-600 dark:text-emerald-400">−€ {hsVolumeBonus.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                                      {' · '}
-                                      <span className="font-semibold text-slate-700 dark:text-slate-200">€ {(domainTotal - hsVolumeBonus).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                                    </span>
-                                  )}
-                                </div>
+                                {(() => {
+                                    const dr = supplierRules[domain]
+                                    const bonusThreshold = dr?.volume_bonus_threshold
+                                    const bonusPct = dr?.volume_bonus_pct
+                                    if (!bonusThreshold || !bonusPct) return null
+                                    const volumeBonus = domainTotal > bonusThreshold ? (domainTotal - bonusThreshold) * (bonusPct / 100) : 0
+                                    const untilBonus = domainTotal < bonusThreshold ? bonusThreshold - domainTotal : 0
+                                    return (
+                                      <div className={`flex-col items-end gap-0.5 ${isDesktop ? 'flex' : 'hidden'}`}>
+                                        {untilBonus > 0 && (
+                                          <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+                                            Noch € {untilBonus.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} bis Volumenbonus
+                                          </span>
+                                        )}
+                                        <span className="text-xs text-slate-500 dark:text-slate-400">
+                                          Gesamt: <span className={`font-semibold ${volumeBonus > 0 ? 'line-through text-slate-400 dark:text-slate-500' : 'text-slate-700 dark:text-slate-200'}`}>€ {domainTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                        </span>
+                                        {volumeBonus > 0 && (
+                                          <span className="inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
+                                            <TrendingDown size={11} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                            Volumenbonus: <span className="font-semibold text-emerald-600 dark:text-emerald-400">−€ {volumeBonus.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                            {' · '}
+                                            <span className="font-semibold text-slate-700 dark:text-slate-200">€ {(domainTotal - volumeBonus).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                          </span>
+                                        )}
+                                      </div>
+                                    )
+                                  })()}
                               </div>
                             </div>
                           </td>
@@ -869,6 +886,7 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
                             item={item}
                             placing={placingItem === item.id}
                             requiresApproval={grandTotal > 2000}
+                            rules={supplierRules[domain]}
                             onUpdateQuantity={updateQuantity}
                             onPlaceOrder={placeOrderForItem}
                             onRemoveRequest={setDeleteConfirm}
@@ -1178,15 +1196,16 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
 
               {/* Pricing summary */}
               {(() => {
-                const isHS = editItem?.product?.preferred_supplier === HS_SUPPLIER
+                const editRules = supplierRules[editItem?.product?.preferred_supplier ?? '']
                 const prevListTotal = (editItem?.quantity ?? 0) * (editItem?.product?.last_price ?? 0)
-                const prevEff = hsEffectivePrice(editItem?.product) ?? (editItem?.product?.last_price ?? 0)
+                const prevEff = effectivePrice(editItem?.product, editRules) ?? (editItem?.product?.last_price ?? 0)
                 const prevEffTotal = (editItem?.quantity ?? 0) * prevEff
                 const newListPrice = parseFloat(editForm.price.replace(',', '.'))
                 const newEffPrice = isNaN(newListPrice) ? 0 : (() => {
-                  if (!isHS) return newListPrice
-                  const discount = editItem?.product?.brand === 'Henry Schein' ? 0.29 : 0.28
-                  return newListPrice * (1 - discount)
+                  if (!editRules) return newListPrice
+                  const isOwnBrand = editItem?.product?.brand === editItem?.product?.preferred_supplier
+                  const discountPct = isOwnBrand ? editRules.discount_own_brand : editRules.discount_other_brand
+                  return discountPct ? newListPrice * (1 - discountPct / 100) : newListPrice
                 })()
                 const newListTotal = editForm.quantity * (isNaN(newListPrice) ? 0 : newListPrice)
                 const newEffTotal = editForm.quantity * newEffPrice
@@ -1402,10 +1421,11 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
 }
 
 // ── Cart item row ───────────────────────────────────────────────────────────
-function CartItemRow({ item, placing, requiresApproval, onUpdateQuantity, onPlaceOrder, onRemoveRequest, onEdit, alternatives, onShowAlternatives }: {
+function CartItemRow({ item, placing, requiresApproval, rules, onUpdateQuantity, onPlaceOrder, onRemoveRequest, onEdit, alternatives, onShowAlternatives }: {
   item: CartItem
   placing: boolean
   requiresApproval: boolean
+  rules?: SupplierRules
   onUpdateQuantity: (id: string, qty: number) => void
   onPlaceOrder: (item: CartItem) => void
   onRemoveRequest: (item: CartItem) => void
@@ -1415,11 +1435,10 @@ function CartItemRow({ item, placing, requiresApproval, onUpdateQuantity, onPlac
 }) {
   const isDesktop = useIsDesktop()
   const listPrice = item.product?.last_price ?? null
-  const effectivePrice = hsEffectivePrice(item.product)
-  const price = effectivePrice
-  const hasDiscount = effectivePrice != null && listPrice != null && effectivePrice < listPrice
-  const rowTotal = item.quantity * (effectivePrice ?? 0)
-  const cheaperAlts = (alternatives ?? []).filter(a => effectivePrice != null && a.price < effectivePrice)
+  const price = effectivePrice(item.product, rules)
+  const hasDiscount = price != null && listPrice != null && price < listPrice
+  const rowTotal = item.quantity * (price ?? 0)
+  const cheaperAlts = (alternatives ?? []).filter(a => price != null && a.price < price)
 
   return (
     <tr className="bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors border-b border-slate-100 dark:border-slate-800">
