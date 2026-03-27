@@ -408,7 +408,7 @@ useEffect(() => {
     setSweepLoading(true)
     setSweepOpen(true)
     setSweepResults([])
-    const targets = products
+    const targets = products.filter(p => p.last_price != null && p.last_price > 0)
     const settled = await Promise.allSettled(
       targets.map(async product => {
         const res = await fetch('/api/find-alternatives', {
@@ -418,9 +418,7 @@ useEffect(() => {
         })
         const data = await res.json()
         const alts = (data.results ?? []) as PriceAlternative[]
-        const cheaper = product.last_price != null && product.last_price > 0
-          ? alts.filter(a => a.price < product.last_price! && (product.last_price! - a.price) / product.last_price! <= 0.90)
-          : alts
+        const cheaper = alts.filter(a => a.price < product.last_price! && (product.last_price! - a.price) / product.last_price! <= 0.90)
         return { product, cheaper }
       })
     )
@@ -1041,7 +1039,7 @@ useEffect(() => {
         <SweepModal
           results={sweepResults}
           loading={sweepLoading}
-          productCount={products.length}
+          productCount={products.filter(p => p.last_price != null && p.last_price > 0).length}
           onClose={() => setSweepOpen(false)}
           onApply={applySweepAlternative}
           domainToSupplier={domainToSupplier}
