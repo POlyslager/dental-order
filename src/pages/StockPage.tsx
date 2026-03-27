@@ -590,11 +590,18 @@ useEffect(() => {
       setSelectedProduct(updated)
     },
     onDeleted: (id: string) => {
+      const deleted = { ...selectedProduct }
       setProducts(prev => prev.filter(p => p.id !== id))
       closeProduct()
       setCartToastAction(null)
-      setCartToastUndo(null)
-      setCartToast(`Artikel wurde gelöscht`)
+      setCartToastUndo(() => async () => {
+        const { created_at, updated_at, ...fields } = deleted as any
+        await supabase.from('products').insert(fields)
+        fetchProducts()
+        setCartToast(null)
+        setCartToastUndo(null)
+      })
+      setCartToast(`${deleted.name} wurde gelöscht`)
     },
     onAddToCart: addToCart,
     onCartItemAdded: (name: string) => {
