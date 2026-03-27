@@ -103,14 +103,16 @@ alter table order_items enable row level security;
 create policy "profiles_select" on profiles for select to authenticated using (true);
 create policy "profiles_update_own" on profiles for update to authenticated using (auth.uid() = id);
 
--- Products: all authenticated users can read; employees+ can insert/update
+-- Products: all authenticated users can read/write/delete
 create policy "products_select" on products for select to authenticated using (true);
 create policy "products_insert" on products for insert to authenticated with check (true);
 create policy "products_update" on products for update to authenticated using (true);
+create policy "products_delete" on products for delete to authenticated using (true);
 
--- Stock movements: all authenticated can read/insert
+-- Stock movements: all authenticated can read/insert/delete
 create policy "movements_select" on stock_movements for select to authenticated using (true);
 create policy "movements_insert" on stock_movements for insert to authenticated with check (auth.uid() = scanned_by);
+create policy "movements_delete" on stock_movements for delete to authenticated using (true);
 
 -- Orders: all authenticated can read; creator can insert; admin can update
 create policy "orders_select" on orders for select to authenticated using (true);
@@ -121,6 +123,7 @@ create policy "orders_update" on orders for update to authenticated using (true)
 create policy "order_items_select" on order_items for select to authenticated using (true);
 create policy "order_items_insert" on order_items for insert to authenticated with check (true);
 create policy "order_items_update" on order_items for update to authenticated using (true);
+create policy "order_items_delete" on order_items for delete to authenticated using (true);
 
 -- ── Feature additions ─────────────────────────────────────────────────────
 
