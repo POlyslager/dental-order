@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { useIsDesktop } from '../hooks/useIsDesktop'
 import { supabase } from '../lib/supabase'
 import { Download, Upload, FileText, Check, AlertCircle } from 'lucide-react'
 
@@ -34,6 +35,7 @@ function parseCSV(text: string): Record<string, string>[] {
 type ToastType = 'success' | 'error'
 
 export default function DataPage() {
+  const isDesktop = useIsDesktop()
   const fileRef = useRef<HTMLInputElement>(null)
   const [importing, setImporting] = useState(false)
   const [toast, setToast] = useState<{ msg: string; type: ToastType } | null>(null)
@@ -155,7 +157,7 @@ export default function DataPage() {
   ]
 
   return (
-    <div className="min-h-full pb-20 md:pb-0 bg-slate-50 dark:bg-slate-900">
+    <div className={`min-h-full ${isDesktop ? 'pb-0' : 'pb-20'} bg-slate-50 dark:bg-slate-900`}>
       <div className="max-w-xl mx-auto p-4 lg:p-6 space-y-6">
 
         {/* Export */}

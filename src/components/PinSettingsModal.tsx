@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
+import { useIsDesktop } from '../hooks/useIsDesktop'
 import { KeyRound, Eye, EyeOff, Pencil, ChevronRight, X, Check } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { hashPin } from '../lib/pin'
@@ -39,6 +40,7 @@ const NUMPAD_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', '⌫'
 interface Props { onClose: () => void }
 
 export default function PinSettingsModal({ onClose: _onClose }: Props) {
+  const isDesktop = useIsDesktop()
   const [panel, setPanel] = useState<Panel>(null)
   const [closing, setClosing] = useState(false)
   const [success, setSuccess] = useState<string | null>(null)
@@ -164,7 +166,7 @@ export default function PinSettingsModal({ onClose: _onClose }: Props) {
     panel === 'cred-edit'   ? `${ROLE_LABEL[credEdit!.role]}-Zugangsdaten` : ''
 
   return (
-    <div className="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-900 pb-20 md:pb-0">
+    <div className={`flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-900 ${isDesktop ? 'pb-0' : 'pb-20'}`}>
       <div className="max-w-xl mx-auto p-4 lg:p-6 space-y-6">
 
         {success && (

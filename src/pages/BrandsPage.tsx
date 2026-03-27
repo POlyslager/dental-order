@@ -140,7 +140,7 @@ export default function BrandsPage() {
   const panelOpen = isNew || selected != null
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden pb-20 md:pb-0 relative">
+    <div className={`flex-1 flex flex-col overflow-hidden ${isDesktop ? 'pb-0' : 'pb-20'} relative`}>
       {toast && <Toast message={toast} onClose={() => { setToast(null); setUndoBrand(null) }} onUndo={undoBrand ? handleUndoDelete : undefined} />}
       {confirmDelete && selected && (
         <ConfirmDialog
