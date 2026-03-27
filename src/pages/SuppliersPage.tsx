@@ -495,13 +495,13 @@ export default function SuppliersPage() {
                     <label className="block text-xs font-medium text-slate-600 mb-1 dark:text-slate-400">Versandkosten (€)</label>
                     <input type="number" min="0" step="0.01" value={form.delivery_cost}
                       onChange={e => setForm(f => ({ ...f, delivery_cost: e.target.value }))}
-                      placeholder="z.B. 7.90" className={inputCls} />
+                      placeholder="z.B. 7,90" className={inputCls} />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-600 mb-1 dark:text-slate-400">Gratislieferung ab (€)</label>
                     <input type="number" min="0" step="0.01" value={form.free_delivery_threshold}
                       onChange={e => setForm(f => ({ ...f, free_delivery_threshold: e.target.value }))}
-                      placeholder="z.B. 250.00" className={inputCls} />
+                      placeholder="z.B. 250,00" className={inputCls} />
                   </div>
                 </div>
 
