@@ -232,15 +232,6 @@ export default function Dashboard({ user }: Props) {
                 )}
               </button>
 
-              {/* Collapsed: show bell icon directly */}
-              {sidebarCollapsed && isPushSupported() && (
-                <button
-                  onClick={toggleNotifications}
-                  className={`w-full flex items-center justify-center px-3 py-2.5 text-sm rounded-xl transition-colors ${pushPermission === 'granted' ? 'text-sky-600 bg-sky-50' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
-                >
-                  {pushPermission === 'granted' ? <BellOff size={20} className="shrink-0" /> : <Bell size={20} className="shrink-0" />}
-                </button>
-              )}
             </div>
 
             {/* ── Settings panel ── */}
