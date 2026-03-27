@@ -383,7 +383,7 @@ export default function SuppliersPage() {
       {(panelOpen || closing) && (
         <>
           <div className={`${isDesktop ? 'block' : 'hidden'} fixed inset-0 bg-black/30 z-40`} onClick={closePanel} />
-          <div className={`fixed bg-white z-50 flex flex-col dark:bg-slate-800 ${isDesktop ? 'inset-auto top-4 bottom-4 right-4 w-[520px] rounded-2xl shadow-2xl overflow-hidden' : 'inset-0 overflow-y-auto'} ${closing ? 'animate-slide-out-right' : 'animate-slide-in-right'}`}>
+          <div className={`fixed bg-white z-50 flex flex-col dark:bg-slate-800 ${isDesktop ? 'inset-auto top-4 bottom-4 right-4 w-[460px] rounded-2xl shadow-2xl overflow-hidden' : 'inset-0 overflow-y-auto'} ${closing ? 'animate-slide-out-right' : 'animate-slide-in-right'}`}>
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0 dark:border-slate-700">
               <h2 className="font-semibold text-slate-800 truncate flex-1 mr-2 dark:text-slate-100">
                 {isNew ? 'Neuer Lieferant' : selected?.name}

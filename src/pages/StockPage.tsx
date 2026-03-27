@@ -915,7 +915,7 @@ useEffect(() => {
       {(showForm || closingForm) && !selectedProduct && (
         <>
           <div className={`${isDesktop ? 'block' : 'hidden'} fixed inset-0 bg-black/30 z-40`} onClick={closeForm} />
-          <div className={`fixed bg-white dark:bg-slate-900 z-50 overflow-y-auto ${isDesktop ? 'inset-auto top-4 bottom-4 right-4 w-[520px] rounded-2xl shadow-2xl' : 'inset-0'} ${closingForm ? 'animate-slide-out-right' : 'animate-slide-in-right'}`}>
+          <div className={`fixed bg-white dark:bg-slate-900 z-50 overflow-y-auto ${isDesktop ? 'inset-auto top-4 bottom-4 right-4 w-[460px] rounded-2xl shadow-2xl' : 'inset-0'} ${closingForm ? 'animate-slide-out-right' : 'animate-slide-in-right'}`}>
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-4 border-b border-slate-100 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-900 z-10">
               <h2 className="font-semibold text-slate-800 dark:text-slate-100">Neuer Artikel</h2>
@@ -1053,7 +1053,7 @@ useEffect(() => {
             className={`${isDesktop ? 'block' : 'hidden'} fixed inset-0 bg-black/30 z-40`}
             onClick={closeProduct}
           />
-          <div className={`fixed bg-white dark:bg-slate-900 z-50 overflow-hidden flex flex-col ${isDesktop ? 'inset-auto top-4 bottom-4 right-4 w-[520px] rounded-2xl shadow-2xl' : 'inset-0'} ${closingProduct ? 'animate-slide-out-right' : 'animate-slide-in-right'}`}>
+          <div className={`fixed bg-white dark:bg-slate-900 z-50 overflow-hidden flex flex-col ${isDesktop ? 'inset-auto top-4 bottom-4 right-4 w-[460px] rounded-2xl shadow-2xl' : 'inset-0'} ${closingProduct ? 'animate-slide-out-right' : 'animate-slide-in-right'}`}>
             <ProductDetailPage {...productDetailProps} isModal />
           </div>
         </>

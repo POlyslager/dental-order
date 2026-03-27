@@ -1105,7 +1105,7 @@ const map: Record<string, string> = {}
       {(editItem || editClosing) && (
         <>
           <div className={`${isDesktop ? 'block' : 'hidden'} fixed inset-0 bg-black/30 z-40`} onClick={closeEditPanel} />
-          <div className={`fixed bg-white dark:bg-slate-900 z-50 flex flex-col ${isDesktop ? 'inset-auto top-4 bottom-4 right-4 w-[400px] rounded-2xl shadow-2xl overflow-hidden' : 'inset-0 overflow-y-auto'} ${editClosing ? 'animate-slide-out-right' : 'animate-slide-in-right'}`}>
+          <div className={`fixed bg-white dark:bg-slate-900 z-50 flex flex-col ${isDesktop ? 'inset-auto top-4 bottom-4 right-4 w-[360px] rounded-2xl shadow-2xl overflow-hidden' : 'inset-0 overflow-y-auto'} ${editClosing ? 'animate-slide-out-right' : 'animate-slide-in-right'}`}>
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800 shrink-0">
               <h2 className="font-semibold text-slate-800 dark:text-slate-100 truncate flex-1 mr-2">{editItem?.product?.name}</h2>
               <button onClick={closeEditPanel} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-1.5 transition-colors">
