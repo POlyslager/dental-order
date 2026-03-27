@@ -1,6 +1,10 @@
 @import "tailwindcss";
 @custom-variant dark (&:where(.dark, .dark *));
 
+@theme {
+  --breakpoint-md: 700px;
+}
+
 * {
   box-sizing: border-box;
 }
