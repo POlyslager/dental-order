@@ -67,10 +67,14 @@ export default function LoginPage() {
         {/* Header */}
         <div className="text-center">
           <div className="flex justify-center mb-4">
-            <svg width="52" height="52" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect width="52" height="52" rx="13" fill="#0f172a"/>
-              <rect x="23" y="12" width="6" height="28" rx="3" fill="white"/>
-              <rect x="12" y="23" width="28" height="6" rx="3" fill="white"/>
+            <svg width="72" height="48" viewBox="0 0 100 65" fill="#38bdf8" xmlns="http://www.w3.org/2000/svg">
+              <rect x="30" y="0" width="40" height="8" rx="1"/>
+              <rect x="0" y="10" width="100" height="11" rx="1"/>
+              <path d="M1 23 L19 23 L17.5 63 L2.5 63 Z"/>
+              <path d="M21 23 L39 23 L37.5 63 L22.5 63 Z"/>
+              <path d="M41 23 L59 23 L57.5 63 L42.5 63 Z"/>
+              <path d="M61 23 L79 23 L77.5 63 L62.5 63 Z"/>
+              <path d="M81 23 L99 23 L97.5 63 L82.5 63 Z"/>
             </svg>
           </div>
           <h1 className="text-2xl font-semibold text-slate-800 dark:text-slate-100">DentalOrder</h1>
