@@ -95,12 +95,19 @@ export default function BrandsPage() {
   }
 
   async function handleSave() {
-    const name = isNew ? form.name.trim() : selected?.name
-    if (!name) return
+    const newName = form.name.trim()
+    if (!newName) return
     setSaving(true)
+    const oldName = isNew ? null : selected?.name
     const website = form.website.trim() || null
     const notes = form.notes.trim() || null
-    await supabase.from('brands').upsert({ name, website, notes }, { onConflict: 'name' })
+    if (!isNew && oldName && oldName !== newName) {
+      await supabase.from('brands').upsert({ name: newName, website, notes }, { onConflict: 'name' })
+      await supabase.from('products').update({ brand: newName }).eq('brand', oldName)
+      await supabase.from('brands').delete().eq('name', oldName)
+    } else {
+      await supabase.from('brands').upsert({ name: newName, website, notes }, { onConflict: 'name' })
+    }
     setToast('Hersteller gespeichert')
     await load()
     closePanel()
@@ -296,13 +303,11 @@ export default function BrandsPage() {
             ) : (
               /* Edit mode */
               <div className="flex-1 overflow-y-auto p-5 space-y-4">
-                {isNew && (
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Name *</label>
-                    <input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                      placeholder="z.B. Hager Werken" className={inputCls} autoFocus />
-                  </div>
-                )}
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Name *</label>
+                  <input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                    placeholder="z.B. Hager Werken" className={inputCls} autoFocus />
+                </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Website</label>
                   <div className="flex items-center gap-2">
@@ -340,7 +345,7 @@ export default function BrandsPage() {
               <div className="border-t border-slate-100 dark:border-slate-700 px-5 py-4 flex gap-3 shrink-0">
                 <button onClick={closePanel}
                   className="flex-1 border border-slate-300 dark:border-slate-600 rounded-xl py-3 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">Abbrechen</button>
-                <button onClick={handleSave} disabled={saving || (isNew && !form.name.trim())}
+                <button onClick={handleSave} disabled={saving || !form.name.trim()}
                   className="flex-1 bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white rounded-xl py-3 text-sm font-medium transition-colors">
                   {saving ? 'Speichern…' : 'Speichern'}
                 </button>
