@@ -995,9 +995,6 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
                                   <tr key={item.id} className="bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors border-b border-slate-100 dark:border-slate-800">
                                     <td className="px-4 py-3">
                                       <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate max-w-[160px]">{item.product?.name ?? '—'}</p>
-                                      {item.product?.brand && (
-                                        <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{item.product.brand}</p>
-                                      )}
                                     </td>
                                     <td className="px-3 py-3 text-center">
                                       <span className="font-semibold text-slate-800 dark:text-slate-100">{item.quantity}</span>
@@ -1446,9 +1443,6 @@ function CartItemRow({ item, placing, requiresApproval, rules, onUpdateQuantity,
             <span className="shrink-0 text-xs font-medium px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">Aktualisiert</span>
           )}
         </div>
-        {item.product?.brand && (
-          <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{item.product.brand}</p>
-        )}
         {cheaperAlts.length > 0 && (
           <button
             onClick={() => onShowAlternatives?.(item)}
@@ -1637,7 +1631,6 @@ function OpenOrderSection({ order, isFirstOverall, isFirstInGroup, scannedCounts
           <tr key={item.id} className={`border-b border-slate-100 dark:border-slate-800 transition-colors ${done ? 'bg-emerald-50/50 dark:bg-emerald-900/10' : 'bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
             <td className="px-4 py-3.5">
               <p className={`text-sm font-semibold truncate max-w-[180px] md:max-w-xs ${done ? 'text-slate-400 dark:text-slate-500' : 'text-slate-800 dark:text-slate-100'}`}>{item.product?.name ?? '—'}</p>
-              {item.product?.brand && <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{item.product.brand}</p>}
             </td>
             <td className={`px-3 py-3.5 text-sm text-slate-500 dark:text-slate-400 whitespace-nowrap ${isDesktop ? 'table-cell' : 'hidden'}`}>{orderDate}</td>
             <td className="px-3 py-3.5 text-center text-slate-500 dark:text-slate-400">{item.quantity}</td>
