@@ -329,6 +329,14 @@ async function restoreSupplier(entry: SupplierHistoryEntry) {
 
   const inputCls = 'w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100'
   const selectCls = `${inputCls} pr-8 appearance-none`
+  function SelectWrapper({ children }: { children: React.ReactNode }) {
+    return (
+      <div className="relative">
+        {children}
+        <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+      </div>
+    )
+  }
 
   function editField(label: string, key: keyof Product, type: 'text' | 'number' | 'url' | 'select' | 'unit' | 'textarea' = 'text') {
     const val = form[key] as string | number | null
@@ -336,18 +344,22 @@ async function restoreSupplier(entry: SupplierHistoryEntry) {
       <div>
         <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{label}</label>
         {type === 'select' ? (
-          <select value={(val as string) ?? ''}
-            onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
-            className={selectCls}>
-            <option value="">— Kein Lagerort —</option>
-            {STORAGE_LOCATIONS.map(o => <option key={o} value={o}>{o}</option>)}
-          </select>
+          <SelectWrapper>
+            <select value={(val as string) ?? ''}
+              onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
+              className={selectCls}>
+              <option value="">— Kein Lagerort —</option>
+              {STORAGE_LOCATIONS.map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+          </SelectWrapper>
         ) : type === 'unit' ? (
-          <select value={(val as string) ?? ''}
-            onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
-            className={selectCls}>
-            {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
-          </select>
+          <SelectWrapper>
+            <select value={(val as string) ?? ''}
+              onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
+              className={selectCls}>
+              {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+            </select>
+          </SelectWrapper>
         ) : type === 'textarea' ? (
           <textarea value={String(val ?? '')} rows={3}
             onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
@@ -446,10 +458,12 @@ async function restoreSupplier(entry: SupplierHistoryEntry) {
                 {editField('Meldebestand', 'min_stock', 'number')}
                 <div>
                   <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Einheit</label>
-                  <select value={form.unit ?? ''} onChange={e => setForm(p => ({ ...p, unit: e.target.value }))}
-                    className={selectCls}>
-                    {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
-                  </select>
+                  <SelectWrapper>
+                    <select value={form.unit ?? ''} onChange={e => setForm(p => ({ ...p, unit: e.target.value }))}
+                      className={selectCls}>
+                      {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                    </select>
+                  </SelectWrapper>
                 </div>
               </div>
             )}
