@@ -65,6 +65,7 @@ export default function Dashboard({ user }: Props) {
   const [showTerms, setShowTerms] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [isDesktop, setIsDesktop] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 500)
   const swipeStartX = useRef<number | null>(null)
   const swipeDeltaX = useRef(0)
   const menuRef = useRef<HTMLDivElement | null>(null)
@@ -113,6 +114,12 @@ export default function Dashboard({ user }: Props) {
     getUserRole().then(setRole)
   }, [])
 
+  useEffect(() => {
+    function check() { setIsDesktop(window.innerWidth >= 500) }
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
+
   async function fetchBadge() {
     const [{ count: cartCount }, { data: ordersData }] = await Promise.all([
       supabase.from('cart_items').select('*', { count: 'exact', head: true }),
@@ -152,11 +159,11 @@ export default function Dashboard({ user }: Props) {
   ]
 
   return (
-    <div className="fixed top-0 left-0 right-0 h-[100dvh] overflow-hidden bg-slate-50 dark:bg-slate-900 flex flex-col md:flex-row">
+    <div className={`fixed top-0 left-0 right-0 h-[100dvh] overflow-hidden bg-slate-50 dark:bg-slate-900 flex ${isDesktop ? 'flex-row' : 'flex-col'}`}>
 
       {/* ── Sidebar (md+) ─────────────────────────────────────── */}
       <aside
-        className={`hidden md:flex flex-col bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 shrink-0 transition-all duration-300 ${
+        className={`${isDesktop ? 'flex' : 'hidden'} flex-col bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 shrink-0 transition-all duration-300 ${
           sidebarCollapsed ? 'w-16' : 'w-56'
         }`}
         style={{ paddingTop: 'env(safe-area-inset-top)' }}
@@ -346,23 +353,23 @@ export default function Dashboard({ user }: Props) {
         >
           <div className="px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="font-bold text-slate-800 dark:text-slate-100 tracking-tight text-lg md:hidden">DentalOrder</span>
-              <span className="hidden md:block font-bold text-slate-800 dark:text-slate-100 tracking-tight">{PAGE_TITLES[tab]}</span>
+              <span className={`font-bold text-slate-800 dark:text-slate-100 tracking-tight text-lg ${isDesktop ? 'hidden' : ''}`}>DentalOrder</span>
+              <span className={`${isDesktop ? 'block' : 'hidden'} font-bold text-slate-800 dark:text-slate-100 tracking-tight`}>{PAGE_TITLES[tab]}</span>
               {role === 'admin' && (
-                <span className="text-xs bg-sky-100 text-sky-700 px-2 py-0.5 rounded-full font-medium md:hidden">Admin</span>
+                <span className={`text-xs bg-sky-100 text-sky-700 px-2 py-0.5 rounded-full font-medium ${isDesktop ? 'hidden' : ''}`}>Admin</span>
               )}
             </div>
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setScanMode('choice')}
-                className="hidden md:flex items-center justify-center p-2 bg-sky-500 hover:bg-sky-600 text-white rounded-xl transition-colors"
+                className={`${isDesktop ? 'flex' : 'hidden'} items-center justify-center p-2 bg-sky-500 hover:bg-sky-600 text-white rounded-xl transition-colors`}
                 title="Scannen"
               >
                 <ScanLine size={20} />
               </button>
               <button
                 onClick={() => setMenuOpen(true)}
-                className="text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-100 p-1 transition-colors md:hidden"
+                className={`text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-100 p-1 transition-colors ${isDesktop ? 'hidden' : ''}`}
               >
                 <Menu size={22} />
               </button>
@@ -374,7 +381,7 @@ export default function Dashboard({ user }: Props) {
           className={`flex-1 ${menuOpen ? 'overflow-hidden' : 'overflow-y-auto'}`}
           style={{ overscrollBehavior: 'none' }}
         >
-          <div className={(SETTINGS_TABS.has(tab) || tab === 'orders' || tab === 'suppliers' || tab === 'brands' || tab === 'categories') ? 'h-full flex flex-col' : 'pb-20 md:pb-0 min-h-full'}>
+          <div className={(SETTINGS_TABS.has(tab) || tab === 'orders' || tab === 'suppliers' || tab === 'brands' || tab === 'categories') ? 'h-full flex flex-col' : `${isDesktop ? 'pb-0' : 'pb-20'} min-h-full`}>
             <Suspense fallback={<PageSpinner />}>
               {showTerms
                 ? <TermsPage onBack={() => setShowTerms(false)} />
@@ -395,7 +402,7 @@ export default function Dashboard({ user }: Props) {
 
         {/* Bottom nav (mobile only) */}
         <nav
-          className="fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-800 border-t border-slate-100 dark:border-slate-700 md:hidden"
+          className={`fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-800 border-t border-slate-100 dark:border-slate-700 ${isDesktop ? 'hidden' : ''}`}
           style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
         >
           <div className="relative flex max-w-2xl mx-auto">
@@ -494,10 +501,10 @@ export default function Dashboard({ user }: Props) {
       {/* ── Mobile hamburger overlay menu ─────────────────────── */}
       {menuOpen && (
         <>
-          <div className="fixed inset-0 bg-black/30 z-40 animate-fade-in md:hidden" onClick={closeMenu} />
+          <div className={`fixed inset-0 bg-black/30 z-40 animate-fade-in ${isDesktop ? 'hidden' : ''}`} onClick={closeMenu} />
           <div
             ref={menuRef}
-            className={`fixed top-0 right-0 h-full w-72 bg-white dark:bg-slate-800 shadow-2xl z-50 flex flex-col overscroll-contain md:hidden ${menuClosing ? 'animate-slide-out-right' : 'animate-slide-in-right'}`}
+            className={`fixed top-0 right-0 h-full w-72 bg-white dark:bg-slate-800 shadow-2xl z-50 flex flex-col overscroll-contain ${isDesktop ? 'hidden' : menuClosing ? 'animate-slide-out-right' : 'animate-slide-in-right'}`}
             onTouchStart={e => {
               swipeStartX.current = e.touches[0].clientX
               swipeDeltaX.current = 0

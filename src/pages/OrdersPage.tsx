@@ -702,7 +702,7 @@ const map: Record<string, string> = {}
               return (
                 <div key={alt.url} className="flex items-center gap-3 py-2.5 border-b border-slate-100 dark:border-slate-700 last:border-0">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-slate-800 dark:text-slate-100">{alt.domain}</p>
+                    <p className="text-sm font-medium text-slate-800 dark:text-slate-100">{domainToSupplier[alt.domain] ?? alt.domain}</p>
                     {alt.name && <p className="text-xs text-slate-400 dark:text-slate-500 truncate mt-0.5">{alt.name}</p>}
                   </div>
                   <div className="w-20 text-right shrink-0">

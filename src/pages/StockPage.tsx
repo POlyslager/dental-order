@@ -42,12 +42,14 @@ function SweepModal({
   productCount,
   onClose,
   onApply,
+  domainToSupplier,
 }: {
   results: { product: Product; cheaper: PriceAlternative[] }[]
   loading: boolean
   productCount: number
   onClose: () => void
   onApply: (product: Product, alt: PriceAlternative) => void
+  domainToSupplier: Record<string, string>
 }) {
   return (
     <div className="fixed inset-0 bg-black/40 dark:bg-black/60 z-50 flex items-center justify-center p-4">
@@ -130,7 +132,7 @@ function SweepModal({
                       className="flex flex-wrap items-center gap-2 bg-slate-50 dark:bg-slate-800 rounded-xl px-3 py-2"
                     >
                       <span className="text-xs text-slate-600 dark:text-slate-300 font-medium truncate max-w-[140px]">
-                        {alt.domain}
+                        {domainToSupplier[alt.domain] ?? alt.domain}
                       </span>
                       <span className="text-xs font-bold text-slate-800 dark:text-slate-100">
                         {alt.price.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
@@ -199,6 +201,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
   const [allCategories, setAllCategories] = useState<string[]>([])
   const scannerRef = useRef<Html5Qrcode | null>(null)
 
+  const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>({})
   const [sweepOpen, setSweepOpen] = useState(false)
   const [sweepLoading, setSweepLoading] = useState(false)
   const [sweepResults, setSweepResults] = useState<{ product: Product; cheaper: PriceAlternative[] }[]>([])
@@ -367,13 +370,19 @@ useEffect(() => {
   async function fetchSuppliers() {
     const [{ data: prodData }, { data: supData }] = await Promise.all([
       supabase.from('products').select('preferred_supplier').not('preferred_supplier', 'is', null),
-      supabase.from('suppliers').select('name'),
+      supabase.from('suppliers').select('name, website'),
     ])
     const names = [
       ...(prodData ?? []).map(r => r.preferred_supplier as string),
       ...(supData ?? []).map(r => r.name as string),
     ]
     setSuppliers([...new Set(names)].filter(Boolean).sort())
+    const map: Record<string, string> = {}
+    for (const r of (supData ?? []) as { name: string; website: string | null }[]) {
+      if (!r.website) continue
+      try { const domain = new URL(r.website).hostname.replace(/^www\./, ''); if (domain) map[domain] = r.name } catch {}
+    }
+    setDomainToSupplier(map)
   }
 
   async function fetchBrands() {
@@ -1033,6 +1042,7 @@ useEffect(() => {
           productCount={products.filter(p => p.last_price != null && p.last_price > 0).length}
           onClose={() => setSweepOpen(false)}
           onApply={applySweepAlternative}
+          domainToSupplier={domainToSupplier}
         />
       )}
 
