@@ -960,7 +960,7 @@ const map: Record<string, string> = {}
                                     <td className="px-3 py-3 text-center">
                                       <span className="font-semibold text-slate-800 dark:text-slate-100">{item.quantity}</span>
                                     </td>
-                                    <td className={`px-3 py-3 text-right ${isDesktop ? 'table-cell' : 'hidden'}`}
+                                    <td className={`px-3 py-3 text-right ${isDesktop ? 'table-cell' : 'hidden'}`}>
                                       <span className="text-sm text-slate-600 dark:text-slate-300">
                                         {price != null ? `€ ${price.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
                                       </span>
