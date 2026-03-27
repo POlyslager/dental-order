@@ -65,6 +65,7 @@ export default function Dashboard({ user }: Props) {
   const [showTerms, setShowTerms] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const swipeTouchX = useRef<number | null>(null)
   const [isDesktop, setIsDesktop] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 500)
   const swipeStartX = useRef<number | null>(null)
   const swipeDeltaX = useRef(0)
@@ -167,6 +168,14 @@ export default function Dashboard({ user }: Props) {
           sidebarCollapsed ? 'w-16' : 'w-56'
         }`}
         style={{ paddingTop: 'env(safe-area-inset-top)' }}
+        onTouchStart={e => { swipeTouchX.current = e.touches[0].clientX }}
+        onTouchEnd={e => {
+          if (swipeTouchX.current === null) return
+          const dx = e.changedTouches[0].clientX - swipeTouchX.current
+          swipeTouchX.current = null
+          if (dx < -40) setSidebarCollapsed(true)
+          else if (dx > 40) setSidebarCollapsed(false)
+        }}
       >
         {/* Logo + collapse toggle */}
         <div className={`flex items-center border-b border-slate-100 dark:border-slate-700 px-3 py-4 ${sidebarCollapsed ? 'justify-center' : 'justify-between'}`}>
