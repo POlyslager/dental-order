@@ -21,7 +21,7 @@ interface Props { role: Role | null; initialBarcode?: string | null; onBarcodeCo
 const EMPTY_FORM = {
   article_number: '', name: '', description: '', category: '', barcode: '',
   current_stock: '', min_stock: '', unit: 'pcs', preferred_supplier: '', supplier_url: '',
-  brand: '', last_price: '', storage_location: '', notes: '', lot_number: '',
+  brand: '', last_price: '', storage_location: '', notes: '', lot_number: '', expiry_date: '',
 }
 const STORAGE_LOCATIONS = [
   'Behandlungsraum 1', 'Behandlungsraum 2', 'Behandlungsraum 3',
@@ -243,9 +243,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
     // Parse optional GS1 fields: lot (10), expiry (17)
     const lot    = clean.match(/10([^\x1d]{1,20})/)
     const expiry = clean.match(/17(\d{6})/)
-    let notes = ''
-    if (lot)    notes += `Charge: ${lot[1]}`
-    if (expiry) notes += (notes ? ' · ' : '') + `Ablauf: 20${expiry[1].slice(0,2)}-${expiry[1].slice(2,4)}-${expiry[1].slice(4,6)}`
+    const expiryDate = expiry ? `20${expiry[1].slice(0,2)}-${expiry[1].slice(2,4)}-${expiry[1].slice(4,6)}` : undefined
 
     // Check if product with this barcode already exists (use already-loaded list)
     const existing = products.find(p => p.barcode === barcode)
@@ -254,7 +252,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
       return
     }
 
-    setForm(f => ({ ...f, barcode, lot_number: lot?.[1] ?? f.lot_number, notes: f.notes || notes }))
+    setForm(f => ({ ...f, barcode, lot_number: lot?.[1] ?? f.lot_number, expiry_date: expiryDate ?? f.expiry_date }))
 
     // Best-effort product lookup via GTIN (proxied to avoid CORS)
     if (barcode.length >= 8) {

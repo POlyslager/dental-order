@@ -495,15 +495,18 @@ const map: Record<string, string> = {}
   }
 
   // Called on each scan — increments by 1 unit
-  async function scanReceiveUnit(item: OrderItem, order: Order, lot?: string) {
+  async function scanReceiveUnit(item: OrderItem, order: Order, lot?: string, expiryDate?: string) {
     const current = scannedCountsRef.current[item.id] ?? 0
     const next = current + 1
     const newCounts = { ...scannedCountsRef.current, [item.id]: next }
     scannedCountsRef.current = newCounts
     setScannedCounts(newCounts)
     showToast(`${item.product?.name ?? 'Artikel'}: ${next}/${item.quantity} gescannt`)
-    if (lot && item.product_id) {
-      await supabase.from('products').update({ lot_number: lot }).eq('id', item.product_id)
+    if ((lot || expiryDate) && item.product_id) {
+      const update: Record<string, string> = {}
+      if (lot) update.lot_number = lot
+      if (expiryDate) update.expiry_date = expiryDate
+      await supabase.from('products').update(update).eq('id', item.product_id)
     }
     if (next >= item.quantity) {
       setReceiving(item.id)
@@ -579,9 +582,11 @@ const map: Record<string, string> = {}
     const barcode = raw14.length === 14 && raw14.startsWith('0') ? raw14.slice(1) : raw14
     const lotMatch = clean.match(/10([^\x1d]{1,20})/)
     const lot = lotMatch?.[1]
+    const expiryMatch = clean.match(/17(\d{6})/)
+    const expiryDate = expiryMatch ? `20${expiryMatch[1].slice(0,2)}-${expiryMatch[1].slice(2,4)}-${expiryMatch[1].slice(4,6)}` : undefined
     for (const order of ordersRef.current) {
       const item = (order.items ?? []).find(i => i.product?.barcode === barcode && (scannedCountsRef.current[i.id] ?? 0) < i.quantity)
-      if (item) { await scanReceiveUnit(item, order, lot); return true }
+      if (item) { await scanReceiveUnit(item, order, lot, expiryDate); return true }
     }
     return false
   }
