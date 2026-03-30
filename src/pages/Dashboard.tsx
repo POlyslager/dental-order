@@ -94,6 +94,8 @@ export default function Dashboard({ user }: Props) {
   const [forceApprovalTab, setForceApprovalTab] = useState(0)
   const [dashToast, setDashToast] = useState<string | null>(null)
   const dashToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [phoneMenuOpen, setPhoneMenuOpen] = useState(false)
+  const [phonePinOpen, setPhonePinOpen] = useState(false)
   function showDashToast(msg: string) {
     if (dashToastTimer.current) clearTimeout(dashToastTimer.current)
     setDashToast(msg)
@@ -175,8 +177,11 @@ export default function Dashboard({ user }: Props) {
       <div className="fixed inset-0 flex flex-col bg-slate-50 dark:bg-slate-900" style={{ height: '100dvh' }}>
         {/* Header */}
         <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 shrink-0" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
-          <div className="px-4 py-3">
+          <div className="px-4 py-3 flex items-center justify-between">
             <span className="font-bold text-slate-800 dark:text-slate-100 tracking-tight text-lg">DentalOrder</span>
+            <button onClick={() => setPhoneMenuOpen(true)} className="p-1.5 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+              <Menu size={22} />
+            </button>
           </div>
         </header>
 
@@ -271,6 +276,68 @@ export default function Dashboard({ user }: Props) {
               </div>
               <p className="text-sm font-medium">{dashToast}</p>
               <button onClick={() => setDashToast(null)} className="text-white/50 hover:text-white transition-colors shrink-0 ml-1"><X size={16} /></button>
+            </div>
+          </div>
+        )}
+
+        {/* Phone PIN overlay */}
+        {phonePinOpen && (
+          <div className="fixed inset-0 z-50 flex flex-col bg-slate-50 dark:bg-slate-900" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+            <div className="flex items-center gap-3 px-4 py-3 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 shrink-0">
+              <button onClick={() => setPhonePinOpen(false)} className="p-1.5 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                <ChevronLeft size={22} />
+              </button>
+              <span className="font-semibold text-slate-800 dark:text-slate-100">PIN-Verwaltung</span>
+            </div>
+            <Suspense fallback={<PageSpinner />}>
+              <PinSettingsPage onClose={() => setPhonePinOpen(false)} />
+            </Suspense>
+          </div>
+        )}
+
+        {/* Phone hamburger menu */}
+        {phoneMenuOpen && (
+          <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={() => setPhoneMenuOpen(false)}>
+            <div className="absolute inset-0 bg-black/40" />
+            <div className="relative bg-white dark:bg-slate-800 rounded-t-2xl shadow-2xl" onClick={e => e.stopPropagation()} style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+              {/* Handle */}
+              <div className="flex justify-center pt-3 pb-1">
+                <div className="w-10 h-1 rounded-full bg-slate-200 dark:bg-slate-600" />
+              </div>
+              <div className="px-4 py-2 space-y-1">
+                {/* Theme */}
+                <button onClick={() => { toggleTheme() }} className="w-full flex items-center gap-3 px-3 py-3.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+                  {theme === 'dark' ? <Moon size={20} className="text-slate-500 dark:text-slate-400 shrink-0" /> : <Sun size={20} className="text-slate-500 dark:text-slate-400 shrink-0" />}
+                  <span className="flex-1 text-sm font-medium text-slate-700 dark:text-slate-200 text-left">Erscheinungsbild</span>
+                  <div className="flex items-center bg-slate-100 dark:bg-slate-700 rounded-full p-0.5 shrink-0 pointer-events-none">
+                    <span className={`p-1.5 rounded-full transition-all ${theme === 'light' ? 'bg-white shadow text-amber-500' : 'text-slate-400 dark:text-slate-500'}`}><Sun size={12} /></span>
+                    <span className={`p-1.5 rounded-full transition-all ${theme === 'dark' ? 'bg-slate-600 shadow text-indigo-300' : 'text-slate-400 dark:text-slate-400'}`}><Moon size={12} /></span>
+                  </div>
+                </button>
+                {/* Push notifications */}
+                {isPushSupported() && (
+                  <button onClick={async () => { await toggleNotifications() }} className="w-full flex items-center gap-3 px-3 py-3.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+                    <Bell size={20} className="text-slate-500 dark:text-slate-400 shrink-0" />
+                    <span className="flex-1 text-sm font-medium text-slate-700 dark:text-slate-200 text-left">Benachrichtigungen</span>
+                    <div className={`relative w-10 h-6 rounded-full transition-colors shrink-0 ${pushPermission === 'granted' ? 'bg-sky-500' : 'bg-slate-200 dark:bg-slate-600'}`}>
+                      <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all ${pushPermission === 'granted' ? 'left-5' : 'left-1'}`} />
+                    </div>
+                  </button>
+                )}
+                {/* PIN Verwaltung (admin only) */}
+                {role === 'admin' && (
+                  <button onClick={() => { setPhoneMenuOpen(false); setPhonePinOpen(true) }} className="w-full flex items-center gap-3 px-3 py-3.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+                    <KeyRound size={20} className="text-slate-500 dark:text-slate-400 shrink-0" />
+                    <span className="flex-1 text-sm font-medium text-slate-700 dark:text-slate-200 text-left">PIN-Verwaltung</span>
+                  </button>
+                )}
+                {/* Logout */}
+                <button onClick={() => supabase.auth.signOut()} className="w-full flex items-center gap-3 px-3 py-3.5 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                  <LogOut size={20} className="text-red-500 shrink-0" />
+                  <span className="flex-1 text-sm font-medium text-red-600 dark:text-red-400 text-left">Abmelden</span>
+                </button>
+              </div>
+              <div className="h-2" />
             </div>
           </div>
         )}
