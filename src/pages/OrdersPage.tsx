@@ -1026,34 +1026,12 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
               )}
 
               {/* Pending approval orders — locked section */}
-              {pendingOrders.map(order => {
-                const orderTotal = order.total_estimate ?? (order.items ?? []).reduce((s, i) => s + i.quantity * (i.estimated_price ?? 0), 0)
-                return (
-                  <div key={order.id} className="border-t-2 border-amber-200">
-                    <div className="px-4 py-3 bg-amber-50 dark:bg-amber-900/20 flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2">
-                        <Clock size={14} className="text-amber-500 shrink-0" />
-                        <span className="text-sm font-semibold text-amber-700">Wartet auf Freigabe</span>
-                        <span className="text-xs text-amber-500">· {(order.items ?? []).length} Artikel</span>
-                      </div>
-                      <span className="text-sm font-semibold text-amber-700">
-                        € {orderTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </span>
-                    </div>
-                    <div>
-                      {(order.items ?? []).map(item => (
-                        <div key={item.id} className="flex items-center px-4 py-2.5 border-b border-amber-50 dark:border-amber-800/40 bg-white dark:bg-slate-900 opacity-60">
-                          <p className="text-sm font-semibold text-slate-600 dark:text-slate-300 flex-1 min-w-0 truncate">{item.product?.name ?? '—'}</p>
-                          <span className="text-sm text-slate-400 dark:text-slate-500 mx-3 shrink-0">{item.quantity}×</span>
-                          <span className="text-sm text-slate-500 dark:text-slate-400 shrink-0 tabular-nums">
-                            {item.estimated_price != null ? `€ ${(item.estimated_price * item.quantity).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )
-              })}
+              {pendingOrders.length > 0 && (
+                <div className="border-t-2 border-amber-200 px-4 py-3 bg-amber-50 dark:bg-amber-900/20 flex items-center gap-2">
+                  <Clock size={14} className="text-amber-500 shrink-0" />
+                  <span className="text-sm font-semibold text-amber-700 dark:text-amber-400">Wartet auf Freigabe</span>
+                </div>
+              )}
             </div>
           )
         )}
