@@ -124,11 +124,14 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
     bc.onmessage = (e) => {
       const { intent, orderId, notes } = e.data ?? {}
       if (intent === 'cart' && orderId) {
-        const rejected = { id: orderId, notes: notes ?? null } as Order
-        setPendingOrders(prev => prev.filter(o => o.id !== orderId))
-        setRejectedOrders(prev => [rejected, ...prev.filter(o => o.id !== orderId)])
-        rejectedOrdersRef.current = [rejected, ...rejectedOrdersRef.current.filter(o => o.id !== orderId)]
-        setTab('cart')
+        const dismissed: string[] = JSON.parse(localStorage.getItem('dismissed_rejections') ?? '[]')
+        if (!dismissed.includes(orderId)) {
+          const rejected = { id: orderId, notes: notes ?? null } as Order
+          setPendingOrders(prev => prev.filter(o => o.id !== orderId))
+          setRejectedOrders(prev => [rejected, ...prev.filter(o => o.id !== orderId)])
+          rejectedOrdersRef.current = [rejected, ...rejectedOrdersRef.current.filter(o => o.id !== orderId)]
+          setTab('cart')
+        }
       }
     }
     return () => bc.close()
@@ -276,7 +279,8 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
       .select('id, notes')
       .eq('status', 'rejected')
       .order('created_at', { ascending: false })
-    const orders = (data as unknown as Order[]) ?? []
+    const dismissed: string[] = JSON.parse(localStorage.getItem('dismissed_rejections') ?? '[]')
+    const orders = ((data as unknown as Order[]) ?? []).filter(o => !dismissed.includes(o.id))
     rejectedOrdersRef.current = orders
     setRejectedOrders(orders)
   }
@@ -1585,7 +1589,16 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
             </button>
           )}
           {toast.variant === 'error' && (
-            <button onClick={() => setToast(null)} className="ml-1 text-white/70 hover:text-white transition-colors">
+            <button onClick={() => {
+              setToast(null)
+              const ids = rejectedOrdersRef.current.map(o => o.id)
+              if (ids.length) {
+                const prev = JSON.parse(localStorage.getItem('dismissed_rejections') ?? '[]')
+                localStorage.setItem('dismissed_rejections', JSON.stringify([...new Set([...prev, ...ids])]))
+              }
+              setRejectedOrders([])
+              rejectedOrdersRef.current = []
+            }} className="ml-1 text-white/70 hover:text-white transition-colors">
               <X size={15} />
             </button>
           )}
