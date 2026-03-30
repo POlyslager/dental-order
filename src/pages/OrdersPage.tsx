@@ -1128,7 +1128,7 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
                               </div>
                             </td>
                           </tr>
-                          <tr className="border-b border-slate-200 dark:border-slate-700 bg-sky-50 dark:bg-sky-900/20">
+                          <tr className="border-b border-slate-200 dark:border-slate-700 bg-sky-200 dark:bg-sky-900/40">
                             <th className="text-left text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-4 py-3">Artikel</th>
                             <th className="hidden lg:table-cell text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-4 py-3">Bestand</th>
                             <th className="text-center text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-2 py-3 whitespace-nowrap">Menge</th>
@@ -1211,7 +1211,7 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
                                   </div>
                                 </td>
                               </tr>
-                              <tr className="border-b border-slate-200 dark:border-slate-700 bg-sky-50 dark:bg-sky-900/20">
+                              <tr className="border-b border-slate-200 dark:border-slate-700 bg-sky-200 dark:bg-sky-900/40">
                                 <th className="text-left text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-4 py-3">Artikel</th>
                                 <th className="text-center text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-2 py-3 whitespace-nowrap">Menge</th>
                                 <th className="text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-2 py-3 whitespace-nowrap">Preis</th>
@@ -1221,7 +1221,7 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
                                 const price = item.estimated_price
                                 const rowTotal = item.quantity * (price ?? 0)
                                 return (
-                                  <tr key={item.id} className={`hover:bg-amber-50/60 dark:hover:bg-slate-800 transition-colors border-b border-slate-100 dark:border-slate-800 ${rowIdx % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50/80 dark:bg-slate-800/40'}`}>
+                                  <tr key={item.id} className={`hover:bg-amber-100 dark:hover:bg-slate-800 transition-colors border-b border-slate-100 dark:border-slate-800 ${rowIdx % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-100 dark:bg-slate-800/60'}`}>
                                     <td className="px-4 py-3">
                                       <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate max-w-[160px]">{item.product?.name ?? '—'}</p>
                                     </td>
@@ -1748,7 +1748,7 @@ function CartItemRow({ item, placing, requiresApproval, rules, onUpdateQuantity,
   const cheaperAlts = (alternatives ?? []).filter(a => price != null && a.price < price)
 
   return (
-    <tr className="bg-white dark:bg-slate-900 hover:bg-amber-50/60 dark:hover:bg-slate-800 transition-colors border-b border-slate-100 dark:border-slate-800">
+    <tr className="bg-white dark:bg-slate-900 hover:bg-amber-100 dark:hover:bg-slate-800 transition-colors border-b border-slate-100 dark:border-slate-800">
       <td className="px-4 py-3">
         <div className="flex items-center gap-2">
           <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate max-w-[160px] md:max-w-xs">{item.product?.name}</p>
@@ -1921,7 +1921,7 @@ function OpenOrderSection({ order, isFirstOverall, isFirstInGroup, scannedCounts
 
       {/* Column headers — only once per supplier group */}
       {isFirstInGroup && (
-        <tr className="border-b border-slate-200 dark:border-slate-700 bg-sky-50 dark:bg-sky-900/20">
+        <tr className="border-b border-slate-200 dark:border-slate-700 bg-sky-200 dark:bg-sky-900/40">
           <th className="text-left text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-4 py-3">Artikel</th>
           <th className="hidden lg:table-cell text-left text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Datum</th>
           <th className="text-center text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-2 py-3 whitespace-nowrap">Bestellt</th>
@@ -1939,7 +1939,7 @@ function OpenOrderSection({ order, isFirstOverall, isFirstInGroup, scannedCounts
         const rowTotal = item.quantity * (item.estimated_price ?? 0)
         const orderDate = new Date(order.created_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
         return (
-          <tr key={item.id} className={`border-b border-slate-100 dark:border-slate-800 transition-colors ${done ? 'bg-emerald-50/60 dark:bg-emerald-900/10' : rowIdx % 2 === 0 ? 'bg-white dark:bg-slate-900 hover:bg-amber-50/60 dark:hover:bg-slate-800' : 'bg-slate-50/80 dark:bg-slate-800/40 hover:bg-amber-50/60 dark:hover:bg-slate-800'}`}>
+          <tr key={item.id} className={`border-b border-slate-100 dark:border-slate-800 transition-colors ${done ? 'bg-emerald-50/60 dark:bg-emerald-900/10' : rowIdx % 2 === 0 ? 'bg-white dark:bg-slate-900 hover:bg-amber-100 dark:hover:bg-slate-800' : 'bg-slate-100 dark:bg-slate-800/60 hover:bg-amber-100 dark:hover:bg-slate-800'}`}>
             <td className="px-4 py-3.5">
               <p className={`text-sm font-semibold truncate max-w-[180px] md:max-w-xs ${done ? 'text-slate-400 dark:text-slate-500' : 'text-slate-800 dark:text-slate-100'}`}>{item.product?.name ?? '—'}</p>
             </td>
