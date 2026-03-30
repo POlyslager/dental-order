@@ -709,7 +709,7 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
 
   const openCount = ordersBySupplier.length
   const cartCount = cartItems.length
-  const pendingCount = pendingLoaded ? pendingOrders.reduce((s, o) => s + (o.items ?? []).length, 0) : null
+  const pendingCount = pendingLoaded ? pendingOrders.length : null
 
   function PriceCompareModal({ item, alternatives, onClose, onApply }: {
     item: CartItem
@@ -817,7 +817,12 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
                 className="inline-flex items-center bg-slate-200 dark:bg-slate-600 rounded-full p-0.5 shrink-0"
               >
                 <span className={`p-1.5 rounded-full transition-all ${!scanToggle ? 'bg-white dark:bg-slate-500 shadow text-slate-500 dark:text-slate-300' : 'text-slate-400 dark:text-slate-500'}`}>
-                  <ScanLine size={14} />
+                  <span className="relative inline-flex">
+                    <ScanLine size={14} />
+                    <span className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <span className="block w-px h-5 bg-current rotate-45 opacity-80" />
+                    </span>
+                  </span>
                 </span>
                 <span className={`p-1.5 rounded-full transition-all ${scanToggle ? 'bg-emerald-500 shadow text-white' : 'text-slate-400 dark:text-slate-400'}`}>
                   <ScanLine size={14} />
@@ -843,7 +848,12 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
               className="inline-flex items-center bg-slate-200 dark:bg-slate-600 rounded-full p-0.5 cursor-pointer"
             >
               <span className={`p-1.5 rounded-full transition-all ${!scanToggle ? 'bg-white dark:bg-slate-500 shadow text-slate-500 dark:text-slate-300' : 'text-slate-400 dark:text-slate-500'}`}>
-                <ScanLine size={14} />
+                <span className="relative inline-flex">
+                  <ScanLine size={14} />
+                  <span className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <span className="block w-px h-5 bg-current rotate-45 opacity-80" />
+                  </span>
+                </span>
               </span>
               <span className={`p-1.5 rounded-full transition-all ${scanToggle ? 'bg-emerald-500 shadow text-white' : 'text-slate-400 dark:text-slate-400'}`}>
                 <ScanLine size={14} />
