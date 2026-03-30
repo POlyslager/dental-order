@@ -578,6 +578,11 @@ useEffect(() => {
   }
 
 
+  const listScrollRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    listScrollRef.current?.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior })
+  }, [page])
+
   if (loading) return (
     <div className="flex justify-center py-16">
       <div className="w-6 h-6 border-4 border-sky-500 border-t-transparent rounded-full animate-spin" />
@@ -628,11 +633,6 @@ useEffect(() => {
     availableSuppliers: suppliers,
     availableBrands: brandOptions,
   } : null
-
-  const listScrollRef = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    listScrollRef.current?.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior })
-  }, [page])
 
   return (
     <div className={`w-full relative ${isDesktop ? '' : 'flex flex-col flex-1 min-h-0'}`}>
