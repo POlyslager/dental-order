@@ -117,6 +117,23 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
     return () => { supabase.removeChannel(channel) }
   }, [])
 
+  // Listen for rejection pushed via BroadcastChannel (bypasses RLS on realtime)
+  useEffect(() => {
+    if (!('BroadcastChannel' in window)) return
+    const bc = new BroadcastChannel('dentalorder-nav')
+    bc.onmessage = (e) => {
+      const { intent, orderId, notes } = e.data ?? {}
+      if (intent === 'cart' && orderId) {
+        const rejected = { id: orderId, notes: notes ?? null } as Order
+        setPendingOrders(prev => prev.filter(o => o.id !== orderId))
+        setRejectedOrders(prev => [rejected, ...prev.filter(o => o.id !== orderId)])
+        rejectedOrdersRef.current = [rejected, ...rejectedOrdersRef.current.filter(o => o.id !== orderId)]
+        setTab('cart')
+      }
+    }
+    return () => bc.close()
+  }, [])
+
   useEffect(() => {
     function onVisible() {
       if (document.visibilityState === 'visible') {
@@ -540,26 +557,24 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
     setRejecting(true)
     const { orderId, supplier } = rejectModal
     const order = pendingOrders.find(o => o.id === orderId)
-    await supabase.from('orders')
-      .update({ status: 'rejected', ...(rejectReason.trim() ? { notes: rejectReason.trim() } : {}) })
-      .eq('id', orderId)
-    if (order?.created_by) {
-      const body = rejectReason.trim() ? `${supplier} – ${rejectReason.trim()}` : supplier
-      fetch('/api/send-push', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_ids: [order.created_by],
-          title: 'Bestellung abgelehnt',
-          body,
-          intent: 'cart',
-        }),
-      }).catch(() => null)
+    const reason = rejectReason.trim() || null
+
+    const resp = await fetch('/api/reject-order', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ order_id: orderId, reason, employee_id: order?.created_by, supplier }),
+    }).catch(() => null)
+
+    if (!resp?.ok) {
+      showToast('Fehler beim Ablehnen', undefined, 'error')
+      setRejecting(false)
+      return
     }
-    // Cart items were never removed — they remain in the cart automatically
+
     setPendingOrders(prev => prev.filter(o => o.id !== orderId))
     setRejecting(false)
     setRejectModal(null)
+    showToast('Bestellung abgelehnt')
     await Promise.all([fetchCart(), fetchPendingOrders(), fetchRejectedOrders()])
   }
 

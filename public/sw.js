@@ -2,12 +2,20 @@ const CACHE = 'dentalorder-v1'
 
 self.addEventListener('push', e => {
   const data = e.data?.json() ?? {}
+  // Notify any open tab immediately (no tap needed)
+  if (data.intent) {
+    try {
+      const bc = new BroadcastChannel('dentalorder-nav')
+      bc.postMessage({ type: 'navigate', intent: data.intent, orderId: data.orderId ?? null, notes: data.notes ?? null })
+      bc.close()
+    } catch {}
+  }
   e.waitUntil(
     self.registration.showNotification(data.title ?? 'DentalOrder', {
       body: data.body ?? '',
       icon: '/icon-192.png',
       badge: '/icon-192.png',
-      data: { url: data.url ?? '/', intent: data.intent ?? 'approval' },
+      data: { url: data.url ?? '/', intent: data.intent ?? 'approval', orderId: data.orderId ?? null, notes: data.notes ?? null },
     })
   )
 })
@@ -23,7 +31,7 @@ self.addEventListener('notificationclick', e => {
       return action.then(() => {
         if (intent) {
           const bc = new BroadcastChannel('dentalorder-nav')
-          bc.postMessage({ type: 'navigate', intent })
+          bc.postMessage({ type: 'navigate', intent, orderId: e.notification.data?.orderId ?? null, notes: e.notification.data?.notes ?? null })
           bc.close()
         }
       })
