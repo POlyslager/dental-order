@@ -813,13 +813,11 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
               role="switch"
               aria-checked={scanToggle}
               onClick={e => { e.stopPropagation(); handleToggleScan() }}
-              className={`relative inline-flex w-8 h-5 rounded-full transition-colors duration-200 shrink-0 ${
-                scanToggle ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-600'
-              }`}
+              className="inline-flex items-center bg-slate-100 dark:bg-slate-700 rounded-full p-0.5 shrink-0"
             >
-              <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${
-                scanToggle ? 'translate-x-3' : 'translate-x-0'
-              }`} />
+              <span className={`p-1 rounded-full transition-all ${scanToggle ? 'bg-emerald-500 text-white shadow' : 'text-slate-400 dark:text-slate-500'}`}>
+                <ScanLine size={11} />
+              </span>
             </span>
           </span>
         </TabButton>
