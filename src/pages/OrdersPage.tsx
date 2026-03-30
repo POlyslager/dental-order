@@ -424,7 +424,8 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
     setEditSaving(true)
     const n = parseFloat(editForm.price.replace(',', '.'))
     const price = isNaN(n) || n < 0 ? null : n
-    const updates: Promise<unknown>[] = [
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const updates: PromiseLike<any>[] = [
       supabase.from('products').update({ last_price: price }).eq('id', editItem.product_id),
       supabase.from('cart_items').update({ is_edited: true, quantity: editForm.quantity }).eq('id', editItem.id),
     ]
