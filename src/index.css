@@ -89,6 +89,8 @@ a:active {
 .animate-fade-out        { animation: fade-out        260ms ease both; }
 .animate-spin-slow       { animation: spin 3s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+.scrollbar-none { scrollbar-width: none; }
+.scrollbar-none::-webkit-scrollbar { display: none; }
 
 /* ── Dark mode base ──────────────────────────────────────── */
 .dark body {

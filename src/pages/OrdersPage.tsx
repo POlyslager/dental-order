@@ -802,37 +802,34 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
   return (
     <div className="w-full relative flex flex-col h-full">
       {/* Tab switcher */}
-      <div className="flex items-center border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 sticky top-0 z-10 px-4">
+      <div className="flex items-center border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 sticky top-0 z-10 px-4 overflow-x-auto scrollbar-none">
         <TabButton active={tab === 'cart'} onClick={() => setTab('cart')} badge={cartCount}>
-          Warenkorb
+          <span className="whitespace-nowrap">Warenkorb</span>
         </TabButton>
         <TabButton active={tab === 'open'} onClick={() => setTab('open')} badge={openCount}>
-          Offen
-        </TabButton>
-        {role === 'admin' && (
-          <span className="self-stretch flex items-center">
-            <span className="w-px h-5 bg-slate-200 mr-6" />
-            <TabButton active={tab === 'approval'} onClick={() => setTab('approval')} badge={pendingCount}>
-              Zur Freigabe
-            </TabButton>
-          </span>
-        )}
-        {tab === 'open' && (
-          <div className="ml-auto flex items-center gap-2 shrink-0">
-            <ScanLine size={14} className={scanToggle ? 'text-emerald-500' : 'text-slate-400'} />
-            <button
+          <span className="whitespace-nowrap flex items-center gap-1.5">
+            Offen
+            <span
               role="switch"
               aria-checked={scanToggle}
-              onClick={handleToggleScan}
-              className={`relative w-10 h-6 rounded-full transition-colors duration-200 focus:outline-none ${
-                scanToggle ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-700'
+              onClick={e => { e.stopPropagation(); handleToggleScan() }}
+              className={`relative inline-flex w-8 h-5 rounded-full transition-colors duration-200 shrink-0 ${
+                scanToggle ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-600'
               }`}
             >
-              <span className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${
-                scanToggle ? 'translate-x-4' : 'translate-x-0'
+              <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${
+                scanToggle ? 'translate-x-3' : 'translate-x-0'
               }`} />
-            </button>
-          </div>
+            </span>
+          </span>
+        </TabButton>
+        {role === 'admin' && (
+          <span className="self-stretch flex items-center shrink-0">
+            <span className="w-px h-5 bg-slate-200 mr-6" />
+            <TabButton active={tab === 'approval'} onClick={() => setTab('approval')} badge={pendingCount}>
+              <span className="whitespace-nowrap">Zur Freigabe</span>
+            </TabButton>
+          </span>
         )}
       </div>
 
