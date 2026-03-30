@@ -1243,15 +1243,21 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
         </div>
       )}
       {tab === 'cart' && cartItems.length > 0 && grandTotal <= 2000 && (
-        <div className="shrink-0 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700">
-          <div className="px-4 py-3 flex items-center justify-between">
+        isDesktop ? (
+          <div className="shrink-0 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 px-4 py-3 flex items-center justify-between">
             <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Gesamtsumme Warenkorb</p>
             <p className="text-lg font-bold text-slate-800 dark:text-slate-100">
               € {grandTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </p>
           </div>
-          <div className={isDesktop ? 'hidden' : 'h-20'} />
-        </div>
+        ) : (
+          <div className="shrink-0 h-20 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 px-4 pt-3 flex items-start justify-between">
+            <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Gesamtsumme Warenkorb</p>
+            <p className="text-lg font-bold text-slate-800 dark:text-slate-100">
+              € {grandTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </p>
+          </div>
+        )
       )}
       {tab === 'approval' && role === 'admin' && pendingOrders.length > 0 && (() => {
         const order = pendingOrders[0]
