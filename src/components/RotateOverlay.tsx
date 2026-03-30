@@ -5,11 +5,11 @@ import { RotateCcw } from 'lucide-react'
 export default function RotateOverlay() {
   const [show, setShow] = useState(
     () => typeof window !== 'undefined' &&
-      window.matchMedia('(orientation: portrait) and (max-width: 767px)').matches
+      window.matchMedia('(orientation: portrait) and (min-width: 480px) and (max-width: 767px)').matches
   )
 
   useEffect(() => {
-    const mq = window.matchMedia('(orientation: portrait) and (max-width: 767px)')
+    const mq = window.matchMedia('(orientation: portrait) and (min-width: 480px) and (max-width: 767px)')
     function handler(e: MediaQueryListEvent) { setShow(e.matches) }
     mq.addEventListener('change', handler)
     return () => mq.removeEventListener('change', handler)

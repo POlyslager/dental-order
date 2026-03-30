@@ -67,6 +67,7 @@ export default function Dashboard({ user }: Props) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const swipeTouchX = useRef<number | null>(null)
   const [isDesktop, setIsDesktop] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 500)
+  const [isPhone, setIsPhone] = useState(() => typeof window !== 'undefined' && window.innerWidth < 480)
   const swipeStartX = useRef<number | null>(null)
   const swipeDeltaX = useRef(0)
   const menuRef = useRef<HTMLDivElement | null>(null)
@@ -87,6 +88,10 @@ export default function Dashboard({ user }: Props) {
   const [scanMode, setScanMode] = useState<null | 'choice' | 'entnehmen'>(null)
   const [forceOrdersOpenTab, setForceOrdersOpenTab] = useState(0)
   const [forceOrdersScanMode, setForceOrdersScanMode] = useState(0)
+  const [phoneTab, setPhoneTab] = useState<'stock' | 'cart' | 'approval'>('stock')
+  const [pendingBadge, setPendingBadge] = useState(0)
+  const [forceCartTab, setForceCartTab] = useState(0)
+  const [forceApprovalTab, setForceApprovalTab] = useState(0)
   const [dashToast, setDashToast] = useState<string | null>(null)
   const dashToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   function showDashToast(msg: string) {
@@ -116,19 +121,24 @@ export default function Dashboard({ user }: Props) {
   }, [])
 
   useEffect(() => {
-    function check() { setIsDesktop(window.innerWidth >= 500) }
+    function check() {
+      setIsDesktop(window.innerWidth >= 500)
+      setIsPhone(window.innerWidth < 480)
+    }
     window.addEventListener('resize', check)
     return () => window.removeEventListener('resize', check)
   }, [])
 
   async function fetchBadge() {
-    const [{ count: cartCount }, { data: ordersData }] = await Promise.all([
+    const [{ count: cartCount }, { data: ordersData }, { count: pendingCount }] = await Promise.all([
       supabase.from('cart_items').select('*', { count: 'exact', head: true }),
       supabase.from('orders').select('id, supplier, items:order_items(id)').eq('status', 'ordered'),
+      supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'pending_approval'),
     ])
     const ordersWithItems = (ordersData ?? []).filter((o: { supplier?: string; items?: { id: string }[] }) => (o.items?.length ?? 0) > 0)
     const uniqueSuppliers = new Set(ordersWithItems.map(o => o.supplier ?? 'Unbekannter Lieferant')).size
     setOrderBadge((cartCount ?? 0) + uniqueSuppliers)
+    setPendingBadge(pendingCount ?? 0)
   }
 
   useEffect(() => {
@@ -136,7 +146,7 @@ export default function Dashboard({ user }: Props) {
     const channel = supabase
       .channel('badge-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'cart_items' }, fetchBadge)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, fetchBadge)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, fetchBadge)
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [])
@@ -158,6 +168,129 @@ export default function Dashboard({ user }: Props) {
     { id: 'brands',     icon: <Factory size={20} />,       label: 'Hersteller' },
     { id: 'categories', icon: <Tag size={20} />,           label: 'Kategorien' },
   ]
+
+  // ── Phone shell (< 480px) ────────────────────────────────────────────────
+  if (isPhone) {
+    return (
+      <div className="fixed inset-0 flex flex-col bg-slate-50 dark:bg-slate-900" style={{ height: '100dvh' }}>
+        {/* Header */}
+        <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 shrink-0" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+          <div className="px-4 py-3 flex items-center justify-between">
+            <span className="font-bold text-slate-800 dark:text-slate-100 tracking-tight text-lg">DentalOrder</span>
+            <div className="flex items-center gap-2">
+              {role === 'admin' && (
+                <span className="text-xs bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300 px-2 py-0.5 rounded-full font-medium">Admin</span>
+              )}
+              <button
+                onClick={() => supabase.auth.signOut()}
+                title="Abmelden"
+                className="w-8 h-8 rounded-full bg-sky-100 dark:bg-sky-900/40 flex items-center justify-center text-sky-600 dark:text-sky-300 font-semibold text-sm"
+              >
+                {user.email?.[0].toUpperCase()}
+              </button>
+            </div>
+          </div>
+        </header>
+
+        {/* Content — stock and orders kept mounted to preserve state */}
+        <main className="flex-1 overflow-hidden min-h-0">
+          <div className={`h-full flex flex-col ${phoneTab === 'stock' ? '' : 'hidden'}`}>
+            <Suspense fallback={<PageSpinner />}>
+              <StockPage role={role} initialBarcode={pendingBarcode} onBarcodeConsumed={() => setPendingBarcode(null)} onNavigateToOrders={() => { setPhoneTab('cart'); setForceCartTab(c => c + 1) }} />
+            </Suspense>
+          </div>
+          <div className={`h-full flex flex-col ${phoneTab !== 'stock' ? '' : 'hidden'}`}>
+            <Suspense fallback={<PageSpinner />}>
+              <OrdersPage role={role} user={user} onBadgeChange={setOrderBadge} forceOpenTab={forceOrdersOpenTab} forceScanMode={forceOrdersScanMode} forceCartTab={forceCartTab} forceApprovalTab={forceApprovalTab} />
+            </Suspense>
+          </div>
+        </main>
+
+        {/* Bottom nav */}
+        <nav className="bg-white dark:bg-slate-800 border-t border-slate-100 dark:border-slate-700 shrink-0" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+          <div className="flex">
+            <button onClick={() => setPhoneTab('stock')}
+              className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-colors ${phoneTab === 'stock' ? 'text-sky-600' : 'text-slate-400 dark:text-slate-500'}`}>
+              <Package size={22} />
+              <span className="text-[10px] font-medium">Bestand</span>
+            </button>
+            <button onClick={() => setScanMode('choice')}
+              className="flex-1 flex flex-col items-center justify-center gap-1 py-2 text-slate-400 dark:text-slate-500 transition-colors">
+              <div className="w-11 h-11 rounded-full bg-sky-500 flex items-center justify-center text-white -mt-5 shadow-lg">
+                <ScanLine size={20} />
+              </div>
+              <span className="text-[10px] font-medium">Scan</span>
+            </button>
+            <button onClick={() => { setPhoneTab('cart'); setForceCartTab(c => c + 1) }}
+              className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-colors ${phoneTab === 'cart' ? 'text-sky-600' : 'text-slate-400 dark:text-slate-500'}`}>
+              <div className="relative">
+                <ShoppingCart size={22} />
+                {orderBadge > 0 && (
+                  <span className="absolute -top-1.5 -right-2.5 bg-red-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center leading-none">
+                    {orderBadge > 9 ? '9+' : orderBadge}
+                  </span>
+                )}
+              </div>
+              <span className="text-[10px] font-medium">Warenkorb</span>
+            </button>
+            {role === 'admin' && (
+              <button onClick={() => { setPhoneTab('approval'); setForceApprovalTab(c => c + 1) }}
+                className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-colors ${phoneTab === 'approval' ? 'text-sky-600' : 'text-slate-400 dark:text-slate-500'}`}>
+                <div className="relative">
+                  <Check size={22} />
+                  {pendingBadge > 0 && (
+                    <span className="absolute -top-1.5 -right-2.5 bg-red-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center leading-none">
+                      {pendingBadge > 9 ? '9+' : pendingBadge}
+                    </span>
+                  )}
+                </div>
+                <span className="text-[10px] font-medium">Freigabe</span>
+              </button>
+            )}
+          </div>
+        </nav>
+
+        {/* Scan modals */}
+        {scanMode === 'choice' && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => setScanMode(null)}>
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-xs p-6 relative" onClick={e => e.stopPropagation()}>
+              <button onClick={() => setScanMode(null)} className="absolute top-4 right-4 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                <X size={20} />
+              </button>
+              <h3 className="font-semibold text-slate-800 dark:text-slate-100 text-base mb-1">Scannen</h3>
+              <p className="text-sm text-slate-400 dark:text-slate-500 mb-5">Was möchten Sie tun?</p>
+              <div className="flex gap-3">
+                <button onClick={() => setScanMode('entnehmen')} className="flex-1 flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-slate-200 dark:border-slate-700 hover:border-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors">
+                  <PackageMinus size={22} className="text-sky-600" />
+                  <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">Entnehmen</span>
+                </button>
+                <button onClick={() => { setScanMode(null); setPhoneTab('cart'); setForceOrdersScanMode(c => c + 1) }} className="flex-1 flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-slate-200 dark:border-slate-700 hover:border-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors">
+                  <PackagePlus size={22} className="text-emerald-600" />
+                  <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">Einbuchen</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {scanMode === 'entnehmen' && (
+          <Suspense fallback={null}>
+            <EntnehmenScanModal onClose={() => setScanMode(null)} onSuccess={(name) => { setScanMode(null); showDashToast(`${name} wurde entnommen`) }} />
+          </Suspense>
+        )}
+        {dashToast && (
+          <div className="fixed top-4 left-4 right-4 z-[100] flex justify-center pointer-events-none">
+            <div className="pointer-events-auto bg-slate-900 text-white rounded-2xl shadow-2xl px-4 py-4 flex items-center gap-3 max-w-[calc(100vw-2rem)]">
+              <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+                <Check size={16} className="text-emerald-400" />
+              </div>
+              <p className="text-sm font-medium">{dashToast}</p>
+              <button onClick={() => setDashToast(null)} className="text-white/50 hover:text-white transition-colors shrink-0 ml-1"><X size={16} /></button>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className={`fixed top-0 left-0 right-0 h-[100dvh] overflow-hidden bg-slate-50 dark:bg-slate-900 flex ${isDesktop ? 'flex-row' : 'flex-col'}`}>

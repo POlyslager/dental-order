@@ -6,7 +6,7 @@ import { ShoppingCart, Package, Plus, Minus, CheckCircle, ExternalLink, Check, T
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
 import { useIsDesktop } from '../hooks/useIsDesktop'
 
-interface Props { role: Role | null; user: User; onBadgeChange: (n: number) => void; forceOpenTab?: number; forceScanMode?: number }
+interface Props { role: Role | null; user: User; onBadgeChange: (n: number) => void; forceOpenTab?: number; forceScanMode?: number; forceCartTab?: number; forceApprovalTab?: number }
 
 type SupplierRules = {
   delivery_cost: number | null
@@ -39,7 +39,7 @@ function getDomain(url: string | null | undefined): string | null {
   }
 }
 
-export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, forceScanMode }: Props) {
+export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, forceScanMode, forceCartTab, forceApprovalTab }: Props) {
   const isDesktop = useIsDesktop()
   const [tab, setTab] = useState<'cart' | 'open' | 'approval'>('cart')
   const [cartItems, setCartItems] = useState<CartItem[]>([])
@@ -113,6 +113,18 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
     setScanToggle(true)
     scanToggleRef.current = true
   }, [forceScanMode])
+
+  const forceCartTabInitRef = useRef(forceCartTab)
+  useEffect(() => {
+    if (forceCartTab === forceCartTabInitRef.current) return
+    setTab('cart')
+  }, [forceCartTab])
+
+  const forceApprovalTabInitRef = useRef(forceApprovalTab)
+  useEffect(() => {
+    if (forceApprovalTab === forceApprovalTabInitRef.current) return
+    setTab('approval')
+  }, [forceApprovalTab])
 
   // Keep refs in sync with state so scanner callbacks always see fresh values
   useEffect(() => { scannedCountsRef.current = scannedCounts }, [scannedCounts])
