@@ -132,9 +132,14 @@ export default function Dashboard({ user }: Props) {
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return
     function onMessage(e: MessageEvent) {
-      if (e.data?.type === 'navigate' && e.data.intent === 'approval') {
-        setPhoneTab('approval')
-        setForceApprovalTab(c => c + 1)
+      if (e.data?.type === 'navigate') {
+        if (e.data.intent === 'approval') {
+          setPhoneTab('approval')
+          setForceApprovalTab(c => c + 1)
+        } else if (e.data.intent === 'cart') {
+          setPhoneTab('cart')
+          setForceCartTab(c => c + 1)
+        }
       }
     }
     navigator.serviceWorker.addEventListener('message', onMessage)

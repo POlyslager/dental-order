@@ -98,10 +98,20 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
         fetchPendingOrders()
         fetchOrders()
       })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, () => {
-        fetchPendingOrders()
-        fetchRejectedOrders()
-        fetchOrders()
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, (payload) => {
+        const newStatus = (payload.new as { status?: string; id?: string; notes?: string })?.status
+        const newId = (payload.new as { id?: string })?.id
+        const newNotes = (payload.new as { notes?: string })?.notes ?? null
+        if (newStatus === 'rejected' && newId) {
+          setPendingOrders(prev => prev.filter(o => o.id !== newId))
+          const rejected = { id: newId, notes: newNotes } as Order
+          setRejectedOrders(prev => [rejected, ...prev.filter(o => o.id !== newId)])
+          rejectedOrdersRef.current = [rejected, ...rejectedOrdersRef.current.filter(o => o.id !== newId)]
+        } else {
+          fetchPendingOrders()
+          fetchRejectedOrders()
+          fetchOrders()
+        }
       })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
@@ -134,6 +144,7 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
   useEffect(() => {
     if (forceCartTab === forceCartTabInitRef.current) return
     setTab('cart')
+    fetchRejectedOrders()
   }, [forceCartTab])
 
   const forceApprovalTabInitRef = useRef(forceApprovalTab)
@@ -235,7 +246,7 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
   async function fetchPendingOrders() {
     const { data } = await supabase
       .from('orders')
-      .select('id, status, supplier, total_estimate, created_at, items:order_items(id, order_id, product_id, quantity, estimated_price, product:products(id, name, barcode, preferred_supplier, supplier_url, brand))')
+      .select('id, status, supplier, total_estimate, created_at, created_by, items:order_items(id, order_id, product_id, quantity, estimated_price, product:products(id, name, barcode, preferred_supplier, supplier_url, brand))')
       .eq('status', 'pending_approval')
       .order('created_at', { ascending: false })
     setPendingOrders(((data as unknown as Order[]) ?? []).filter(o => (o.items ?? []).length > 0))
@@ -541,6 +552,7 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
           user_ids: [order.created_by],
           title: 'Bestellung abgelehnt',
           body,
+          intent: 'cart',
         }),
       }).catch(() => null)
     }

@@ -12,7 +12,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'OPTIONS') return res.status(200).end()
   if (req.method !== 'POST') return res.status(405).end()
 
-  const { total, supplier, needs_approval, title: customTitle, body: customBody, user_ids } = req.body
+  const { total, supplier, needs_approval, title: customTitle, body: customBody, user_ids, intent } = req.body
 
   const supabase = createClient(
     process.env.VITE_SUPABASE_URL!,
@@ -44,7 +44,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     subs.map(({ subscription }) =>
       webpush.sendNotification(
         subscription,
-        JSON.stringify({ title, body, url: '/orders' })
+        JSON.stringify({ title, body, url: '/orders', intent: intent ?? 'approval' })
       ).catch(() => null)
     )
   )
