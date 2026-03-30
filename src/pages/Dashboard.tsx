@@ -175,31 +175,19 @@ export default function Dashboard({ user }: Props) {
       <div className="fixed inset-0 flex flex-col bg-slate-50 dark:bg-slate-900" style={{ height: '100dvh' }}>
         {/* Header */}
         <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 shrink-0" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
-          <div className="px-4 py-3 flex items-center justify-between">
+          <div className="px-4 py-3">
             <span className="font-bold text-slate-800 dark:text-slate-100 tracking-tight text-lg">DentalOrder</span>
-            <div className="flex items-center gap-2">
-              {role === 'admin' && (
-                <span className="text-xs bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300 px-2 py-0.5 rounded-full font-medium">Admin</span>
-              )}
-              <button
-                onClick={() => supabase.auth.signOut()}
-                title="Abmelden"
-                className="w-8 h-8 rounded-full bg-sky-100 dark:bg-sky-900/40 flex items-center justify-center text-sky-600 dark:text-sky-300 font-semibold text-sm"
-              >
-                {user.email?.[0].toUpperCase()}
-              </button>
-            </div>
           </div>
         </header>
 
         {/* Content — stock and orders kept mounted to preserve state */}
-        <main className="flex-1 overflow-hidden min-h-0">
-          <div className={`h-full flex flex-col ${phoneTab === 'stock' ? '' : 'hidden'}`}>
+        <main className="flex-1 min-h-0 flex flex-col overflow-hidden">
+          <div className={`flex-1 overflow-y-auto ${phoneTab === 'stock' ? '' : 'hidden'}`}>
             <Suspense fallback={<PageSpinner />}>
               <StockPage role={role} initialBarcode={pendingBarcode} onBarcodeConsumed={() => setPendingBarcode(null)} onNavigateToOrders={() => { setPhoneTab('cart'); setForceCartTab(c => c + 1) }} />
             </Suspense>
           </div>
-          <div className={`h-full flex flex-col ${phoneTab !== 'stock' ? '' : 'hidden'}`}>
+          <div className={`flex-1 flex flex-col overflow-hidden ${phoneTab !== 'stock' ? '' : 'hidden'}`}>
             <Suspense fallback={<PageSpinner />}>
               <OrdersPage role={role} user={user} onBadgeChange={setOrderBadge} forceOpenTab={forceOrdersOpenTab} forceScanMode={forceOrdersScanMode} forceCartTab={forceCartTab} forceApprovalTab={forceApprovalTab} />
             </Suspense>
@@ -215,10 +203,8 @@ export default function Dashboard({ user }: Props) {
               <span className="text-[10px] font-medium">Bestand</span>
             </button>
             <button onClick={() => setScanMode('choice')}
-              className="flex-1 flex flex-col items-center justify-center gap-1 py-2 text-slate-400 dark:text-slate-500 transition-colors">
-              <div className="w-11 h-11 rounded-full bg-sky-500 flex items-center justify-center text-white -mt-5 shadow-lg">
-                <ScanLine size={20} />
-              </div>
+              className="flex-1 flex flex-col items-center justify-center gap-1 py-3 text-slate-400 dark:text-slate-500 transition-colors">
+              <ScanLine size={22} />
               <span className="text-[10px] font-medium">Scan</span>
             </button>
             <button onClick={() => { setPhoneTab('cart'); setForceCartTab(c => c + 1) }}

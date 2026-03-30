@@ -53,8 +53,8 @@ function SweepModal({
   domainToSupplier: Record<string, string>
 }) {
   return (
-    <div className="fixed inset-0 bg-black/40 dark:bg-black/60 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/40 dark:bg-black/60 z-50 flex items-end sm:items-center justify-center sm:p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-900 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-2xl max-h-[90dvh] flex flex-col" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700 shrink-0">
           <div className="flex items-center gap-3">
@@ -78,7 +78,7 @@ function SweepModal({
         </div>
 
         {/* Body */}
-        <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
+        <div className="overflow-y-auto flex-1 h-0 px-5 py-4 space-y-4">
           {loading && (
             <div className="flex flex-col items-center justify-center py-12 gap-4">
               <div className="w-8 h-8 border-4 border-sky-500 border-t-transparent rounded-full animate-spin" />
@@ -163,6 +163,13 @@ function SweepModal({
               </div>
             )
           })}
+        </div>
+        {/* Footer close button */}
+        <div className="border-t border-slate-100 dark:border-slate-700 px-5 py-3 shrink-0">
+          <button onClick={onClose}
+            className="w-full py-2.5 rounded-xl border border-slate-200 dark:border-slate-600 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+            Schließen
+          </button>
         </div>
       </div>
     </div>
@@ -625,117 +632,129 @@ useEffect(() => {
   return (
     <div className="w-full relative">
       {/* Lagergesundheit stat bar */}
-      {products.length > 0 && (
-        <div className="px-4 pt-4 pb-2">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
-            <div className="flex divide-x divide-slate-100 dark:divide-slate-700 overflow-x-auto">
-              {([
-                { count: products.length,    label: 'Artikel gesamt', icon: <Package size={20} />,       iconBg: 'bg-slate-100',    iconColor: 'text-slate-500',   filter: 'all'      as const, active: false },
-                { count: stockHealth.green,  label: 'Verfügbar',      icon: <PackageCheck size={20} />,  iconBg: 'bg-emerald-100',  iconColor: 'text-emerald-600', filter: 'ok'       as const, active: selectedStatus === 'ok' },
-                { count: stockHealth.orange, label: 'Knapp',          icon: <Activity size={20} />,      iconBg: 'bg-amber-100',    iconColor: 'text-amber-500',   filter: 'low'      as const, active: selectedStatus === 'low' },
-                { count: stockHealth.red,    label: 'Niedriger Bestand', icon: <TriangleAlert size={20} />, iconBg: 'bg-orange-100', iconColor: 'text-orange-500',  filter: 'critical' as const, active: selectedStatus === 'critical' },
-                { count: stockHealth.empty,  label: 'Kein Bestand',   icon: <PackageX size={20} />,      iconBg: 'bg-red-100',      iconColor: 'text-red-500',     filter: 'empty'    as const, active: selectedStatus === 'empty' },
-              ]).map((s, i) => (
-                <button
-                  key={s.label}
-                  onClick={() => {
-                    if (s.filter === 'all') { setSelectedStatus('all'); setPage(1) }
-                    else { setSelectedStatus(p => p === s.filter ? 'all' : s.filter); setPage(1) }
-                  }}
-                  className={`flex-1 flex items-center gap-3 px-5 py-4 transition-colors min-w-0 shrink-0 ${
-                    s.active ? 'bg-slate-50 dark:bg-slate-700' : 'hover:bg-slate-50 dark:hover:bg-slate-700'
-                  } ${i === 0 ? 'rounded-l-2xl' : ''} ${i === 4 ? 'rounded-r-2xl' : ''}`}
-                >
-                  <div className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 ${s.iconBg} ${s.active ? 'ring-2 ring-offset-1 ring-slate-300' : ''}`}>
-                    <span className={s.iconColor}>{s.icon}</span>
-                  </div>
-                  <div className="min-w-0 text-left">
-                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{s.label}</p>
-                    <p className="text-2xl font-bold text-slate-800 dark:text-slate-100 leading-tight">{s.count}</p>
-                  </div>
+      {products.length > 0 && (() => {
+        const stats = [
+          { count: products.length,    label: 'Gesamt',  shortLabel: 'Gesamt',  numColor: 'text-slate-700 dark:text-slate-200',   dotColor: 'bg-slate-400',    filter: 'all'      as const, active: false,                        icon: <Package size={20} />,       iconBg: 'bg-slate-100',   iconColor: 'text-slate-500'  },
+          { count: stockHealth.green,  label: 'Verfügbar', shortLabel: 'OK',    numColor: 'text-emerald-600',                      dotColor: 'bg-emerald-500',  filter: 'ok'       as const, active: selectedStatus === 'ok',       icon: <PackageCheck size={20} />,  iconBg: 'bg-emerald-100', iconColor: 'text-emerald-600'},
+          { count: stockHealth.orange, label: 'Knapp',     shortLabel: 'Knapp', numColor: 'text-amber-500',                        dotColor: 'bg-amber-400',    filter: 'low'      as const, active: selectedStatus === 'low',      icon: <Activity size={20} />,      iconBg: 'bg-amber-100',   iconColor: 'text-amber-500'  },
+          { count: stockHealth.red,    label: 'Niedriger Bestand', shortLabel: 'Niedrig', numColor: 'text-orange-500',             dotColor: 'bg-orange-400',   filter: 'critical' as const, active: selectedStatus === 'critical', icon: <TriangleAlert size={20} />, iconBg: 'bg-orange-100',  iconColor: 'text-orange-500' },
+          { count: stockHealth.empty,  label: 'Kein Bestand', shortLabel: 'Kein', numColor: 'text-red-500',                       dotColor: 'bg-red-500',      filter: 'empty'    as const, active: selectedStatus === 'empty',    icon: <PackageX size={20} />,      iconBg: 'bg-red-100',     iconColor: 'text-red-500'    },
+        ]
+        return (
+          <>
+            {/* Desktop stat bar */}
+            <div className={`${isDesktop ? 'block' : 'hidden'} px-4 pt-4 pb-2`}>
+              <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
+                <div className="flex divide-x divide-slate-100 dark:divide-slate-700 overflow-x-auto">
+                  {stats.map((s, i) => (
+                    <button key={s.label}
+                      onClick={() => { setSelectedStatus(s.filter === 'all' || s.active ? 'all' : s.filter); setPage(1) }}
+                      className={`flex-1 flex items-center gap-3 px-5 py-4 transition-colors min-w-0 shrink-0 ${s.active ? 'bg-slate-50 dark:bg-slate-700' : 'hover:bg-slate-50 dark:hover:bg-slate-700'} ${i === 0 ? 'rounded-l-2xl' : ''} ${i === 4 ? 'rounded-r-2xl' : ''}`}>
+                      <div className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 ${s.iconBg} ${s.active ? 'ring-2 ring-offset-1 ring-slate-300' : ''}`}>
+                        <span className={s.iconColor}>{s.icon}</span>
+                      </div>
+                      <div className="min-w-0 text-left">
+                        <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{s.label}</p>
+                        <p className="text-2xl font-bold text-slate-800 dark:text-slate-100 leading-tight">{s.count}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            {/* Mobile compact stat bar */}
+            <div className={`${isDesktop ? 'hidden' : 'flex'} gap-2 px-4 pt-3 pb-1`}>
+              {stats.map(s => (
+                <button key={s.label}
+                  onClick={() => { setSelectedStatus(s.filter === 'all' || s.active ? 'all' : s.filter); setPage(1) }}
+                  className={`flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl bg-white dark:bg-slate-800 border transition-colors ${s.active ? 'border-slate-300 dark:border-slate-500' : 'border-slate-100 dark:border-slate-700'}`}>
+                  <span className={`text-base font-bold leading-tight ${s.numColor}`}>{s.count}</span>
+                  <span className="text-[9px] font-medium text-slate-400 dark:text-slate-500 leading-tight">{s.shortLabel}</span>
                 </button>
               ))}
             </div>
+          </>
+        )
+      })()}
+
+      {/* Mobile filter row */}
+      {!isDesktop && (
+        <div className="px-4 pt-2 pb-2 flex flex-col gap-2">
+          <div className="flex gap-2 items-center">
+            <div className="relative flex-1">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input type="text" value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} placeholder="Suchen…"
+                className="w-full border border-slate-200 dark:border-slate-600 rounded-xl pl-8 pr-7 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-400" />
+              {search && <button onClick={() => { setSearch(''); setPage(1) }} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><X size={13} /></button>}
+            </div>
+            <button onClick={runSweep} disabled={sweepLoading}
+              className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 text-slate-700 dark:text-slate-200 p-2 rounded-xl transition-colors disabled:opacity-50 shrink-0">
+              <TrendingDown size={16} />
+            </button>
+            <button onClick={() => setShowForm(true)}
+              className="bg-sky-500 hover:bg-sky-600 text-white p-2 rounded-xl transition-colors shrink-0">
+              <Plus size={16} />
+            </button>
+          </div>
+          <div className="relative">
+            <select value={selectedStatus} onChange={e => { setSelectedStatus(e.target.value as typeof selectedStatus); setPage(1) }}
+              className="w-full appearance-none border border-slate-200 dark:border-slate-600 rounded-xl pl-3 pr-8 py-2 text-sm bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500">
+              <option value="all">Alle Status</option>
+              <option value="ok">Verfügbar</option>
+              <option value="low">Knapp</option>
+              <option value="critical">Niedriger Bestand</option>
+              <option value="empty">Kein Bestand</option>
+              <option value="in_cart">Im Warenkorb</option>
+              <option value="in_ordered">In Bestellung</option>
+            </select>
+            <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
           </div>
         </div>
       )}
 
-      {/* Search + filters + add — single row */}
-      <div className="px-4 pt-3 pb-3 flex gap-2 items-center flex-wrap">
-        {/* Search */}
-        <div className="relative w-52 shrink-0">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            value={search}
-            onChange={e => { setSearch(e.target.value); setPage(1) }}
-            placeholder="Suchen…"
-            className="w-full border border-slate-200 dark:border-slate-600 rounded-xl pl-8 pr-7 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-400"
-          />
-          {search && (
-            <button onClick={() => { setSearch(''); setPage(1) }} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-              <X size={13} />
+      {/* Desktop filter row */}
+      {isDesktop && (
+        <div className="px-4 pt-3 pb-3 flex gap-2 items-center flex-wrap">
+          <div className="relative w-52 shrink-0">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input type="text" value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} placeholder="Suchen…"
+              className="w-full border border-slate-200 dark:border-slate-600 rounded-xl pl-8 pr-7 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-400" />
+            {search && <button onClick={() => { setSearch(''); setPage(1) }} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><X size={13} /></button>}
+          </div>
+          <div className="relative shrink-0">
+            <select value={selectedStatus} onChange={e => { setSelectedStatus(e.target.value as typeof selectedStatus); setPage(1) }}
+              className="appearance-none border border-slate-200 dark:border-slate-600 rounded-xl pl-3 pr-8 py-2 text-sm bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500">
+              <option value="all">Alle Status</option>
+              <option value="ok">Verfügbar</option>
+              <option value="low">Knapp</option>
+              <option value="critical">Niedriger Bestand</option>
+              <option value="empty">Kein Bestand</option>
+              <option value="in_cart">Im Warenkorb</option>
+              <option value="in_ordered">In Bestellung</option>
+            </select>
+            <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          </div>
+          <div className="relative shrink-0">
+            <select value={selectedCategory} onChange={e => { setSelectedCategory(e.target.value); setPage(1) }}
+              className="appearance-none border border-slate-200 dark:border-slate-600 rounded-xl pl-3 pr-8 py-2 text-sm bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500">
+              <option value="all">Alle Kategorien</option>
+              {categories.filter(c => c !== 'all').map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          </div>
+          <SupplierMultiSelect selected={selectedBrands} onChange={s => { setSelectedBrands(s); setPage(1) }} options={brands} />
+          <div className="ml-auto flex items-center gap-2 shrink-0">
+            <button onClick={runSweep} disabled={sweepLoading}
+              className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 px-4 py-2 rounded-xl transition-colors flex items-center gap-2 text-sm font-medium whitespace-nowrap shrink-0 disabled:opacity-50">
+              <TrendingDown size={16} />
             </button>
-          )}
+            <button onClick={() => setShowForm(true)}
+              className="bg-sky-500 hover:bg-sky-600 text-white px-4 py-2 rounded-xl transition-colors flex items-center gap-2 text-sm font-medium whitespace-nowrap shrink-0">
+              <Plus size={16} />
+            </button>
+          </div>
         </div>
-
-        {/* Status filter */}
-        <div className="relative shrink-0">
-          <select
-            value={selectedStatus}
-            onChange={e => { setSelectedStatus(e.target.value as typeof selectedStatus); setPage(1) }}
-            className="appearance-none border border-slate-200 dark:border-slate-600 rounded-xl pl-3 pr-8 py-2 text-sm bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
-          >
-            <option value="all">Alle Status</option>
-            <option value="ok">Verfügbar</option>
-            <option value="low">Knapp</option>
-            <option value="critical">Niedriger Bestand</option>
-            <option value="empty">Kein Bestand</option>
-            <option value="in_cart">Im Warenkorb</option>
-            <option value="in_ordered">In Bestellung</option>
-          </select>
-          <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-        </div>
-
-        {/* Category filter */}
-        <div className="relative shrink-0">
-          <select
-            value={selectedCategory}
-            onChange={e => { setSelectedCategory(e.target.value); setPage(1) }}
-            className="appearance-none border border-slate-200 dark:border-slate-600 rounded-xl pl-3 pr-8 py-2 text-sm bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
-          >
-            <option value="all">Alle Kategorien</option>
-            {categories.filter(c => c !== 'all').map(c => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
-          <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-        </div>
-
-        {/* Supplier filter — multi-select */}
-        <SupplierMultiSelect
-          selected={selectedBrands}
-          onChange={s => { setSelectedBrands(s); setPage(1) }}
-          options={brands}
-        />
-
-        {/* Preisscan + Add buttons — pushed to end */}
-        <div className="ml-auto flex items-center gap-2 shrink-0">
-          <button
-            onClick={runSweep}
-            disabled={sweepLoading}
-            className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 px-4 py-2 rounded-xl transition-colors flex items-center gap-2 text-sm font-medium whitespace-nowrap shrink-0 disabled:opacity-50"
-          >
-            <TrendingDown size={16} />
-          </button>
-          <button
-            onClick={() => setShowForm(true)}
-            className="bg-sky-500 hover:bg-sky-600 text-white px-4 py-2 rounded-xl transition-colors flex items-center gap-2 text-sm font-medium whitespace-nowrap shrink-0"
-          >
-            <Plus size={16} />
-          </button>
-        </div>
-      </div>
+      )}
 
       {/* Desktop header (md+) */}
       <div className={`${isDesktop ? 'grid' : 'hidden'} border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 sticky top-0 z-10`} style={{ gridTemplateColumns: '1.7fr 1fr 1fr 0.8fr 0.8fr 1fr' }}>
