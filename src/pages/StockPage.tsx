@@ -836,7 +836,30 @@ useEffect(() => {
         )}
       </div>
 
-      {/* Pagination (md+) */}
+      {/* Pagination — mobile */}
+      {totalPages > 1 && !isDesktop && (
+        <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 sticky bottom-0 z-10">
+          <button
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={page === 1}
+            className="px-4 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          >
+            ← Zurück
+          </button>
+          <span className="text-xs text-slate-500 dark:text-slate-400">
+            Seite {page} von {totalPages}
+          </span>
+          <button
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            disabled={page === totalPages}
+            className="px-4 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          >
+            Weiter →
+          </button>
+        </div>
+      )}
+
+      {/* Pagination — desktop */}
       {totalPages > 1 && (
         <div className={`${isDesktop ? 'flex' : 'hidden'} items-center px-4 py-3 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 sticky bottom-0 z-10`}>
           <p className="text-xs text-slate-400 dark:text-slate-500 w-40 shrink-0">
