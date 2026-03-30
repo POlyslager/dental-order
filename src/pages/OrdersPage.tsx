@@ -949,9 +949,9 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
                       const domainTotal = items.reduce((s, i) => s + (i.quantity * (effectivePrice(i.product, supplierRules[domain]) ?? 0)), 0)
                       return (
                         <React.Fragment key={domain}>
-                          {idx > 0 && <tr><td colSpan={7} className="h-4 bg-slate-100 dark:bg-slate-700" /></tr>}
+                          {idx > 0 && <tr><td colSpan={6} className="h-4 bg-slate-100 dark:bg-slate-700" /></tr>}
                           <tr className="border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
-                            <td colSpan={7} className="px-4 py-2.5">
+                            <td colSpan={6} className="px-4 py-2.5">
                               <div className="flex items-center justify-between gap-3">
                                 <p className="font-semibold text-slate-800 dark:text-slate-100 text-base">{domain}</p>
                                 <div className="flex flex-col items-end gap-0.5">
@@ -1000,7 +1000,6 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
                             <th className="text-center text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Menge</th>
                             <th className="hidden lg:table-cell text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Preis/Einheit</th>
                             <th className="text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Gesamt</th>
-                            <th className="hidden lg:table-cell text-left text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Website</th>
                             <th className="text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Aktion</th>
                           </tr>
                           {items.map(item => (
@@ -1697,22 +1696,16 @@ function CartItemRow({ item, placing, requiresApproval, rules, onUpdateQuantity,
           </div>
         ) : '—'}
       </td>
-      {/* Website link */}
-      <td className="hidden lg:table-cell px-3 py-3">
-        {item.product?.supplier_url ? (
-          <a href={item.product.supplier_url} target="_blank" rel="noopener noreferrer"
-            onClick={e => e.stopPropagation()}
-            className="flex items-center gap-1.5 text-xs text-sky-600 hover:text-sky-700 whitespace-nowrap">
-            <ExternalLink size={12} />
-            Website öffnen
-          </a>
-        ) : (
-          <span className="text-slate-300 text-xs">—</span>
-        )}
-      </td>
       {/* Actions */}
       <td className="px-3 py-3 text-right">
         <div className="flex items-center justify-end gap-2">
+          {item.product?.supplier_url && (
+            <a href={item.product.supplier_url} target="_blank" rel="noopener noreferrer"
+              onClick={e => e.stopPropagation()} title="Website öffnen"
+              className="w-9 h-9 flex items-center justify-center rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors">
+              <ExternalLink size={16} />
+            </a>
+          )}
           <button onClick={() => onEdit(item)} title="Bearbeiten"
             className="w-9 h-9 flex items-center justify-center rounded-xl bg-sky-100 text-sky-600 hover:bg-sky-200 transition-colors">
             <Pencil size={16} />
