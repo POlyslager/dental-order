@@ -27,14 +27,18 @@ self.addEventListener('notificationclick', e => {
   e.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
       const existing = list.find(c => c.url.includes(self.location.origin))
-      const action = existing ? existing.focus() : clients.openWindow(url)
-      return action.then(() => {
-        if (intent) {
-          const bc = new BroadcastChannel('dentalorder-nav')
-          bc.postMessage({ type: 'navigate', intent, orderId: e.notification.data?.orderId ?? null, notes: e.notification.data?.notes ?? null })
-          bc.close()
-        }
-      })
+      if (existing) {
+        return existing.focus().then(() => {
+          if (intent) {
+            const bc = new BroadcastChannel('dentalorder-nav')
+            bc.postMessage({ type: 'navigate', intent, orderId: e.notification.data?.orderId ?? null, notes: e.notification.data?.notes ?? null })
+            bc.close()
+          }
+        })
+      }
+      // App not open — encode intent in URL so the page reads it on mount
+      const openUrl = intent ? `/?intent=${intent}` : url
+      return clients.openWindow(openUrl)
     })
   )
 })

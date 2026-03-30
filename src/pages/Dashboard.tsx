@@ -130,6 +130,20 @@ export default function Dashboard({ user }: Props) {
   }, [])
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const intent = params.get('intent')
+    if (intent === 'approval') {
+      setPhoneTab('approval')
+      setForceApprovalTab(c => c + 1)
+      window.history.replaceState({}, '', '/')
+    } else if (intent === 'cart') {
+      setPhoneTab('cart')
+      setForceCartTab(c => c + 1)
+      window.history.replaceState({}, '', '/')
+    }
+  }, [])
+
+  useEffect(() => {
     if (!('BroadcastChannel' in window)) return
     const bc = new BroadcastChannel('dentalorder-nav')
     bc.onmessage = (e) => {
