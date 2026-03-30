@@ -93,6 +93,10 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
   useEffect(() => {
     const channel = supabase
       .channel('orders-realtime')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, () => {
+        fetchPendingOrders()
+        fetchOrders()
+      })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, () => {
         fetchPendingOrders()
         fetchRejectedOrders()
