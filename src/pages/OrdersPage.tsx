@@ -817,51 +817,138 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
             </div>
           ) : (
             <div>
-              <table className="w-full text-sm">
-                <tbody>
-                  {Object.entries(cartByDomain).map(([domain, items], idx) => {
-                    const domainTotal = items.reduce((s, i) => s + (i.quantity * (effectivePrice(i.product, supplierRules[domain]) ?? 0)), 0)
-                    return (
-                      <React.Fragment key={domain}>
-                        {/* Spacer between groups */}
-                        {idx > 0 && (
-                          <tr><td colSpan={7} className="h-4 bg-slate-100 dark:bg-slate-700" /></tr>
-                        )}
-                        {/* Domain title row */}
-                        <tr className="border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
-                          <td colSpan={7} className="px-4 py-2.5">
-                            <div className="flex items-center justify-between gap-3">
-                              <p className="font-semibold text-slate-800 dark:text-slate-100 text-base">{domain}</p>
-                              <div className="flex flex-col items-end gap-0.5">
-                                {(() => {
-                                  const dr = supplierRules[domain]
-                                  if (!dr?.delivery_cost) return null
-                                  const threshold = dr.free_delivery_threshold
-                                  const isFree = threshold != null && domainTotal >= threshold
-                                  const missing = threshold != null ? threshold - domainTotal : null
-                                  if (isFree) return (
-                                    <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">Gratislieferung</span>
-                                  )
-                                  return (
-                                    <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">
-                                      € {dr.delivery_cost.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Versand
-                                      {missing != null && missing > 0 && ` · noch € ${missing.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} bis Gratislieferung`}
-                                    </span>
-                                  )
-                                })()}
-                                {(() => {
+              {/* ── Mobile cart layout ── */}
+              {!isDesktop && Object.entries(cartByDomain).map(([domain, items], idx) => {
+                const domainTotal = items.reduce((s, i) => s + (i.quantity * (effectivePrice(i.product, supplierRules[domain]) ?? 0)), 0)
+                const dr = supplierRules[domain]
+                const threshold = dr?.free_delivery_threshold
+                const isFree = threshold != null && domainTotal >= threshold
+                const missing = threshold != null && !isFree ? threshold - domainTotal : null
+                return (
+                  <div key={domain}>
+                    {idx > 0 && <div className="h-3 bg-slate-100 dark:bg-slate-700" />}
+                    <div className="px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="font-semibold text-slate-800 dark:text-slate-100">{domain}</p>
+                        <div className="flex flex-col items-end gap-0.5">
+                          {dr?.delivery_cost && isFree && <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">Gratislieferung</span>}
+                          {dr?.delivery_cost && !isFree && (
+                            <span className="text-xs font-semibold text-amber-600 dark:text-amber-400 text-right">
+                              € {dr.delivery_cost.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Versand
+                              {missing != null && missing > 0 && ` · noch € ${missing.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} bis Gratis`}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    {items.map(item => {
+                      const rules = supplierRules[domain]
+                      const listPrice = item.product?.last_price ?? null
+                      const price = effectivePrice(item.product, rules)
+                      const hasDiscount = price != null && listPrice != null && price < listPrice
+                      const rowTotal = item.quantity * (price ?? 0)
+                      const listTotal = item.quantity * (listPrice ?? 0)
+                      const cheaperAlts = (priceHits[item.product_id] ?? []).filter(a => price != null && a.price < price)
+                      return (
+                        <div key={item.id} className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
+                          {/* Line 1: name + total */}
+                          <div className="flex items-start justify-between gap-2 mb-2.5">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{item.product?.name}</p>
+                                {item.is_edited && (
+                                  <span className="shrink-0 text-xs font-medium px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">Akt.</span>
+                                )}
+                              </div>
+                              {cheaperAlts.length > 0 && (
+                                <button onClick={() => setPriceModal(item)} className="mt-1 flex items-center gap-1 text-xs font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 px-2 py-1 rounded-lg">
+                                  <TrendingDown size={11} />
+                                  {cheaperAlts.length === 1 ? 'Günstiger verfügbar' : `${cheaperAlts.length}× günstiger`}
+                                </button>
+                              )}
+                            </div>
+                            <div className="text-right tabular-nums shrink-0">
+                              {hasDiscount && <p className="text-xs text-slate-400 dark:text-slate-500 line-through">€ {listTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>}
+                              <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">€ {rowTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                            </div>
+                          </div>
+                          {/* Line 2: qty stepper + actions */}
+                          <div className="flex items-center">
+                            <div className="flex items-center gap-1">
+                              <button onClick={() => updateQuantity(item.id, item.quantity - 1)} disabled={item.quantity === 0}
+                                className="w-7 h-7 flex items-center justify-center rounded-md bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors disabled:opacity-30">
+                                <Minus size={11} />
+                              </button>
+                              <span className="w-6 text-center font-semibold text-slate-800 dark:text-slate-100 text-sm">{item.quantity}</span>
+                              <button onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                                className="w-7 h-7 flex items-center justify-center rounded-md bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
+                                <Plus size={11} />
+                              </button>
+                            </div>
+                            <div className="flex-1" />
+                            <div className="flex items-center gap-1.5">
+                              <button onClick={() => openEditPanel(item)}
+                                className="w-8 h-8 flex items-center justify-center rounded-xl bg-sky-100 text-sky-600 hover:bg-sky-200 transition-colors">
+                                <Pencil size={14} />
+                              </button>
+                              <button onClick={() => setDeleteConfirm(item)}
+                                className="w-8 h-8 flex items-center justify-center rounded-xl bg-red-100 text-red-500 hover:bg-red-200 transition-colors">
+                                <Trash2 size={14} />
+                              </button>
+                              {!(grandTotal > 2000) && item.quantity > 0 && (
+                                <button onClick={() => placeOrderForItem(item)} disabled={placingItem === item.id}
+                                  className="w-8 h-8 flex items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 hover:bg-emerald-200 transition-colors disabled:opacity-40">
+                                  {placingItem === item.id
+                                    ? <span className="w-3.5 h-3.5 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+                                    : <CheckCircle size={14} />}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })}
+
+              {/* ── Desktop cart layout ── */}
+              {isDesktop && (
+                <table className="w-full text-sm">
+                  <tbody>
+                    {Object.entries(cartByDomain).map(([domain, items], idx) => {
+                      const domainTotal = items.reduce((s, i) => s + (i.quantity * (effectivePrice(i.product, supplierRules[domain]) ?? 0)), 0)
+                      return (
+                        <React.Fragment key={domain}>
+                          {idx > 0 && <tr><td colSpan={7} className="h-4 bg-slate-100 dark:bg-slate-700" /></tr>}
+                          <tr className="border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
+                            <td colSpan={7} className="px-4 py-2.5">
+                              <div className="flex items-center justify-between gap-3">
+                                <p className="font-semibold text-slate-800 dark:text-slate-100 text-base">{domain}</p>
+                                <div className="flex flex-col items-end gap-0.5">
+                                  {(() => {
+                                    const dr = supplierRules[domain]
+                                    if (!dr?.delivery_cost) return null
+                                    const threshold = dr.free_delivery_threshold
+                                    const isFree = threshold != null && domainTotal >= threshold
+                                    const missing = threshold != null ? threshold - domainTotal : null
+                                    if (isFree) return <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">Gratislieferung</span>
+                                    return (
+                                      <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+                                        € {dr.delivery_cost.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Versand
+                                        {missing != null && missing > 0 && ` · noch € ${missing.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} bis Gratislieferung`}
+                                      </span>
+                                    )
+                                  })()}
+                                  {(() => {
                                     const dr = supplierRules[domain]
                                     const bonusThreshold = dr?.volume_bonus_threshold
                                     const bonusPct = dr?.volume_bonus_pct
                                     const volumeBonus = bonusThreshold && bonusPct && domainTotal > bonusThreshold ? (domainTotal - bonusThreshold) * (bonusPct / 100) : 0
                                     const untilBonus = bonusThreshold && bonusPct && domainTotal < bonusThreshold ? bonusThreshold - domainTotal : 0
                                     return (
-                                      <div className={`flex-col items-end gap-0.5 ${isDesktop ? 'flex' : 'hidden'}`}>
-                                        {untilBonus > 0 && (
-                                          <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">
-                                            Noch € {untilBonus.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} bis Volumenbonus
-                                          </span>
-                                        )}
+                                      <div className="flex flex-col items-end gap-0.5">
+                                        {untilBonus > 0 && <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">Noch € {untilBonus.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} bis Volumenbonus</span>}
                                         {volumeBonus > 0 && (
                                           <span className="inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
                                             <TrendingDown size={11} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
@@ -874,43 +961,42 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
                                       </div>
                                     )
                                   })()}
+                                </div>
                               </div>
-                            </div>
-                          </td>
-                        </tr>
-                        {/* Column headers */}
-                        <tr className="border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
-                          <th className="text-left text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-4 py-3">Artikel</th>
-                          <th className={`text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-4 py-3 ${isDesktop ? 'table-cell' : 'hidden'}`}>Bestand</th>
-                          <th className="text-center text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Menge</th>
-                          <th className={`text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap ${isDesktop ? 'table-cell' : 'hidden'}`}>Preis/Einheit</th>
-                          <th className="text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Gesamt</th>
-                          <th className={`text-left text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap ${isDesktop ? 'table-cell' : 'hidden'}`}>Website</th>
-                          <th className="text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Aktion</th>
-                        </tr>
-                        {/* Item rows */}
-                        {items.map(item => (
-                          <CartItemRow
-                            key={item.id}
-                            item={item}
-                            placing={placingItem === item.id}
-                            requiresApproval={grandTotal > 2000}
-                            rules={supplierRules[domain]}
-                            onUpdateQuantity={updateQuantity}
-                            onPlaceOrder={placeOrderForItem}
-                            onRemoveRequest={setDeleteConfirm}
-                            onEdit={openEditPanel}
-                            alternatives={priceHits[item.product_id]}
-                            onShowAlternatives={item => setPriceModal(item)}
-                          />
-                        ))}
-                      </React.Fragment>
-                    )
-                  })}
-                </tbody>
-              </table>
+                            </td>
+                          </tr>
+                          <tr className="border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+                            <th className="text-left text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-4 py-3">Artikel</th>
+                            <th className="text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-4 py-3">Bestand</th>
+                            <th className="text-center text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Menge</th>
+                            <th className="text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Preis/Einheit</th>
+                            <th className="text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Gesamt</th>
+                            <th className="text-left text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Website</th>
+                            <th className="text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Aktion</th>
+                          </tr>
+                          {items.map(item => (
+                            <CartItemRow
+                              key={item.id}
+                              item={item}
+                              placing={placingItem === item.id}
+                              requiresApproval={grandTotal > 2000}
+                              rules={supplierRules[domain]}
+                              onUpdateQuantity={updateQuantity}
+                              onPlaceOrder={placeOrderForItem}
+                              onRemoveRequest={setDeleteConfirm}
+                              onEdit={openEditPanel}
+                              alternatives={priceHits[item.product_id]}
+                              onShowAlternatives={item => setPriceModal(item)}
+                            />
+                          ))}
+                        </React.Fragment>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              )}
 
-              {/* Pending approval orders — shown as locked section in cart */}
+              {/* Pending approval orders — locked section */}
               {pendingOrders.map(order => {
                 const orderTotal = order.total_estimate ?? (order.items ?? []).reduce((s, i) => s + i.quantity * (i.estimated_price ?? 0), 0)
                 return (
@@ -925,21 +1011,17 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
                         € {orderTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                     </div>
-                    <table className="w-full text-sm">
-                      <tbody>
-                        {(order.items ?? []).map(item => (
-                          <tr key={item.id} className="border-b border-amber-50 dark:border-amber-800/40 bg-white dark:bg-slate-900 opacity-60">
-                            <td className="px-4 py-3">
-                              <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">{item.product?.name ?? '—'}</p>
-                            </td>
-                            <td className="text-center px-3 py-3 text-slate-400 dark:text-slate-500 whitespace-nowrap">{item.quantity}×</td>
-                            <td className="text-right px-3 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                              {item.estimated_price != null ? `€ ${(item.estimated_price * item.quantity).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                    <div>
+                      {(order.items ?? []).map(item => (
+                        <div key={item.id} className="flex items-center px-4 py-2.5 border-b border-amber-50 dark:border-amber-800/40 bg-white dark:bg-slate-900 opacity-60">
+                          <p className="text-sm font-semibold text-slate-600 dark:text-slate-300 flex-1 min-w-0 truncate">{item.product?.name ?? '—'}</p>
+                          <span className="text-sm text-slate-400 dark:text-slate-500 mx-3 shrink-0">{item.quantity}×</span>
+                          <span className="text-sm text-slate-500 dark:text-slate-400 shrink-0 tabular-nums">
+                            {item.estimated_price != null ? `€ ${(item.estimated_price * item.quantity).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )
               })}
@@ -1049,23 +1131,89 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
             </div>
           ) : (
             <>
-              <table className="w-full text-sm">
-                <tbody>
-                  {ordersBySupplier.map(([, groupOrders], groupIdx) => (
-                    groupOrders.map((order, orderIdx) => (
-                      <OpenOrderSection
-                        key={order.id}
-                        order={order}
-                        isFirstOverall={groupIdx === 0 && orderIdx === 0}
-                        isFirstInGroup={orderIdx === 0}
-                        scannedCounts={scannedCounts}
-                        receiving={receiving}
-                        onReceiveItem={(item) => receiveOrderItem(item, order.id)}
-                      />
-                    ))
-                  ))}
-                </tbody>
-              </table>
+              {/* Desktop */}
+              {isDesktop && (
+                <table className="w-full text-sm">
+                  <tbody>
+                    {ordersBySupplier.map(([, groupOrders], groupIdx) => (
+                      groupOrders.map((order, orderIdx) => (
+                        <OpenOrderSection
+                          key={order.id}
+                          order={order}
+                          isFirstOverall={groupIdx === 0 && orderIdx === 0}
+                          isFirstInGroup={orderIdx === 0}
+                          scannedCounts={scannedCounts}
+                          receiving={receiving}
+                          onReceiveItem={(item) => receiveOrderItem(item, order.id)}
+                        />
+                      ))
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              {/* Mobile */}
+              {!isDesktop && (
+                <div>
+                  {ordersBySupplier.map(([, groupOrders], groupIdx) =>
+                    groupOrders.map((order, orderIdx) => {
+                      const orderItems = order.items ?? []
+                      const domain = order.supplier ?? orderItems[0]?.product?.preferred_supplier ?? getDomain(orderItems[0]?.product?.supplier_url) ?? 'Unbekannter Lieferant'
+                      const doneCount = orderItems.filter(i => (scannedCounts[i.id] ?? 0) >= i.quantity).length
+                      const progressPct = orderItems.length > 0 ? (doneCount / orderItems.length) * 100 : 0
+                      return (
+                        <div key={order.id}>
+                          {!(groupIdx === 0 && orderIdx === 0) && orderIdx === 0 && <div className="h-3 bg-slate-100 dark:bg-slate-700" />}
+                          {orderIdx === 0 && (
+                            <div className="px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700">
+                              <div className="flex items-center justify-between gap-3">
+                                <p className="font-semibold text-slate-800 dark:text-slate-100">{domain}</p>
+                                <div className="flex items-center gap-2">
+                                  <div className="w-16 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                                    <div className="h-full bg-emerald-500 rounded-full transition-all duration-300" style={{ width: `${progressPct}%` }} />
+                                  </div>
+                                  <span className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">{doneCount}/{orderItems.length}</span>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                          {orderItems.map(item => {
+                            const scanned = scannedCounts[item.id] ?? 0
+                            const done = scanned >= item.quantity
+                            const rowTotal = item.quantity * (item.estimated_price ?? 0)
+                            return (
+                              <div key={item.id} className={`px-4 py-3 border-b border-slate-100 dark:border-slate-800 transition-colors ${done ? 'bg-emerald-50/50 dark:bg-emerald-900/10' : 'bg-white dark:bg-slate-900'}`}>
+                                <div className="flex items-start justify-between gap-2 mb-2">
+                                  <p className={`text-sm font-semibold flex-1 min-w-0 truncate ${done ? 'text-slate-400 dark:text-slate-500' : 'text-slate-800 dark:text-slate-100'}`}>{item.product?.name ?? '—'}</p>
+                                  <span className={`text-sm font-semibold shrink-0 tabular-nums ${done ? 'text-slate-400' : 'text-slate-800 dark:text-slate-100'}`}>
+                                    {item.estimated_price != null ? `€ ${rowTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <span className="text-xs text-slate-500 dark:text-slate-400">Bestellt: {item.quantity}</span>
+                                  {scanned > 0 && !done && <span className="text-xs font-semibold text-sky-600">{scanned}/{item.quantity} gescannt</span>}
+                                  {done && <span className="flex items-center gap-1 text-xs text-emerald-600 font-medium"><Check size={11} /> Erhalten</span>}
+                                  <div className="flex-1" />
+                                  {!done && (
+                                    <button
+                                      onClick={() => receiveOrderItem(item, order.id)}
+                                      disabled={receiving === item.id}
+                                      className="w-8 h-8 flex items-center justify-center rounded-xl bg-sky-100 text-sky-600 hover:bg-sky-200 transition-colors disabled:opacity-40"
+                                    >
+                                      {receiving === item.id
+                                        ? <span className="w-3.5 h-3.5 border-2 border-sky-600 border-t-transparent rounded-full animate-spin" />
+                                        : <Package size={14} />}
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )
+                    })
+                  )}
+                </div>
+              )}
             </>
           )}
           </>
