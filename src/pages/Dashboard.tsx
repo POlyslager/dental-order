@@ -146,22 +146,31 @@ export default function Dashboard({ user }: Props) {
   }, [])
 
   useEffect(() => {
-    if (!('BroadcastChannel' in window)) return
-    const bc = new BroadcastChannel('dentalorder-nav')
-    bc.onmessage = (e) => {
-      if (e.data?.type === 'navigate') {
-        if (e.data.intent === 'approval') {
-          setTab('orders')
-          setPhoneTab('approval')
-          setForceApprovalTab(c => c + 1)
-        } else if (e.data.intent === 'cart') {
-          setTab('orders')
-          setPhoneTab('cart')
-          setForceCartTab(c => c + 1)
-        }
+    function handleNavMessage(data: { type?: string; intent?: string }) {
+      if (data?.type !== 'navigate') return
+      if (data.intent === 'approval') {
+        setTab('orders')
+        setPhoneTab('approval')
+        setForceApprovalTab(c => c + 1)
+      } else if (data.intent === 'cart') {
+        setTab('orders')
+        setPhoneTab('cart')
+        setForceCartTab(c => c + 1)
       }
     }
-    return () => bc.close()
+    // BroadcastChannel — handles foreground push and same-tab messages
+    let bc: BroadcastChannel | null = null
+    if ('BroadcastChannel' in window) {
+      bc = new BroadcastChannel('dentalorder-nav')
+      bc.onmessage = (e) => handleNavMessage(e.data)
+    }
+    // serviceWorker.onmessage — handles direct postMessage from SW on notification tap
+    function onSwMessage(e: MessageEvent) { handleNavMessage(e.data) }
+    navigator.serviceWorker?.addEventListener('message', onSwMessage)
+    return () => {
+      bc?.close()
+      navigator.serviceWorker?.removeEventListener('message', onSwMessage)
+    }
   }, [])
 
   useEffect(() => {

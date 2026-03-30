@@ -23,21 +23,26 @@ self.addEventListener('push', e => {
 self.addEventListener('notificationclick', e => {
   e.notification.close()
   const intent = e.notification.data?.intent ?? null
-  const url = e.notification.data?.url ?? '/'
+  const orderId = e.notification.data?.orderId ?? null
+  const notes = e.notification.data?.notes ?? null
+  const openUrl = intent ? `/?intent=${intent}` : (e.notification.data?.url ?? '/')
   e.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
       const existing = list.find(c => c.url.includes(self.location.origin))
       if (existing) {
         return existing.focus().then(() => {
-          if (intent) {
+          if (!intent) return
+          const msg = { type: 'navigate', intent, orderId, notes }
+          // Direct postMessage to this client — more reliable than BC when page was backgrounded
+          existing.postMessage(msg)
+          // BC as belt-and-suspenders fallback
+          try {
             const bc = new BroadcastChannel('dentalorder-nav')
-            bc.postMessage({ type: 'navigate', intent, orderId: e.notification.data?.orderId ?? null, notes: e.notification.data?.notes ?? null })
+            bc.postMessage(msg)
             bc.close()
-          }
+          } catch {}
         })
       }
-      // App not open — encode intent in URL so the page reads it on mount
-      const openUrl = intent ? `/?intent=${intent}` : url
       return clients.openWindow(openUrl)
     })
   )

@@ -1211,7 +1211,7 @@ function SupplierMultiSelect({ selected, onChange, options }: {
         <ChevronDown size={13} className="text-slate-400 shrink-0" />
       </button>
       {open && (
-        <div className="absolute top-full left-0 mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg z-30 w-64 animate-slide-in-up">
+        <div className="absolute top-full right-0 mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg z-30 w-64 animate-slide-in-up">
           <div className="p-2 border-b border-slate-100 dark:border-slate-700">
             <input
               autoFocus
