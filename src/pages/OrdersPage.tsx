@@ -6,7 +6,7 @@ import { ShoppingCart, Package, Plus, Minus, CheckCircle, ExternalLink, Check, T
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
 import { useIsDesktop } from '../hooks/useIsDesktop'
 
-interface Props { role: Role | null; user: User; onBadgeChange: (n: number) => void; forceOpenTab?: number; forceScanMode?: number; forceCartTab?: number; forceApprovalTab?: number }
+interface Props { role: Role | null; user: User; onBadgeChange: (n: number) => void; onPendingChange?: (n: number) => void; forceOpenTab?: number; forceScanMode?: number; forceCartTab?: number; forceApprovalTab?: number }
 
 type SupplierRules = {
   delivery_cost: number | null
@@ -39,7 +39,7 @@ function getDomain(url: string | null | undefined): string | null {
   }
 }
 
-export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, forceScanMode, forceCartTab, forceApprovalTab }: Props) {
+export default function OrdersPage({ role, user, onBadgeChange, onPendingChange, forceOpenTab, forceScanMode, forceCartTab, forceApprovalTab }: Props) {
   const isDesktop = useIsDesktop()
   const isPhone = !useIsDesktop(480)
   const [tab, setTab] = useState<'cart' | 'open' | 'approval'>('cart')
@@ -109,7 +109,10 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
 
   useEffect(() => {
     function onVisible() {
-      if (document.visibilityState === 'visible') fetchPendingOrders()
+      if (document.visibilityState === 'visible') {
+        fetchPendingOrders()
+        fetchRejectedOrders()
+      }
     }
     document.addEventListener('visibilitychange', onVisible)
     return () => document.removeEventListener('visibilitychange', onVisible)
@@ -255,10 +258,14 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
   }
 
   useEffect(() => {
-    if (rejectedOrders.length === 0) return
+    if (rejectedOrders.length === 0 || role === 'admin') return
     const reason = rejectedOrders[0].notes?.trim()
     setToast({ message: `Bestellung abgelehnt${reason ? ` – ${reason}` : ''}`, variant: 'error' })
   }, [rejectedOrders])
+
+  useEffect(() => {
+    onPendingChange?.(pendingOrders.length)
+  }, [pendingOrders.length])
 
   function resolveSupplier(preferredSupplier: string | null | undefined, supplierUrl: string | null | undefined, fallback = 'Kein Lieferant'): string {
     if (preferredSupplier) return preferredSupplier
@@ -840,7 +847,7 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
                 className="inline-flex items-center bg-slate-200 dark:bg-slate-600 rounded-full p-0.5 shrink-0"
               >
                 <span className={`p-1.5 rounded-full transition-all ${!scanToggle ? 'bg-white dark:bg-slate-500 shadow text-slate-500 dark:text-slate-300' : 'text-slate-400 dark:text-slate-500'}`}>
-                  <span className="relative inline-flex">
+                  <span className="relative inline-flex w-[14px] h-[14px] overflow-hidden">
                     <ScanLine size={14} />
                     <span className="absolute inset-0 flex items-center justify-center pointer-events-none">
                       <span className="block w-px h-5 bg-current rotate-45 opacity-80" />
@@ -887,10 +894,21 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
       </div>
 
       {/* Freigabe status banner — below tabs, always visible */}
-      {tab === 'cart' && pendingOrders.length > 0 && (
-        <div className="shrink-0 px-4 py-2 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 flex items-center gap-2">
-          <Clock size={13} className="text-amber-500 shrink-0" />
-          <span className="text-sm font-semibold text-amber-700 dark:text-amber-400">Wartet auf Freigabe</span>
+      {tab === 'cart' && (pendingOrders.length > 0 || (role !== 'admin' && rejectedOrders.length > 0)) && (
+        <div className={`shrink-0 px-4 py-2 border-b flex items-center gap-2 ${rejectedOrders.length > 0 && role !== 'admin' ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800'}`}>
+          {rejectedOrders.length > 0 && role !== 'admin' ? (
+            <>
+              <XCircle size={13} className="text-red-500 shrink-0" />
+              <span className="text-sm font-semibold text-red-700 dark:text-red-400">
+                Bestellung abgelehnt{rejectedOrders[0].notes?.trim() ? ` – ${rejectedOrders[0].notes.trim()}` : ''}
+              </span>
+            </>
+          ) : (
+            <>
+              <Clock size={13} className="text-amber-500 shrink-0" />
+              <span className="text-sm font-semibold text-amber-700 dark:text-amber-400">Wartet auf Freigabe</span>
+            </>
+          )}
         </div>
       )}
 
@@ -1540,6 +1558,11 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
               className="flex items-center gap-1 text-sky-300 hover:text-sky-200 transition-colors whitespace-nowrap"
             >
               <Undo2 size={13} /> Rückgängig
+            </button>
+          )}
+          {toast.variant === 'error' && (
+            <button onClick={() => setToast(null)} className="ml-1 text-white/70 hover:text-white transition-colors">
+              <X size={15} />
             </button>
           )}
         </div></div>

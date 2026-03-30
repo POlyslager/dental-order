@@ -213,7 +213,7 @@ export default function Dashboard({ user }: Props) {
           </div>
           <div className={`flex-1 flex flex-col overflow-hidden ${phoneTab !== 'stock' ? '' : 'hidden'}`}>
             <Suspense fallback={<PageSpinner />}>
-              <OrdersPage role={role} user={user} onBadgeChange={setOrderBadge} forceOpenTab={forceOrdersOpenTab} forceScanMode={forceOrdersScanMode} forceCartTab={forceCartTab} forceApprovalTab={forceApprovalTab} />
+              <OrdersPage role={role} user={user} onBadgeChange={setOrderBadge} onPendingChange={setPendingBadge} forceOpenTab={forceOrdersOpenTab} forceScanMode={forceOrdersScanMode} forceCartTab={forceCartTab} forceApprovalTab={forceApprovalTab} />
             </Suspense>
           </div>
         </main>
