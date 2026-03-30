@@ -70,7 +70,6 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
   const ordersRef = useRef<Order[]>([])
   const scannerStartingRef = useRef(false)
   const [einbuchenTorchOn, setEinbuchenTorchOn] = useState(false)
-  const [einbuchenTorchSupported, setEinbuchenTorchSupported] = useState(false)
   const [einbuchenManual, setEinbuchenManual] = useState('')
   const [scanFlashError, setScanFlashError] = useState(false)
   const scanToggleRef = useRef(false)
@@ -425,10 +424,28 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
     setEditSaving(true)
     const n = parseFloat(editForm.price.replace(',', '.'))
     const price = isNaN(n) || n < 0 ? null : n
-    await Promise.all([
+    const updates: Promise<unknown>[] = [
       supabase.from('products').update({ last_price: price }).eq('id', editItem.product_id),
       supabase.from('cart_items').update({ is_edited: true, quantity: editForm.quantity }).eq('id', editItem.id),
-    ])
+    ]
+    // Keep order_items snapshot in sync so admin sees updated quantities in Freigabe
+    for (const order of pendingOrders) {
+      const orderItem = (order.items ?? []).find(i => i.product_id === editItem.product_id)
+      if (orderItem) {
+        updates.push(
+          supabase.from('order_items')
+            .update({ quantity: editForm.quantity, estimated_price: price })
+            .eq('id', orderItem.id)
+        )
+        const newTotal = (order.items ?? []).reduce((s, i) => {
+          const q = i.product_id === editItem.product_id ? editForm.quantity : i.quantity
+          const p = i.product_id === editItem.product_id ? (price ?? 0) : (i.estimated_price ?? 0)
+          return s + q * p
+        }, 0)
+        updates.push(supabase.from('orders').update({ total_estimate: newTotal }).eq('id', order.id))
+      }
+    }
+    await Promise.all(updates)
     await fetchCart()
     setEditSaving(false)
     closeEditPanel()
@@ -695,11 +712,6 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
         },
         () => {}
       )
-      // Detect torch support after scanner is running
-      try {
-        const caps = s.getRunningTrackCameraCapabilities()
-        if (caps.torchFeature().isSupported()) setEinbuchenTorchSupported(true)
-      } catch { /* torch not available */ }
     } catch {
       // Camera error — turn off toggle
       setScanToggle(false)
@@ -735,7 +747,6 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
   function stopInlineScanner() {
     const s = einbuchenScannerRef.current
     einbuchenScannerRef.current = null
-    setEinbuchenTorchSupported(false)
     setEinbuchenTorchOn(false)
     if (s?.isScanning) s.stop().then(() => s.clear()).catch(() => {})
     else s?.clear()
@@ -1649,8 +1660,7 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
               <span className="text-slate-700 dark:text-white text-sm font-medium">Scannen</span>
             </div>
             <div className="flex items-center gap-1">
-              {einbuchenTorchSupported && (
-                <button
+              <button
                   onMouseDown={e => e.stopPropagation()}
                   onTouchStart={e => e.stopPropagation()}
                   onClick={toggleEinbuchenTorch}
@@ -1658,7 +1668,6 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
                 >
                   {einbuchenTorchOn ? <Flashlight size={16} /> : <FlashlightOff size={16} />}
                 </button>
-              )}
               <button
                 onMouseDown={e => e.stopPropagation()}
                 onTouchStart={e => e.stopPropagation()}
