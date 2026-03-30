@@ -42,7 +42,7 @@ function getDomain(url: string | null | undefined): string | null {
 export default function OrdersPage({ role, user, onBadgeChange, onPendingChange, forceOpenTab, forceScanMode, forceCartTab, forceApprovalTab }: Props) {
   const isDesktop = useIsDesktop()
   const isPhone = !useIsDesktop(480)
-  const [tab, setTab] = useState<'cart' | 'open' | 'approval'>('cart')
+  const [tab, setTab] = useState<'cart' | 'open' | 'approval'>(() => forceApprovalTab ? 'approval' : 'cart')
   const [cartItems, setCartItems] = useState<CartItem[]>([])
   const [orders, setOrders] = useState<Order[]>([])
   const [pendingOrders, setPendingOrders] = useState<Order[]>([])

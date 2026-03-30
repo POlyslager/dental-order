@@ -133,10 +133,12 @@ export default function Dashboard({ user }: Props) {
     const params = new URLSearchParams(window.location.search)
     const intent = params.get('intent')
     if (intent === 'approval') {
+      setTab('orders')
       setPhoneTab('approval')
       setForceApprovalTab(c => c + 1)
       window.history.replaceState({}, '', '/')
     } else if (intent === 'cart') {
+      setTab('orders')
       setPhoneTab('cart')
       setForceCartTab(c => c + 1)
       window.history.replaceState({}, '', '/')
@@ -149,9 +151,11 @@ export default function Dashboard({ user }: Props) {
     bc.onmessage = (e) => {
       if (e.data?.type === 'navigate') {
         if (e.data.intent === 'approval') {
+          setTab('orders')
           setPhoneTab('approval')
           setForceApprovalTab(c => c + 1)
         } else if (e.data.intent === 'cart') {
+          setTab('orders')
           setPhoneTab('cart')
           setForceCartTab(c => c + 1)
         }
@@ -626,7 +630,7 @@ export default function Dashboard({ user }: Props) {
                 : <>
                     {tab === 'overview'    && <OverviewPage />}
                     {tab === 'stock'       && <StockPage role={role} initialBarcode={pendingBarcode} onBarcodeConsumed={() => setPendingBarcode(null)} onNavigateToOrders={() => setTab('orders')} />}
-                    {tab === 'orders'      && <OrdersPage role={role} user={user} onBadgeChange={setOrderBadge} forceOpenTab={forceOrdersOpenTab} forceScanMode={forceOrdersScanMode} />}
+                    {tab === 'orders'      && <OrdersPage role={role} user={user} onBadgeChange={setOrderBadge} onPendingChange={setPendingBadge} forceOpenTab={forceOrdersOpenTab} forceScanMode={forceOrdersScanMode} forceCartTab={forceCartTab} forceApprovalTab={forceApprovalTab} />}
                     {tab === 'suppliers'   && <SuppliersPage />}
                     {tab === 'brands'      && <BrandsPage />}
                     {tab === 'categories'  && <CategoriesPage />}
