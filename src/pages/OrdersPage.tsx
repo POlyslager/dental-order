@@ -996,11 +996,11 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
                           </tr>
                           <tr className="border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
                             <th className="text-left text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-4 py-3">Artikel</th>
-                            <th className="text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-4 py-3">Bestand</th>
+                            <th className="hidden lg:table-cell text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-4 py-3">Bestand</th>
                             <th className="text-center text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Menge</th>
-                            <th className="text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Preis/Einheit</th>
+                            <th className="hidden lg:table-cell text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Preis/Einheit</th>
                             <th className="text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Gesamt</th>
-                            <th className="text-left text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Website</th>
+                            <th className="hidden lg:table-cell text-left text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Website</th>
                             <th className="text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Aktion</th>
                           </tr>
                           {items.map(item => (
@@ -1108,7 +1108,7 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
                               <tr className="border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
                                 <th className="text-left text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-4 py-3">Artikel</th>
                                 <th className="text-center text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Menge</th>
-                                <th className={`text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap ${isDesktop ? 'table-cell' : 'hidden'}`}>Preis/Einheit</th>
+                                <th className="hidden lg:table-cell text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Preis/Einheit</th>
                                 <th className="text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Gesamt</th>
                               </tr>
                               {domainItems.map(item => {
@@ -1122,7 +1122,7 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
                                     <td className="px-3 py-3 text-center">
                                       <span className="font-semibold text-slate-800 dark:text-slate-100">{item.quantity}</span>
                                     </td>
-                                    <td className={`px-3 py-3 text-right ${isDesktop ? 'table-cell' : 'hidden'}`}>
+                                    <td className="hidden lg:table-cell px-3 py-3 text-right">
                                       <span className="text-sm text-slate-600 dark:text-slate-300">
                                         {price != null ? `€ ${price.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
                                       </span>
@@ -1649,7 +1649,7 @@ function CartItemRow({ item, placing, requiresApproval, rules, onUpdateQuantity,
         )}
       </td>
       {/* Current stock */}
-      <td className={`px-4 py-3 text-right ${isDesktop ? 'table-cell' : 'hidden'}`}>
+      <td className="hidden lg:table-cell px-4 py-3 text-right">
         <span className="text-sm font-bold text-slate-800 dark:text-slate-100">{item.product?.current_stock ?? '—'}</span>
         {item.product?.unit && <span className="text-xs text-slate-400 dark:text-slate-500 ml-1">{item.product.unit}</span>}
       </td>
@@ -1668,7 +1668,7 @@ function CartItemRow({ item, placing, requiresApproval, rules, onUpdateQuantity,
         </div>
       </td>
       {/* Price */}
-      <td className={`px-3 py-3 text-right w-28 whitespace-nowrap ${isDesktop ? 'table-cell' : 'hidden'}`}>
+      <td className="hidden lg:table-cell px-3 py-3 text-right w-28 whitespace-nowrap">
         {price != null ? (
           <div className="flex flex-col items-end tabular-nums">
             {hasDiscount && (
@@ -1698,7 +1698,7 @@ function CartItemRow({ item, placing, requiresApproval, rules, onUpdateQuantity,
         ) : '—'}
       </td>
       {/* Website link */}
-      <td className={`px-3 py-3 ${isDesktop ? 'table-cell' : 'hidden'}`}>
+      <td className="hidden lg:table-cell px-3 py-3">
         {item.product?.supplier_url ? (
           <a href={item.product.supplier_url} target="_blank" rel="noopener noreferrer"
             onClick={e => e.stopPropagation()}
@@ -1807,10 +1807,10 @@ function OpenOrderSection({ order, isFirstOverall, isFirstInGroup, scannedCounts
       {isFirstInGroup && (
         <tr className="border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
           <th className="text-left text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-4 py-3">Artikel</th>
-          <th className={`text-left text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap ${isDesktop ? 'table-cell' : 'hidden'}`}>Datum</th>
+          <th className="hidden lg:table-cell text-left text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Datum</th>
           <th className="text-center text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Bestellt</th>
           <th className="text-center text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Gescannt</th>
-          <th className={`text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap ${isDesktop ? 'table-cell' : 'hidden'}`}>Preis/Stück</th>
+          <th className="hidden lg:table-cell text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Preis/Stück</th>
           <th className="text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Gesamt</th>
           <th className="text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Aktion</th>
         </tr>
@@ -1827,7 +1827,7 @@ function OpenOrderSection({ order, isFirstOverall, isFirstInGroup, scannedCounts
             <td className="px-4 py-3.5">
               <p className={`text-sm font-semibold truncate max-w-[180px] md:max-w-xs ${done ? 'text-slate-400 dark:text-slate-500' : 'text-slate-800 dark:text-slate-100'}`}>{item.product?.name ?? '—'}</p>
             </td>
-            <td className={`px-3 py-3.5 text-sm text-slate-500 dark:text-slate-400 whitespace-nowrap ${isDesktop ? 'table-cell' : 'hidden'}`}>{orderDate}</td>
+            <td className="hidden lg:table-cell px-3 py-3.5 text-sm text-slate-500 dark:text-slate-400 whitespace-nowrap">{orderDate}</td>
             <td className="px-3 py-3.5 text-center text-slate-500 dark:text-slate-400">{item.quantity}</td>
             <td className="px-3 py-3.5 text-center">
               {done ? (
@@ -1840,7 +1840,7 @@ function OpenOrderSection({ order, isFirstOverall, isFirstInGroup, scannedCounts
                 <span className="text-slate-300 dark:text-slate-600">—</span>
               )}
             </td>
-            <td className={`px-3 py-3.5 text-right text-slate-500 dark:text-slate-400 whitespace-nowrap ${isDesktop ? 'table-cell' : 'hidden'}`}>
+            <td className="hidden lg:table-cell px-3 py-3.5 text-right text-slate-500 dark:text-slate-400 whitespace-nowrap">
               {item.estimated_price != null
                 ? `€ ${item.estimated_price.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                 : '—'}
