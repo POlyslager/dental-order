@@ -130,8 +130,9 @@ export default function Dashboard({ user }: Props) {
   }, [])
 
   useEffect(() => {
-    if (!('serviceWorker' in navigator)) return
-    function onMessage(e: MessageEvent) {
+    if (!('BroadcastChannel' in window)) return
+    const bc = new BroadcastChannel('dentalorder-nav')
+    bc.onmessage = (e) => {
       if (e.data?.type === 'navigate') {
         if (e.data.intent === 'approval') {
           setPhoneTab('approval')
@@ -142,8 +143,7 @@ export default function Dashboard({ user }: Props) {
         }
       }
     }
-    navigator.serviceWorker.addEventListener('message', onMessage)
-    return () => navigator.serviceWorker.removeEventListener('message', onMessage)
+    return () => bc.close()
   }, [])
 
   useEffect(() => {

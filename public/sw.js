@@ -19,12 +19,14 @@ self.addEventListener('notificationclick', e => {
   e.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
       const existing = list.find(c => c.url.includes(self.location.origin))
-      if (existing) {
-        return existing.focus().then(c => {
-          if (intent) c.postMessage({ type: 'navigate', intent })
-        })
-      }
-      return clients.openWindow(url)
+      const action = existing ? existing.focus() : clients.openWindow(url)
+      return action.then(() => {
+        if (intent) {
+          const bc = new BroadcastChannel('dentalorder-nav')
+          bc.postMessage({ type: 'navigate', intent })
+          bc.close()
+        }
+      })
     })
   )
 })
