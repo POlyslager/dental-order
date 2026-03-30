@@ -5,7 +5,7 @@ import { subscribeToPush, unsubscribeFromPush, currentPermission, isPushSupporte
 import type { Role } from '../lib/types'
 import {
   Package, ScanLine, ShoppingCart, Menu, X, Settings,
-  LayoutDashboard, Bell, BellOff, BellRing, ScrollText, LogOut,
+  LayoutDashboard, Bell, BellOff, ScrollText, LogOut,
   ChevronLeft, ChevronRight, PackageMinus, PackagePlus, Check,
   Users, Tag, KeyRound, Database, Factory, Sun, Moon,
 } from 'lucide-react'
@@ -340,9 +340,9 @@ export default function Dashboard({ user }: Props) {
                   <button onClick={async () => { await toggleNotifications() }} className="w-full flex items-center gap-3 px-3 py-3.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
                     <Bell size={20} className="text-slate-500 dark:text-slate-400 shrink-0" />
                     <span className="flex-1 text-sm font-medium text-slate-700 dark:text-slate-200 text-left">Benachrichtigungen</span>
-                    <div className="flex items-center bg-slate-100 dark:bg-slate-700 rounded-full p-0.5 shrink-0 pointer-events-none">
-                      <span className={`p-1.5 rounded-full transition-all ${pushPermission !== 'granted' ? 'bg-white dark:bg-slate-500 shadow text-slate-500 dark:text-slate-300' : 'text-slate-400 dark:text-slate-500'}`}><BellOff size={12} /></span>
-                      <span className={`p-1.5 rounded-full transition-all ${pushPermission === 'granted' ? 'bg-sky-500 shadow text-white' : 'text-slate-400 dark:text-slate-400'}`}><BellRing size={12} /></span>
+                    <div className="flex items-center bg-slate-200 dark:bg-slate-600 rounded-full p-0.5 shrink-0 pointer-events-none">
+                      <span className={`p-1.5 rounded-full transition-all ${pushPermission !== 'granted' ? 'bg-white dark:bg-slate-500 shadow text-slate-500 dark:text-slate-300' : 'text-slate-400 dark:text-slate-500'}`}><BellOff size={14} /></span>
+                      <span className={`p-1.5 rounded-full transition-all ${pushPermission === 'granted' ? 'bg-sky-500 shadow text-white' : 'text-slate-400 dark:text-slate-400'}`}><Bell size={14} /></span>
                     </div>
                   </button>
                 )}
