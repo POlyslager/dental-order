@@ -140,6 +140,7 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
   useEffect(() => {
     if (forceApprovalTab === forceApprovalTabInitRef.current) return
     setTab('approval')
+    fetchPendingOrders()
   }, [forceApprovalTab])
 
   // Keep refs in sync with state so scanner callbacks always see fresh values
@@ -846,12 +847,10 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
                 onClick={e => { e.stopPropagation(); handleToggleScan() }}
                 className="inline-flex items-center bg-slate-200 dark:bg-slate-600 rounded-full p-0.5 shrink-0"
               >
-                <span className={`p-1.5 rounded-full transition-all ${!scanToggle ? 'bg-white dark:bg-slate-500 shadow text-slate-500 dark:text-slate-300' : 'text-slate-400 dark:text-slate-500'}`}>
-                  <span className="relative inline-flex w-[14px] h-[14px] overflow-hidden">
-                    <ScanLine size={14} />
-                    <span className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                      <span className="block w-px h-5 bg-current rotate-45 opacity-80" />
-                    </span>
+                <span className={`relative p-1.5 rounded-full transition-all ${!scanToggle ? 'bg-white dark:bg-slate-500 shadow text-slate-500 dark:text-slate-300' : 'text-slate-400 dark:text-slate-500'}`}>
+                  <ScanLine size={14} />
+                  <span className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <span className="block w-px h-5 bg-current rotate-45 opacity-80" />
                   </span>
                 </span>
                 <span className={`p-1.5 rounded-full transition-all ${scanToggle ? 'bg-emerald-500 shadow text-white' : 'text-slate-400 dark:text-slate-400'}`}>
@@ -877,12 +876,10 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
               onClick={handleToggleScan}
               className="inline-flex items-center bg-slate-200 dark:bg-slate-600 rounded-full p-0.5 cursor-pointer"
             >
-              <span className={`p-1.5 rounded-full transition-all ${!scanToggle ? 'bg-white dark:bg-slate-500 shadow text-slate-500 dark:text-slate-300' : 'text-slate-400 dark:text-slate-500'}`}>
-                <span className="relative inline-flex">
-                  <ScanLine size={14} />
-                  <span className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <span className="block w-px h-5 bg-current rotate-45 opacity-80" />
-                  </span>
+              <span className={`relative p-1.5 rounded-full transition-all ${!scanToggle ? 'bg-white dark:bg-slate-500 shadow text-slate-500 dark:text-slate-300' : 'text-slate-400 dark:text-slate-500'}`}>
+                <ScanLine size={14} />
+                <span className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <span className="block w-px h-5 bg-current rotate-45 opacity-80" />
                 </span>
               </span>
               <span className={`p-1.5 rounded-full transition-all ${scanToggle ? 'bg-emerald-500 shadow text-white' : 'text-slate-400 dark:text-slate-400'}`}>
