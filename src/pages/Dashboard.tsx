@@ -206,8 +206,8 @@ export default function Dashboard({ user }: Props) {
 
   const sidebarItems: { id: Tab; icon: React.ReactNode; label: string; badge?: number }[] = [
     ...(role === 'admin' ? [{ id: 'overview' as Tab, icon: <LayoutDashboard size={20} />, label: 'Dashboard' }] : []),
-    { id: 'orders',     icon: <ShoppingCart size={20} />,  label: 'Bestellungen', badge: orderBadge },
     { id: 'stock',      icon: <Package size={20} />,       label: 'Artikel' },
+    { id: 'orders',     icon: <ShoppingCart size={20} />,  label: 'Bestellungen', badge: orderBadge },
     { id: 'suppliers',  icon: <Users size={20} />,         label: 'Lieferanten' },
     { id: 'brands',     icon: <Factory size={20} />,       label: 'Hersteller' },
     { id: 'categories', icon: <Tag size={20} />,           label: 'Kategorien' },
