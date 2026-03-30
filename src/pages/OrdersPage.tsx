@@ -41,6 +41,7 @@ function getDomain(url: string | null | undefined): string | null {
 
 export default function OrdersPage({ role, user, onBadgeChange, forceOpenTab, forceScanMode, forceCartTab, forceApprovalTab }: Props) {
   const isDesktop = useIsDesktop()
+  const isPhone = !useIsDesktop(480)
   const [tab, setTab] = useState<'cart' | 'open' | 'approval'>('cart')
   const [cartItems, setCartItems] = useState<CartItem[]>([])
   const [orders, setOrders] = useState<Order[]>([])
@@ -835,6 +836,14 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
         )}
       </div>
 
+      {/* Freigabe status banner — below tabs, always visible */}
+      {tab === 'cart' && pendingOrders.length > 0 && (
+        <div className="shrink-0 px-4 py-2 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 flex items-center gap-2">
+          <Clock size={13} className="text-amber-500 shrink-0" />
+          <span className="text-sm font-semibold text-amber-700 dark:text-amber-400">Wartet auf Freigabe</span>
+        </div>
+      )}
+
       <div className="flex-1 overflow-y-auto min-h-0">
         {/* ── Cart tab ── */}
         {tab === 'cart' && (
@@ -1025,13 +1034,6 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
                 </table>
               )}
 
-              {/* Pending approval orders — locked section */}
-              {pendingOrders.length > 0 && (
-                <div className="border-t-2 border-amber-200 px-4 py-3 bg-amber-50 dark:bg-amber-900/20 flex items-center gap-2">
-                  <Clock size={14} className="text-amber-500 shrink-0" />
-                  <span className="text-sm font-semibold text-amber-700 dark:text-amber-400">Wartet auf Freigabe</span>
-                </div>
-              )}
             </div>
           )
         )}
@@ -1246,7 +1248,7 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
               € {grandTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </p>
           </div>
-          <div className={isDesktop ? 'hidden' : 'h-16'} />
+          <div className={isDesktop || isPhone ? 'hidden' : 'h-16'} />
         </div>
       )}
       {tab === 'cart' && cartItems.length > 0 && grandTotal <= 2000 && (
@@ -1258,7 +1260,7 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
             </p>
           </div>
         ) : (
-          <div className="shrink-0 h-16 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 px-4 pt-2.5 flex items-start justify-between">
+          <div className={`shrink-0 ${isPhone ? 'h-12' : 'h-16'} bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 px-4 pt-2.5 flex items-start justify-between`}>
             <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Gesamtsumme Warenkorb</p>
             <p className="text-lg font-bold text-slate-800 dark:text-slate-100">
               € {grandTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}

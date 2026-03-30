@@ -95,7 +95,14 @@ export default function Dashboard({ user }: Props) {
   const [dashToast, setDashToast] = useState<string | null>(null)
   const dashToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [phoneMenuOpen, setPhoneMenuOpen] = useState(false)
+  const [phoneMenuClosing, setPhoneMenuClosing] = useState(false)
   const [phonePinOpen, setPhonePinOpen] = useState(false)
+  const phoneMenuSwipeX = useRef<number | null>(null)
+
+  function closePhoneMenu() {
+    setPhoneMenuClosing(true)
+    setTimeout(() => { setPhoneMenuOpen(false); setPhoneMenuClosing(false) }, 260)
+  }
   function showDashToast(msg: string) {
     if (dashToastTimer.current) clearTimeout(dashToastTimer.current)
     setDashToast(msg)
@@ -297,14 +304,28 @@ export default function Dashboard({ user }: Props) {
 
         {/* Phone hamburger menu */}
         {phoneMenuOpen && (
-          <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={() => setPhoneMenuOpen(false)}>
-            <div className="absolute inset-0 bg-black/40" />
-            <div className="relative bg-white dark:bg-slate-800 rounded-t-2xl shadow-2xl" onClick={e => e.stopPropagation()} style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
-              {/* Handle */}
-              <div className="flex justify-center pt-3 pb-1">
-                <div className="w-10 h-1 rounded-full bg-slate-200 dark:bg-slate-600" />
+          <div className="fixed inset-0 z-50 flex justify-end" onClick={closePhoneMenu}>
+            <div className={`absolute inset-0 bg-black/40 ${phoneMenuClosing ? 'animate-fade-out' : 'animate-fade-in'}`} />
+            <div
+              className={`relative w-72 h-full bg-white dark:bg-slate-800 shadow-2xl flex flex-col ${phoneMenuClosing ? 'animate-slide-out-right' : 'animate-slide-in-right'}`}
+              style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
+              onClick={e => e.stopPropagation()}
+              onTouchStart={e => { phoneMenuSwipeX.current = e.touches[0].clientX }}
+              onTouchEnd={e => {
+                if (phoneMenuSwipeX.current === null) return
+                const dx = e.changedTouches[0].clientX - phoneMenuSwipeX.current
+                phoneMenuSwipeX.current = null
+                if (dx > 50) closePhoneMenu()
+              }}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-4 py-4 border-b border-slate-100 dark:border-slate-700">
+                <span className="font-semibold text-slate-800 dark:text-slate-100">Einstellungen</span>
+                <button onClick={closePhoneMenu} className="p-1.5 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                  <X size={20} />
+                </button>
               </div>
-              <div className="px-4 py-2 space-y-1">
+              <div className="flex-1 overflow-y-auto px-4 py-2 space-y-1">
                 {/* Theme */}
                 <button onClick={() => { toggleTheme() }} className="w-full flex items-center gap-3 px-3 py-3.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
                   {theme === 'dark' ? <Moon size={20} className="text-slate-500 dark:text-slate-400 shrink-0" /> : <Sun size={20} className="text-slate-500 dark:text-slate-400 shrink-0" />}
@@ -326,7 +347,7 @@ export default function Dashboard({ user }: Props) {
                 )}
                 {/* PIN Verwaltung (admin only) */}
                 {role === 'admin' && (
-                  <button onClick={() => { setPhoneMenuOpen(false); setPhonePinOpen(true) }} className="w-full flex items-center gap-3 px-3 py-3.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+                  <button onClick={() => { closePhoneMenu(); setTimeout(() => setPhonePinOpen(true), 260) }} className="w-full flex items-center gap-3 px-3 py-3.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
                     <KeyRound size={20} className="text-slate-500 dark:text-slate-400 shrink-0" />
                     <span className="flex-1 text-sm font-medium text-slate-700 dark:text-slate-200 text-left">PIN-Verwaltung</span>
                   </button>
@@ -337,7 +358,6 @@ export default function Dashboard({ user }: Props) {
                   <span className="flex-1 text-sm font-medium text-red-600 dark:text-red-400 text-left">Abmelden</span>
                 </button>
               </div>
-              <div className="h-2" />
             </div>
           </div>
         )}
