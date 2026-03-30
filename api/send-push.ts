@@ -44,7 +44,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     subs.map(({ subscription }) =>
       webpush.sendNotification(
         subscription,
-        JSON.stringify({ title, body, url: '/orders', intent: intent ?? 'approval' })
+        JSON.stringify({ title, body, url: '/', intent: intent ?? 'approval' })
       ).catch(() => null)
     )
   )

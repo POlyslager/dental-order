@@ -40,7 +40,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const payload = JSON.stringify({
         title: 'Bestellung abgelehnt',
         body,
-        url: '/orders',
+        url: '/',
         intent: 'cart',
         orderId: order_id,
         notes: reason ?? null,
