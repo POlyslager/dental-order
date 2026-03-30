@@ -179,32 +179,40 @@ export default function EntnehmenScanModal({ onClose, onSuccess }: Props) {
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40"
-      onClick={handleDone}
-    >
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={handleDone}>
       <div
-        className="w-full sm:max-w-md bg-white dark:bg-slate-900 rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden max-h-[90dvh]"
+        className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl overflow-hidden"
+        style={{ width: 320 }}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-800 shrink-0">
+        <div className="flex items-center justify-between px-4 py-3 bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-transparent">
           <div className="flex items-center gap-2">
-            <PackageMinus size={16} className="text-slate-400" />
-            <span className="font-semibold text-slate-800 dark:text-slate-100 text-sm">Entnehmen</span>
+            <PackageMinus size={15} className="text-slate-400" />
+            <span className="text-slate-700 dark:text-white text-sm font-medium">Entnehmen</span>
             {sessionLog.length > 0 && (
               <span className="bg-sky-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full leading-none">
                 {sessionLog.length}
               </span>
             )}
           </div>
-          <button onClick={handleDone} className="text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors p-1 rounded">
-            <X size={18} />
-          </button>
+          <div className="flex items-center gap-1">
+            {torchSupported && (
+              <button
+                onClick={toggleTorch}
+                className={`p-1 rounded transition-colors ${torchOn ? 'text-amber-400' : 'text-slate-400 hover:text-slate-700 dark:hover:text-white'}`}
+              >
+                {torchOn ? <Flashlight size={16} /> : <FlashlightOff size={16} />}
+              </button>
+            )}
+            <button onClick={handleDone} className="text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors p-1 rounded">
+              <X size={16} />
+            </button>
+          </div>
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-slate-100 dark:border-slate-800 shrink-0">
+        <div className="flex border-b border-slate-100 dark:border-slate-800">
           <button
             onClick={() => switchMode('scan')}
             className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium border-b-2 transition-colors ${mode === 'scan' ? 'border-sky-500 text-sky-600' : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
@@ -222,13 +230,13 @@ export default function EntnehmenScanModal({ onClose, onSuccess }: Props) {
         {mode === 'scan' ? (
           <>
             {/* Camera */}
-            <div className="relative bg-slate-900 flex-1 min-h-0" style={{ minHeight: 240 }}>
-              <div id={SCAN_DIV} className="w-full h-full" style={{ minHeight: 240 }} />
+            <div className="relative bg-slate-900" style={{ minHeight: 220 }}>
+              <div id={SCAN_DIV} className="w-full" style={{ minHeight: 220 }} />
               {(flashName || scanError) && (
                 <div className={`absolute inset-0 flex flex-col items-center justify-center z-10 ${flashName ? 'bg-emerald-500/90' : 'bg-red-500/80'}`}>
                   {flashName ? (
                     <>
-                      <Check size={32} className="text-white mb-2" />
+                      <Check size={28} className="text-white mb-1.5" />
                       <p className="text-white text-sm font-semibold text-center px-4 leading-snug">{flashName}</p>
                     </>
                   ) : (
@@ -239,23 +247,15 @@ export default function EntnehmenScanModal({ onClose, onSuccess }: Props) {
             </div>
 
             {/* Status bar */}
-            <div className="flex items-center justify-between px-3 py-2.5 bg-slate-100 dark:bg-slate-900 shrink-0">
+            <div className="px-3 py-2 bg-slate-100 dark:bg-slate-900">
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 {taking ? 'Wird eingebucht…' : 'Barcode vor die Kamera halten'}
               </p>
-              {torchSupported && (
-                <button
-                  onClick={toggleTorch}
-                  className={`p-1 rounded transition-colors ${torchOn ? 'text-amber-400' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}
-                >
-                  {torchOn ? <Flashlight size={15} /> : <FlashlightOff size={15} />}
-                </button>
-              )}
             </div>
           </>
         ) : (
           /* Search mode */
-          <div className="flex-1 h-0 overflow-y-auto p-3">
+          <div className="p-3">
             {searchSelected ? (
               <>
                 <button onClick={() => setSearchSelected(null)} className="text-xs text-slate-400 hover:text-slate-600 mb-3 flex items-center gap-1">
@@ -331,7 +331,7 @@ export default function EntnehmenScanModal({ onClose, onSuccess }: Props) {
 
         {/* Session log */}
         {sessionLog.length > 0 && (
-          <div className="border-t border-slate-100 dark:border-slate-700 max-h-36 overflow-y-auto shrink-0">
+          <div className="border-t border-slate-100 dark:border-slate-700 max-h-36 overflow-y-auto">
             {sessionLog.map(entry => (
               <div key={entry.id} className="flex items-center px-3 py-2 gap-2 border-b border-slate-50 dark:border-slate-800 last:border-0">
                 <Check size={12} className="text-emerald-500 shrink-0" />
@@ -350,7 +350,7 @@ export default function EntnehmenScanModal({ onClose, onSuccess }: Props) {
         )}
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 dark:border-slate-700 shrink-0">
+        <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 dark:border-slate-700">
           <span className="text-xs text-slate-400">
             {sessionLog.length > 0 ? `${sessionLog.length} entnommen` : 'Noch nichts entnommen'}
           </span>
