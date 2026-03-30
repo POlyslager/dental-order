@@ -461,6 +461,18 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
       const productIds = order.items.map(i => i.product_id)
       await supabase.from('cart_items').delete().in('product_id', productIds)
     }
+    if (order?.created_by) {
+      const fmt = (order.total_estimate ?? 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      fetch('/api/send-push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_ids: [order.created_by],
+          title: `Bestellung freigegeben — € ${fmt}`,
+          body: order.supplier ?? 'Bestellung wurde genehmigt',
+        }),
+      }).catch(() => null)
+    }
     setPendingOrders(prev => prev.filter(o => o.id !== orderId))
     setApprovingOrder(null)
     showToast('Bestellung freigegeben')
@@ -479,10 +491,23 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
   async function confirmReject() {
     if (!rejectModal) return
     setRejecting(true)
-    const { orderId } = rejectModal
+    const { orderId, supplier } = rejectModal
+    const order = pendingOrders.find(o => o.id === orderId)
     await supabase.from('orders')
       .update({ status: 'rejected', ...(rejectReason.trim() ? { notes: rejectReason.trim() } : {}) })
       .eq('id', orderId)
+    if (order?.created_by) {
+      const body = rejectReason.trim() ? `${supplier} – ${rejectReason.trim()}` : supplier
+      fetch('/api/send-push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_ids: [order.created_by],
+          title: 'Bestellung abgelehnt',
+          body,
+        }),
+      }).catch(() => null)
+    }
     // Cart items were never removed — they remain in the cart automatically
     setPendingOrders(prev => prev.filter(o => o.id !== orderId))
     setRejecting(false)

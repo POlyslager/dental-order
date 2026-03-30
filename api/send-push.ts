@@ -12,32 +12,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'OPTIONS') return res.status(200).end()
   if (req.method !== 'POST') return res.status(405).end()
 
-  const { total, supplier, needs_approval } = req.body
+  const { total, supplier, needs_approval, title: customTitle, body: customBody, user_ids } = req.body
 
   const supabase = createClient(
     process.env.VITE_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const { data: admins } = await supabase.from('profiles').select('id').eq('role', 'admin')
-  if (!admins?.length) return res.json({ sent: 0 })
+  let targetIds: string[]
+  if (user_ids?.length) {
+    targetIds = user_ids
+  } else {
+    const { data: admins } = await supabase.from('profiles').select('id').eq('role', 'admin')
+    if (!admins?.length) return res.json({ sent: 0 })
+    targetIds = admins.map((a: { id: string }) => a.id)
+  }
 
   const { data: subs } = await supabase
     .from('push_subscriptions')
     .select('subscription')
-    .in('user_id', admins.map((a: { id: string }) => a.id))
+    .in('user_id', targetIds)
 
   if (!subs?.length) return res.json({ sent: 0 })
 
-  const title = needs_approval
+  const title = customTitle ?? (needs_approval
     ? `Bestellung: Genehmigung nötig — € ${Math.round(total)}`
-    : `Neue Bestellung — € ${Math.round(total)}`
+    : `Neue Bestellung — € ${Math.round(total)}`)
+  const body = customBody ?? supplier ?? 'Bestellung aufgegeben'
 
   await Promise.all(
     subs.map(({ subscription }) =>
       webpush.sendNotification(
         subscription,
-        JSON.stringify({ title, body: supplier ?? 'Bestellung aufgegeben', url: '/orders' })
+        JSON.stringify({ title, body, url: '/orders' })
       ).catch(() => null)
     )
   )
