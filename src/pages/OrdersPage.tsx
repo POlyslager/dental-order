@@ -148,6 +148,17 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
     return () => document.removeEventListener('visibilitychange', onVisible)
   }, [])
 
+  // Poll every 15 s — realtime is unreliable under RLS so we keep all devices in sync via DB
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchPendingOrders()
+        fetchRejectedOrders()
+      }
+    }, 15_000)
+    return () => clearInterval(id)
+  }, [])
+
   useEffect(() => {
     if (forceOpenTab === forceOpenTabInitRef.current) return
     setTab('open')
@@ -269,7 +280,13 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
       .select('id, status, supplier, total_estimate, created_at, created_by, items:order_items(id, order_id, product_id, quantity, estimated_price, product:products(id, name, barcode, preferred_supplier, supplier_url, brand))')
       .eq('status', 'pending_approval')
       .order('created_at', { ascending: false })
-    setPendingOrders(((data as unknown as Order[]) ?? []).filter(o => (o.items ?? []).length > 0))
+    const seen = new Set<string>()
+    const unique = ((data as unknown as Order[]) ?? []).filter(o => {
+      if (seen.has(o.id)) return false
+      seen.add(o.id)
+      return (o.items ?? []).length > 0
+    })
+    setPendingOrders(unique)
     setPendingLoaded(true)
   }
 
