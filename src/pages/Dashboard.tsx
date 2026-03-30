@@ -182,7 +182,7 @@ export default function Dashboard({ user }: Props) {
 
         {/* Content — stock and orders kept mounted to preserve state */}
         <main className="flex-1 min-h-0 flex flex-col overflow-hidden">
-          <div className={`flex-1 overflow-y-auto ${phoneTab === 'stock' ? '' : 'hidden'}`}>
+          <div className={`flex-1 min-h-0 flex flex-col ${phoneTab === 'stock' ? '' : 'hidden'}`}>
             <Suspense fallback={<PageSpinner />}>
               <StockPage role={role} initialBarcode={pendingBarcode} onBarcodeConsumed={() => setPendingBarcode(null)} onNavigateToOrders={() => { setPhoneTab('cart'); setForceCartTab(c => c + 1) }} />
             </Suspense>

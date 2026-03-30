@@ -629,8 +629,13 @@ useEffect(() => {
     availableBrands: brandOptions,
   } : null
 
+  const listScrollRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    listScrollRef.current?.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior })
+  }, [page])
+
   return (
-    <div className="w-full relative">
+    <div className={`w-full relative ${isDesktop ? '' : 'flex flex-col flex-1 min-h-0'}`}>
       {/* Lagergesundheit stat bar */}
       {products.length > 0 && (() => {
         const stats = [
@@ -767,13 +772,14 @@ useEffect(() => {
       </div>
 
       {/* Mobile header */}
-      <div className={`${isDesktop ? 'hidden' : 'flex'} border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 sticky top-0 z-10`}>
+      <div className={`${isDesktop ? 'hidden' : 'flex'} border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shrink-0`}>
         <ColHeader label="Artikel"  col="name"          onClick={toggleSort} SortIcon={SortIcon} className="flex-1" />
         <ColHeader label="Bestand"  col="current_stock" onClick={toggleSort} SortIcon={SortIcon} align="right" className="w-24" />
         <ColHeader label="Status"   col="status"        onClick={toggleSort} SortIcon={SortIcon} className="w-28" />
       </div>
 
       {/* Rows */}
+      <div ref={listScrollRef} className={isDesktop ? '' : 'flex-1 overflow-y-auto min-h-0'}>
       <div className="divide-y divide-slate-100 dark:divide-slate-800">
         {paginated.map(p => (
           <div
@@ -835,10 +841,11 @@ useEffect(() => {
           <p className="px-4 py-12 text-center text-slate-400 dark:text-slate-500 text-sm">Keine Artikel gefunden</p>
         )}
       </div>
+      </div>
 
       {/* Pagination — mobile */}
       {totalPages > 1 && !isDesktop && (
-        <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 sticky bottom-0 z-10">
+        <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0">
           <button
             onClick={() => setPage(p => Math.max(1, p - 1))}
             disabled={page === 1}
