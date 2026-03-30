@@ -1296,7 +1296,7 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
                 € {total.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
             </div>
-            <div className={isDesktop ? 'hidden' : 'h-20'} />
+            <div className={isDesktop || isPhone ? 'hidden' : 'h-16'} />
           </div>
         )
       })()}
@@ -1310,7 +1310,7 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
                 € {openTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
             </div>
-            <div className={isDesktop ? 'hidden' : 'h-20'} />
+            <div className={isDesktop || isPhone ? 'hidden' : 'h-16'} />
           </div>
         )
       })()}
