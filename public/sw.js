@@ -7,18 +7,23 @@ self.addEventListener('push', e => {
       body: data.body ?? '',
       icon: '/icon-192.png',
       badge: '/icon-192.png',
-      data: { url: data.url ?? '/' },
+      data: { url: data.url ?? '/', intent: data.intent ?? 'approval' },
     })
   )
 })
 
 self.addEventListener('notificationclick', e => {
   e.notification.close()
+  const intent = e.notification.data?.intent ?? null
   const url = e.notification.data?.url ?? '/'
   e.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
       const existing = list.find(c => c.url.includes(self.location.origin))
-      if (existing) return existing.focus().then(c => c.navigate(url))
+      if (existing) {
+        return existing.focus().then(c => {
+          if (intent) c.postMessage({ type: 'navigate', intent })
+        })
+      }
       return clients.openWindow(url)
     })
   )

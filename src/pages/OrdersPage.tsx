@@ -108,6 +108,14 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
   }, [])
 
   useEffect(() => {
+    function onVisible() {
+      if (document.visibilityState === 'visible') fetchPendingOrders()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [])
+
+  useEffect(() => {
     if (forceOpenTab === forceOpenTabInitRef.current) return
     setTab('open')
   }, [forceOpenTab])

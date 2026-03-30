@@ -130,6 +130,18 @@ export default function Dashboard({ user }: Props) {
   }, [])
 
   useEffect(() => {
+    if (!('serviceWorker' in navigator)) return
+    function onMessage(e: MessageEvent) {
+      if (e.data?.type === 'navigate' && e.data.intent === 'approval') {
+        setPhoneTab('approval')
+        setForceApprovalTab(c => c + 1)
+      }
+    }
+    navigator.serviceWorker.addEventListener('message', onMessage)
+    return () => navigator.serviceWorker.removeEventListener('message', onMessage)
+  }, [])
+
+  useEffect(() => {
     function check() {
       setIsDesktop(window.innerWidth >= 500)
       setIsPhone(window.innerWidth < 480)
