@@ -1128,13 +1128,13 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
                               </div>
                             </td>
                           </tr>
-                          <tr className="border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+                          <tr className="border-b border-slate-200 dark:border-slate-700 bg-sky-50 dark:bg-sky-900/20">
                             <th className="text-left text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-4 py-3">Artikel</th>
                             <th className="hidden lg:table-cell text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-4 py-3">Bestand</th>
-                            <th className="text-center text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Menge</th>
-                            <th className="hidden lg:table-cell text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Preis/Einheit</th>
-                            <th className="text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Gesamt</th>
-                            <th className="text-center text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Web</th>
+                            <th className="text-center text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-2 py-3 whitespace-nowrap">Menge</th>
+                            <th className="text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-2 py-3 whitespace-nowrap">Preis</th>
+                            <th className="text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-2 py-3 whitespace-nowrap">Gesamt</th>
+                            <th className="text-center text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-2 py-3 w-10">Web</th>
                             <th className="text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Aktion</th>
                           </tr>
                           {items.map(item => (
@@ -1211,29 +1211,29 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
                                   </div>
                                 </td>
                               </tr>
-                              <tr className="border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+                              <tr className="border-b border-slate-200 dark:border-slate-700 bg-sky-50 dark:bg-sky-900/20">
                                 <th className="text-left text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-4 py-3">Artikel</th>
-                                <th className="text-center text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Menge</th>
-                                <th className="hidden lg:table-cell text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Preis/Einheit</th>
-                                <th className="text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Gesamt</th>
+                                <th className="text-center text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-2 py-3 whitespace-nowrap">Menge</th>
+                                <th className="text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-2 py-3 whitespace-nowrap">Preis</th>
+                                <th className="text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-2 py-3 whitespace-nowrap">Gesamt</th>
                               </tr>
-                              {domainItems.map(item => {
+                              {domainItems.map((item, rowIdx) => {
                                 const price = item.estimated_price
                                 const rowTotal = item.quantity * (price ?? 0)
                                 return (
-                                  <tr key={item.id} className="bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors border-b border-slate-100 dark:border-slate-800">
+                                  <tr key={item.id} className={`hover:bg-amber-50/60 dark:hover:bg-slate-800 transition-colors border-b border-slate-100 dark:border-slate-800 ${rowIdx % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50/80 dark:bg-slate-800/40'}`}>
                                     <td className="px-4 py-3">
                                       <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate max-w-[160px]">{item.product?.name ?? '—'}</p>
                                     </td>
-                                    <td className="px-3 py-3 text-center">
+                                    <td className="px-2 py-3 text-center">
                                       <span className="font-semibold text-slate-800 dark:text-slate-100">{item.quantity}</span>
                                     </td>
-                                    <td className="hidden lg:table-cell px-3 py-3 text-right">
+                                    <td className="px-2 py-3 text-right">
                                       <span className="text-sm text-slate-600 dark:text-slate-300">
                                         {price != null ? `€ ${price.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
                                       </span>
                                     </td>
-                                    <td className="px-3 py-3 text-right font-semibold text-slate-800 dark:text-slate-100 whitespace-nowrap">
+                                    <td className="px-2 py-3 text-right font-semibold text-slate-800 dark:text-slate-100 whitespace-nowrap">
                                       {price != null ? `€ ${rowTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
                                     </td>
                                   </tr>
@@ -1748,7 +1748,7 @@ function CartItemRow({ item, placing, requiresApproval, rules, onUpdateQuantity,
   const cheaperAlts = (alternatives ?? []).filter(a => price != null && a.price < price)
 
   return (
-    <tr className="bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors border-b border-slate-100 dark:border-slate-800">
+    <tr className="bg-white dark:bg-slate-900 hover:bg-amber-50/60 dark:hover:bg-slate-800 transition-colors border-b border-slate-100 dark:border-slate-800">
       <td className="px-4 py-3">
         <div className="flex items-center gap-2">
           <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate max-w-[160px] md:max-w-xs">{item.product?.name}</p>
@@ -1772,7 +1772,7 @@ function CartItemRow({ item, placing, requiresApproval, rules, onUpdateQuantity,
         {item.product?.unit && <span className="text-xs text-slate-400 dark:text-slate-500 ml-1">{item.product.unit}</span>}
       </td>
       {/* Order quantity */}
-      <td className="px-3 py-3">
+      <td className="px-2 py-3">
         <div className="flex items-center gap-1 justify-center">
           <button onClick={() => onUpdateQuantity(item.id, item.quantity - 1)} disabled={item.quantity === 0}
             className="w-6 h-6 flex items-center justify-center rounded-md bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors disabled:opacity-30">
@@ -1786,7 +1786,7 @@ function CartItemRow({ item, placing, requiresApproval, rules, onUpdateQuantity,
         </div>
       </td>
       {/* Price */}
-      <td className="hidden lg:table-cell px-3 py-3 text-right w-28 whitespace-nowrap">
+      <td className="px-2 py-3 text-right w-24 whitespace-nowrap">
         {price != null ? (
           <div className="flex flex-col items-end tabular-nums">
             {hasDiscount && (
@@ -1801,7 +1801,7 @@ function CartItemRow({ item, placing, requiresApproval, rules, onUpdateQuantity,
         ) : '—'}
       </td>
       {/* Row total */}
-      <td className="px-3 py-3 text-right w-32 whitespace-nowrap">
+      <td className="px-2 py-3 text-right w-24 whitespace-nowrap">
         {price != null ? (
           <div className="flex flex-col items-end tabular-nums">
             {hasDiscount && (
@@ -1816,12 +1816,12 @@ function CartItemRow({ item, placing, requiresApproval, rules, onUpdateQuantity,
         ) : '—'}
       </td>
       {/* Website */}
-      <td className="px-3 py-3 text-center">
+      <td className="px-2 py-3 text-center w-10">
         {item.product?.supplier_url ? (
           <a href={item.product.supplier_url} target="_blank" rel="noopener noreferrer"
             onClick={e => e.stopPropagation()} title="Website öffnen"
-            className="w-9 h-9 inline-flex items-center justify-center rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors">
-            <ExternalLink size={16} />
+            className="w-7 h-7 inline-flex items-center justify-center rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors">
+            <ExternalLink size={13} />
           </a>
         ) : (
           <span className="text-slate-300 dark:text-slate-600">—</span>
@@ -1921,31 +1921,31 @@ function OpenOrderSection({ order, isFirstOverall, isFirstInGroup, scannedCounts
 
       {/* Column headers — only once per supplier group */}
       {isFirstInGroup && (
-        <tr className="border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+        <tr className="border-b border-slate-200 dark:border-slate-700 bg-sky-50 dark:bg-sky-900/20">
           <th className="text-left text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-4 py-3">Artikel</th>
           <th className="hidden lg:table-cell text-left text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Datum</th>
-          <th className="text-center text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Bestellt</th>
-          <th className="text-center text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Gescannt</th>
-          <th className="hidden lg:table-cell text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Preis/Stück</th>
-          <th className="text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Gesamt</th>
+          <th className="text-center text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-2 py-3 whitespace-nowrap">Bestellt</th>
+          <th className="text-center text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-2 py-3 whitespace-nowrap">Gescannt</th>
+          <th className="text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-2 py-3 whitespace-nowrap">Preis/Stück</th>
+          <th className="text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-2 py-3 whitespace-nowrap">Gesamt</th>
           <th className="text-right text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Aktion</th>
         </tr>
       )}
 
       {/* Item rows */}
-      {items.map(item => {
+      {items.map((item, rowIdx) => {
         const scanned = scannedCounts[item.id] ?? 0
         const done = scanned >= item.quantity
         const rowTotal = item.quantity * (item.estimated_price ?? 0)
         const orderDate = new Date(order.created_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
         return (
-          <tr key={item.id} className={`border-b border-slate-100 dark:border-slate-800 transition-colors ${done ? 'bg-emerald-50/50 dark:bg-emerald-900/10' : 'bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
+          <tr key={item.id} className={`border-b border-slate-100 dark:border-slate-800 transition-colors ${done ? 'bg-emerald-50/60 dark:bg-emerald-900/10' : rowIdx % 2 === 0 ? 'bg-white dark:bg-slate-900 hover:bg-amber-50/60 dark:hover:bg-slate-800' : 'bg-slate-50/80 dark:bg-slate-800/40 hover:bg-amber-50/60 dark:hover:bg-slate-800'}`}>
             <td className="px-4 py-3.5">
               <p className={`text-sm font-semibold truncate max-w-[180px] md:max-w-xs ${done ? 'text-slate-400 dark:text-slate-500' : 'text-slate-800 dark:text-slate-100'}`}>{item.product?.name ?? '—'}</p>
             </td>
             <td className="hidden lg:table-cell px-3 py-3.5 text-sm text-slate-500 dark:text-slate-400 whitespace-nowrap">{orderDate}</td>
-            <td className="px-3 py-3.5 text-center text-slate-500 dark:text-slate-400">{item.quantity}</td>
-            <td className="px-3 py-3.5 text-center">
+            <td className="px-2 py-3.5 text-center text-slate-500 dark:text-slate-400">{item.quantity}</td>
+            <td className="px-2 py-3.5 text-center">
               {done ? (
                 <span className="inline-flex items-center justify-center gap-1 text-slate-500 dark:text-slate-400 font-semibold">
                   <Check size={12} className="text-emerald-600" /> {item.quantity}
@@ -1956,20 +1956,20 @@ function OpenOrderSection({ order, isFirstOverall, isFirstInGroup, scannedCounts
                 <span className="text-slate-300 dark:text-slate-600">—</span>
               )}
             </td>
-            <td className="hidden lg:table-cell px-3 py-3.5 text-right text-slate-500 dark:text-slate-400 whitespace-nowrap">
+            <td className="px-2 py-3.5 text-right text-slate-500 dark:text-slate-400 whitespace-nowrap">
               {item.estimated_price != null
                 ? `€ ${item.estimated_price.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                 : '—'}
             </td>
-            <td className="px-3 py-3.5 text-right font-semibold text-slate-800 dark:text-slate-100 whitespace-nowrap">
+            <td className="px-2 py-3.5 text-right font-semibold text-slate-800 dark:text-slate-100 whitespace-nowrap">
               {item.estimated_price != null
                 ? `€ ${rowTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                 : '—'}
             </td>
             <td className="px-3 py-3.5 text-right">
               {done ? (
-                <span className="flex items-center justify-end gap-1.5 text-xs text-emerald-600 font-medium">
-                  <Check size={13} /> Erhalten
+                <span className="flex items-center justify-end gap-1 text-xs text-emerald-600 font-medium whitespace-nowrap">
+                  <Check size={12} /> Erhalten
                 </span>
               ) : (
                 <button
