@@ -1230,7 +1230,7 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
       {/* ── Sticky footer ── */}
       {tab === 'cart' && cartItems.length > 0 && grandTotal > 2000 && (
         <div className="shrink-0 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700">
-          <div className="px-4 py-4 flex items-center justify-between gap-4">
+          <div className="px-4 py-3 flex items-center justify-between gap-4">
             <button
               onClick={submitCartForApproval}
               disabled={submittingApproval || pendingOrders.length > 0 || rejectedOrders.length > 0}
@@ -1246,7 +1246,7 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
               € {grandTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </p>
           </div>
-          <div className={isDesktop ? 'hidden' : 'h-20'} />
+          <div className={isDesktop ? 'hidden' : 'h-16'} />
         </div>
       )}
       {tab === 'cart' && cartItems.length > 0 && grandTotal <= 2000 && (
@@ -1258,7 +1258,7 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
             </p>
           </div>
         ) : (
-          <div className="shrink-0 h-20 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 px-4 pt-3 flex items-start justify-between">
+          <div className="shrink-0 h-16 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 px-4 pt-2.5 flex items-start justify-between">
             <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Gesamtsumme Warenkorb</p>
             <p className="text-lg font-bold text-slate-800 dark:text-slate-100">
               € {grandTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
