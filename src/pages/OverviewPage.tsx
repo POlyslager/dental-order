@@ -152,6 +152,20 @@ export default function OverviewPage() {
   }, [orderItems, months12])
   const maxSpend = useMemo(() => Math.max(...monthlySpend.map(d => d.value), 1), [monthlySpend])
 
+  // ── Retracted approvals per month ─────────────────────────────────────────
+  const retractedByMonth = useMemo(() => {
+    const seen = new Map<string, string>() // order_id → month_key
+    for (const oi of orderItems) {
+      if (oi.orders?.status === 'retracted' && oi.orders?.id) {
+        seen.set(oi.orders.id, monthKey(oi.orders.created_at))
+      }
+    }
+    const counts: Record<string, number> = {}
+    seen.forEach(mk => { counts[mk] = (counts[mk] ?? 0) + 1 })
+    return months12.map(m => ({ label: m.label, value: counts[m.key] ?? 0 }))
+  }, [orderItems, months12])
+  const maxRetracted = useMemo(() => Math.max(...retractedByMonth.map(d => d.value), 1), [retractedByMonth])
+
   // ── Avg order value per month (received orders) ────────────────────────────
   const avgOrderValueByMonth = useMemo(() => {
     const map: Record<string, { total: number; orderIds: Set<string> }> = {}
@@ -668,6 +682,19 @@ export default function OverviewPage() {
                     )}
                   </div>
                 ))}
+              </div>
+            </Card>
+
+            {/* Zurückgezogene Freigaben */}
+            <Card title="Zurückgezogene Freigaben" className="col-span-2 lg:col-span-1" tooltip="Anzahl der Bestellungen, die zur Freigabe eingereicht, aber vor der Genehmigung zurückgezogen wurden – z.B. weil der Betrag nachträglich unter die Schwelle von €2.000 gesenkt wurde. Häufige Einträge können auf Missbrauch hinweisen.">
+              <div className="px-4 pb-4">
+                <VerticalBars
+                  data={retractedByMonth}
+                  max={maxRetracted}
+                  barColor="#f97316"
+                  formatValue={v => String(v)}
+                  empty="Keine zurückgezogenen Freigaben"
+                />
               </div>
             </Card>
 
