@@ -809,16 +809,21 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
         <TabButton active={tab === 'open'} onClick={() => setTab('open')} badge={openCount}>
           <span className="whitespace-nowrap flex items-center gap-1.5">
             Offen
-            <span
-              role="switch"
-              aria-checked={scanToggle}
-              onClick={e => { e.stopPropagation(); handleToggleScan() }}
-              className="inline-flex items-center bg-slate-200 dark:bg-slate-600 rounded-full p-0.5 shrink-0"
-            >
-              <span className={`p-1.5 rounded-full transition-all ${scanToggle ? 'bg-emerald-500 text-white shadow' : 'bg-white dark:bg-slate-500 text-slate-500 dark:text-slate-300 shadow-sm'}`}>
-                <ScanLine size={14} />
+            {isPhone && (
+              <span
+                role="switch"
+                aria-checked={scanToggle}
+                onClick={e => { e.stopPropagation(); handleToggleScan() }}
+                className="inline-flex items-center bg-slate-200 dark:bg-slate-600 rounded-full p-0.5 shrink-0"
+              >
+                <span className={`p-1.5 rounded-full transition-all ${!scanToggle ? 'bg-white dark:bg-slate-500 shadow text-slate-500 dark:text-slate-300' : 'text-slate-400 dark:text-slate-500'}`}>
+                  <ScanLine size={14} />
+                </span>
+                <span className={`p-1.5 rounded-full transition-all ${scanToggle ? 'bg-emerald-500 shadow text-white' : 'text-slate-400 dark:text-slate-400'}`}>
+                  <ScanLine size={14} />
+                </span>
               </span>
-            </span>
+            )}
           </span>
         </TabButton>
         {role === 'admin' && (
@@ -828,6 +833,23 @@ const [domainToSupplier, setDomainToSupplier] = useState<Record<string, string>>
               <span className="whitespace-nowrap">Zur Freigabe</span>
             </TabButton>
           </span>
+        )}
+        {!isPhone && tab === 'open' && (
+          <div className="ml-auto flex items-center gap-2 shrink-0">
+            <span
+              role="switch"
+              aria-checked={scanToggle}
+              onClick={handleToggleScan}
+              className="inline-flex items-center bg-slate-200 dark:bg-slate-600 rounded-full p-0.5 cursor-pointer"
+            >
+              <span className={`p-1.5 rounded-full transition-all ${!scanToggle ? 'bg-white dark:bg-slate-500 shadow text-slate-500 dark:text-slate-300' : 'text-slate-400 dark:text-slate-500'}`}>
+                <ScanLine size={14} />
+              </span>
+              <span className={`p-1.5 rounded-full transition-all ${scanToggle ? 'bg-emerald-500 shadow text-white' : 'text-slate-400 dark:text-slate-400'}`}>
+                <ScanLine size={14} />
+              </span>
+            </span>
+          </div>
         )}
       </div>
 
