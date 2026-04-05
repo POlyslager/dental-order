@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
 import { supabase } from '../lib/supabase'
 import type { Product } from '../lib/types'
-import { X, Camera, Search, Minus, Plus, PackageMinus, Flashlight, FlashlightOff, RotateCcw, Check } from 'lucide-react'
+import { X, Camera, Search, Minus, Plus, PackageMinus, Flashlight, FlashlightOff, RotateCcw, Check, ArrowLeft } from 'lucide-react'
 
 const SCAN_FORMATS = [
   Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8,
@@ -17,9 +17,10 @@ type SessionEntry = { id: string; name: string; qty: number; productId: string }
 interface Props {
   onClose: () => void
   onSuccess: (summary: string) => void
+  onAddWithBarcode?: (barcode: string) => void
 }
 
-export default function EntnehmenScanModal({ onClose, onSuccess }: Props) {
+export default function EntnehmenScanModal({ onClose, onSuccess, onAddWithBarcode }: Props) {
   const [mode, setMode] = useState<'scan' | 'search'>('scan')
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<Product[]>([])
@@ -35,6 +36,12 @@ export default function EntnehmenScanModal({ onClose, onSuccess }: Props) {
   const [scanError, setScanError] = useState<string | null>(null)
   const [sessionLog, setSessionLog] = useState<SessionEntry[]>([])
 
+  const [unknownBarcode, setUnknownBarcode] = useState<string | null>(null)
+  const [linkMode, setLinkMode] = useState(false)
+  const [linkQuery, setLinkQuery] = useState('')
+  const [linkResults, setLinkResults] = useState<Product[]>([])
+  const [linking, setLinking] = useState(false)
+
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const startTokenRef = useRef(0)
 
@@ -42,7 +49,7 @@ export default function EntnehmenScanModal({ onClose, onSuccess }: Props) {
     if (!query.trim()) { setResults([]); return }
     const t = setTimeout(async () => {
       const { data } = await supabase
-        .from('products').select('id, name, article_number, current_stock, min_stock, unit')
+        .from('products').select('id, name, article_number, current_stock, min_stock, unit, brand, preferred_supplier, last_price, category')
         .or(`name.ilike.%${query}%,article_number.ilike.%${query}%`)
         .gt('current_stock', 0)
         .order('name').limit(8)
@@ -50,6 +57,18 @@ export default function EntnehmenScanModal({ onClose, onSuccess }: Props) {
     }, 300)
     return () => clearTimeout(t)
   }, [query])
+
+  useEffect(() => {
+    if (!linkMode || !linkQuery.trim()) { setLinkResults([]); return }
+    const t = setTimeout(async () => {
+      const { data } = await supabase
+        .from('products').select('id, name, article_number, current_stock, unit, brand, preferred_supplier, last_price, category')
+        .or(`name.ilike.%${linkQuery}%,article_number.ilike.%${linkQuery}%`)
+        .order('name').limit(10)
+      setLinkResults((data as Product[]) ?? [])
+    }, 300)
+    return () => clearTimeout(t)
+  }, [linkQuery, linkMode])
 
   async function startScanner() {
     const token = ++startTokenRef.current
@@ -82,8 +101,7 @@ export default function EntnehmenScanModal({ onClose, onSuccess }: Props) {
             .eq('barcode', barcode).maybeSingle()
 
           if (!data) {
-            setScanError(`Barcode nicht gefunden`)
-            setTimeout(() => { setScanError(null); startScanner() }, 2000)
+            setUnknownBarcode(barcode)
             return
           }
           if ((data as Product).current_stock <= 0) {
@@ -172,6 +190,29 @@ export default function EntnehmenScanModal({ onClose, onSuccess }: Props) {
     setSessionLog(prev => prev.filter(e => e.id !== entry.id))
   }
 
+  async function linkBarcodeToProduct(product: Product) {
+    if (!unknownBarcode) return
+    setLinking(true)
+    const { error } = await supabase.from('products').update({ barcode: unknownBarcode }).eq('id', product.id)
+    setLinking(false)
+    if (!error) {
+      setUnknownBarcode(null)
+      setLinkMode(false)
+      setLinkQuery('')
+      setLinkResults([])
+      setFlashName(`${product.name} – Barcode verknüpft`)
+      setTimeout(() => { setFlashName(null); startScanner() }, 1800)
+    }
+  }
+
+  function dismissUnknownBarcode() {
+    setUnknownBarcode(null)
+    setLinkMode(false)
+    setLinkQuery('')
+    setLinkResults([])
+    startScanner()
+  }
+
   function handleDone() {
     if (sessionLog.length === 0) { onClose(); return }
     if (sessionLog.length === 1) onSuccess(sessionLog[0].name)
@@ -229,29 +270,107 @@ export default function EntnehmenScanModal({ onClose, onSuccess }: Props) {
 
         {mode === 'scan' ? (
           <>
-            {/* Camera */}
-            <div className="relative bg-slate-900" style={{ minHeight: 220 }}>
-              <div id={SCAN_DIV} className="w-full" style={{ minHeight: 220 }} />
-              {(flashName || scanError) && (
-                <div className={`absolute inset-0 flex flex-col items-center justify-center z-10 ${flashName ? 'bg-emerald-500/90' : 'bg-red-500/80'}`}>
-                  {flashName ? (
-                    <>
-                      <Check size={28} className="text-white mb-1.5" />
-                      <p className="text-white text-sm font-semibold text-center px-4 leading-snug">{flashName}</p>
-                    </>
-                  ) : (
-                    <p className="text-white text-sm font-medium text-center px-4">{scanError}</p>
-                  )}
-                </div>
-              )}
-            </div>
+            {unknownBarcode ? (
+              /* Unknown barcode — choice or link search */
+              <div className="bg-slate-900 px-4 py-5" style={{ minHeight: 220 }}>
+                {!linkMode ? (
+                  <div className="flex flex-col gap-3 justify-center" style={{ minHeight: 180 }}>
+                    <div className="text-center">
+                      <p className="text-white text-sm font-semibold mb-1">Barcode nicht gefunden</p>
+                      <p className="text-slate-400 text-xs font-mono truncate">{unknownBarcode}</p>
+                    </div>
+                    {onAddWithBarcode && (
+                      <button
+                        onClick={() => { onAddWithBarcode(unknownBarcode); onClose() }}
+                        className="w-full bg-sky-500 hover:bg-sky-600 text-white rounded-xl py-2.5 text-sm font-medium transition-colors"
+                      >
+                        Neuen Artikel anlegen
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setLinkMode(true)}
+                      className="w-full bg-slate-700 hover:bg-slate-600 text-white rounded-xl py-2.5 text-sm font-medium transition-colors"
+                    >
+                      Mit vorhandenem Artikel verknüpfen
+                    </button>
+                    <button
+                      onClick={dismissUnknownBarcode}
+                      className="text-slate-400 hover:text-slate-200 text-xs text-center transition-colors"
+                    >
+                      Abbrechen
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2" style={{ minHeight: 180 }}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <button onClick={() => { setLinkMode(false); setLinkQuery(''); setLinkResults([]) }} className="text-slate-400 hover:text-white transition-colors p-0.5">
+                        <ArrowLeft size={15} />
+                      </button>
+                      <p className="text-white text-xs font-medium">Artikel suchen & verknüpfen</p>
+                    </div>
+                    <input
+                      type="text"
+                      value={linkQuery}
+                      onChange={e => setLinkQuery(e.target.value)}
+                      placeholder="Name oder Artikelnummer…"
+                      autoFocus
+                      className="w-full border border-slate-600 bg-slate-800 text-white placeholder-slate-500 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    />
+                    {linkResults.length > 0 && (
+                      <div className="border border-slate-700 rounded-xl overflow-hidden divide-y divide-slate-700 max-h-40 overflow-y-auto">
+                        {linkResults.map(p => (
+                          <button
+                            key={p.id}
+                            onClick={() => linkBarcodeToProduct(p)}
+                            disabled={linking}
+                            className="w-full text-left px-3 py-2.5 hover:bg-slate-700 transition-colors disabled:opacity-50"
+                          >
+                            <p className="text-sm font-medium text-white leading-tight mb-0.5">{p.name}</p>
+                            <div className="flex flex-wrap gap-x-2 gap-y-0.5">
+                              {p.category && <span className="text-xs text-slate-400">{p.category}</span>}
+                              {p.brand && <span className="text-xs text-slate-400">{p.brand}</span>}
+                              {p.preferred_supplier && <span className="text-xs text-slate-400">{p.preferred_supplier}</span>}
+                              {p.last_price != null && <span className="text-xs text-slate-400">€ {p.last_price.toFixed(2).replace('.', ',')}</span>}
+                              {p.article_number && <span className="text-xs text-slate-400">{p.article_number}</span>}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {linking && <p className="text-xs text-slate-400 text-center py-2">Wird verknüpft…</p>}
+                    {linkQuery.trim() && !linking && linkResults.length === 0 && (
+                      <p className="text-xs text-slate-400 text-center py-2">Keine Artikel gefunden</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* Normal camera view */
+              <div className="relative bg-slate-900" style={{ minHeight: 220 }}>
+                <div id={SCAN_DIV} className="w-full" style={{ minHeight: 220 }} />
+                {(flashName || scanError) && (
+                  <div className={`absolute inset-0 flex flex-col items-center justify-center z-10 ${flashName ? 'bg-emerald-500/90' : 'bg-red-500/80'}`}>
+                    {flashName ? (
+                      <>
+                        <Check size={28} className="text-white mb-1.5" />
+                        <p className="text-white text-sm font-semibold text-center px-4 leading-snug">{flashName}</p>
+                      </>
+                    ) : (
+                      <p className="text-white text-sm font-medium text-center px-4">{scanError}</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Status bar */}
-            <div className="px-3 py-2 bg-slate-100 dark:bg-slate-900">
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                {taking ? 'Wird eingebucht…' : 'Barcode vor die Kamera halten'}
-              </p>
-            </div>
+            {!unknownBarcode && (
+              <div className="px-3 py-2 bg-slate-100 dark:bg-slate-900">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {taking ? 'Wird eingebucht…' : 'Barcode vor die Kamera halten'}
+                </p>
+              </div>
+            )}
           </>
         ) : (
           /* Search mode */
@@ -305,7 +424,7 @@ export default function EntnehmenScanModal({ onClose, onSuccess }: Props) {
                   onChange={e => setQuery(e.target.value)}
                   placeholder="Artikel suchen…"
                   autoFocus
-                  className="w-full border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 placeholder-slate-400 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  className="w-full border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder-slate-400 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
                 />
                 {results.length > 0 && (
                   <div className="mt-2 border border-slate-100 dark:border-slate-700 rounded-xl overflow-hidden divide-y divide-slate-100 dark:divide-slate-700">
@@ -315,8 +434,14 @@ export default function EntnehmenScanModal({ onClose, onSuccess }: Props) {
                         onClick={() => { setSearchSelected(p); setSearchQty(1) }}
                         className="w-full text-left px-3 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
                       >
-                        <p className="text-sm font-medium text-slate-800 dark:text-slate-100">{p.name}</p>
-                        <p className="text-xs text-slate-400">Bestand: {p.current_stock} {p.unit}</p>
+                        <p className="text-sm font-medium text-slate-800 dark:text-slate-100 mb-0.5">{p.name}</p>
+                        <div className="flex flex-wrap gap-x-2 gap-y-0.5">
+                          <span className="text-xs text-slate-400">Bestand: {p.current_stock} {p.unit}</span>
+                          {p.category && <span className="text-xs text-slate-400">{p.category}</span>}
+                          {p.brand && <span className="text-xs text-slate-400">{p.brand}</span>}
+                          {p.preferred_supplier && <span className="text-xs text-slate-400">{p.preferred_supplier}</span>}
+                          {p.last_price != null && <span className="text-xs text-slate-400">€ {p.last_price.toFixed(2).replace('.', ',')}</span>}
+                        </div>
                       </button>
                     ))}
                   </div>

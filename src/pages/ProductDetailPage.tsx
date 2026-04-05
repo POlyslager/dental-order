@@ -201,6 +201,12 @@ const [supplierHistory, setSupplierHistory] = useState<SupplierHistoryEntry[]>([
       if (form.preferred_supplier) {
         await supabase.from('suppliers').upsert({ name: form.preferred_supplier }, { onConflict: 'name' })
       }
+      if (form.brand) {
+        await supabase.from('brands').upsert({ name: form.brand }, { onConflict: 'name' })
+      }
+      if (form.category) {
+        await supabase.from('categories').upsert({ name: form.category }, { onConflict: 'name' })
+      }
       onUpdated(data as Product)
       setEditing(false)
       setToast('Änderungen gespeichert')

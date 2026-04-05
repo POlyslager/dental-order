@@ -316,7 +316,11 @@ export default function Dashboard({ user }: Props) {
         )}
         {scanMode === 'entnehmen' && (
           <Suspense fallback={null}>
-            <EntnehmenScanModal onClose={() => setScanMode(null)} onSuccess={(name) => { setScanMode(null); showDashToast(`${name} wurde entnommen`) }} />
+            <EntnehmenScanModal
+              onClose={() => setScanMode(null)}
+              onSuccess={(name) => { setScanMode(null); showDashToast(`${name} wurde entnommen`) }}
+              onAddWithBarcode={(barcode) => { setScanMode(null); setPendingBarcode(barcode); setPhoneTab('stock') }}
+            />
           </Suspense>
         )}
         {dashToast && (
@@ -729,6 +733,11 @@ export default function Dashboard({ user }: Props) {
             onSuccess={(name) => {
               setScanMode(null)
               showDashToast(`${name} wurde entnommen`)
+            }}
+            onAddWithBarcode={(barcode) => {
+              setScanMode(null)
+              setPendingBarcode(barcode)
+              setTab('stock')
             }}
           />
         </Suspense>

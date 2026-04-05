@@ -215,6 +215,12 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
   const [sweepLoading, setSweepLoading] = useState(false)
   const [sweepResults, setSweepResults] = useState<{ product: Product; cheaper: PriceAlternative[] }[]>([])
 
+  const [pendingBarcodeScan, setPendingBarcodeScan] = useState<{ barcode: string; lot?: string; expiryDate?: string } | null>(null)
+  const [linkTarget, setLinkTarget] = useState<Product | null>(null)
+  const [linkSearchQuery, setLinkSearchQuery] = useState('')
+  const [linkSearchResults, setLinkSearchResults] = useState<Product[]>([])
+  const [linkSearchActive, setLinkSearchActive] = useState(false)
+
   async function startBarcodeScanner() {
     // flushSync ensures the div is visible in the DOM before Html5Qrcode attaches
     flushSync(() => setScanning(true))
@@ -259,9 +265,16 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
       return
     }
 
-    setForm(f => ({ ...f, barcode, lot_number: lot?.[1] ?? f.lot_number, expiry_date: expiryDate ?? f.expiry_date }))
+    // Show choice modal: new product or link to existing
+    setPendingBarcodeScan({ barcode, lot: lot?.[1], expiryDate })
+  }
 
-    // Best-effort product lookup via GTIN (proxied to avoid CORS)
+  async function proceedAsNewProduct() {
+    if (!pendingBarcodeScan) return
+    const { barcode, lot, expiryDate } = pendingBarcodeScan
+    setPendingBarcodeScan(null)
+    setLinkTarget(null)
+    setForm(f => ({ ...f, barcode, lot_number: lot ?? f.lot_number, expiry_date: expiryDate ?? f.expiry_date }))
     if (barcode.length >= 8) {
       try {
         const res = await fetch('/api/lookup-product', {
@@ -278,8 +291,36 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
             preferred_supplier: f.preferred_supplier || data.brand || '',
           }))
         }
-      } catch { /* silently ignore — lookup is best-effort */ }
+      } catch { /* silently ignore */ }
     }
+  }
+
+  function proceedAsLinkTarget(product: Product) {
+    if (!pendingBarcodeScan) return
+    const { barcode, lot, expiryDate } = pendingBarcodeScan
+    setForm({
+      article_number:     product.article_number ?? '',
+      name:               product.name,
+      description:        product.description ?? '',
+      category:           product.category,
+      barcode,
+      current_stock:      String(product.current_stock),
+      min_stock:          String(product.min_stock),
+      unit:               product.unit,
+      preferred_supplier: product.preferred_supplier ?? '',
+      supplier_url:       product.supplier_url ?? '',
+      brand:              product.brand ?? '',
+      last_price:         product.last_price != null ? String(product.last_price).replace('.', ',') : '',
+      storage_location:   product.storage_location ?? '',
+      notes:              product.notes ?? '',
+      lot_number:         lot ?? product.lot_number ?? '',
+      expiry_date:        expiryDate ?? product.expiry_date ?? '',
+    })
+    setLinkTarget(product)
+    setPendingBarcodeScan(null)
+    setLinkSearchQuery('')
+    setLinkSearchResults([])
+    setLinkSearchActive(false)
   }
 
   function stopBarcodeScanner() {
@@ -405,8 +446,15 @@ useEffect(() => {
   }
 
   async function fetchCategories() {
-    const { data } = await supabase.from('products').select('category').not('category', 'is', null)
-    if (data) setAllCategories([...new Set(data.map(r => r.category as string))].filter(Boolean).sort())
+    const [{ data: prodData }, { data: catData }] = await Promise.all([
+      supabase.from('products').select('category').not('category', 'is', null),
+      supabase.from('categories').select('name'),
+    ])
+    const names = [
+      ...(prodData ?? []).map(r => r.category as string),
+      ...(catData ?? []).map(r => r.name as string),
+    ]
+    setAllCategories([...new Set(names)].filter(Boolean).sort())
   }
 
   async function runSweep() {
@@ -451,10 +499,20 @@ useEffect(() => {
     await supabase.from('suppliers').upsert({ name }, { onConflict: 'name' })
   }
 
+  async function upsertBrand(name: string) {
+    if (!name) return
+    await supabase.from('brands').upsert({ name }, { onConflict: 'name' })
+  }
+
+  async function upsertCategory(name: string) {
+    if (!name) return
+    await supabase.from('categories').upsert({ name }, { onConflict: 'name' })
+  }
+
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
-    await supabase.from('products').insert({
+    const payload = {
       ...form,
       current_stock: parseFloat(form.current_stock) || 0,
       min_stock: parseFloat(form.min_stock) || 0,
@@ -467,20 +525,30 @@ useEffect(() => {
       storage_location: form.storage_location || null,
       description: form.description || null,
       notes: form.notes || null,
-    })
-    const addedName = form.name
-    if (form.preferred_supplier) {
-      await upsertSupplier(form.preferred_supplier)
-      fetchSuppliers()
+      lot_number: form.lot_number || null,
+      expiry_date: form.expiry_date || null,
     }
-    if (form.brand) fetchBrands()
+    const { error } = linkTarget
+      ? await supabase.from('products').update(payload).eq('id', linkTarget.id)
+      : await supabase.from('products').insert(payload)
+    setSaving(false)
+    if (error) {
+      setCartToastAction(null)
+      setCartToastUndo(null)
+      setCartToast(`Fehler: ${error.message}`)
+      return
+    }
+    const savedName = form.name
+    if (form.preferred_supplier) { await upsertSupplier(form.preferred_supplier); fetchSuppliers() }
+    if (form.brand) { await upsertBrand(form.brand); fetchBrands() }
+    if (form.category) { await upsertCategory(form.category); fetchCategories() }
     setForm(EMPTY_FORM)
     setShowForm(false)
-    setSaving(false)
+    setLinkTarget(null)
     fetchProducts()
     setCartToastAction(null)
     setCartToastUndo(null)
-    setCartToast(`${addedName} wurde zum Inventar hinzugefügt`)
+    setCartToast(linkTarget ? `${savedName} aktualisiert` : `${savedName} wurde zum Inventar hinzugefügt`)
   }
 
   const productCategories = useMemo(() => {
@@ -573,9 +641,26 @@ useEffect(() => {
 
   function closeForm() {
     stopBarcodeScanner()
+    setPendingBarcodeScan(null)
+    setLinkTarget(null)
+    setLinkSearchQuery('')
+    setLinkSearchResults([])
+    setLinkSearchActive(false)
     setClosingForm(true)
     setTimeout(() => { setShowForm(false); setClosingForm(false); setForm(EMPTY_FORM) }, 260)
   }
+
+  useEffect(() => {
+    if (!pendingBarcodeScan || !linkSearchActive || !linkSearchQuery.trim()) { setLinkSearchResults([]); return }
+    const t = setTimeout(async () => {
+      const { data } = await supabase
+        .from('products').select('*')
+        .or(`name.ilike.%${linkSearchQuery}%,article_number.ilike.%${linkSearchQuery}%`)
+        .order('name').limit(10)
+      setLinkSearchResults((data as Product[]) ?? [])
+    }, 300)
+    return () => clearTimeout(t)
+  }, [linkSearchQuery, linkSearchActive, pendingBarcodeScan])
 
 
   const listScrollRef = useRef<HTMLDivElement>(null)
@@ -958,6 +1043,86 @@ useEffect(() => {
         </div>
       )}
 
+      {/* Barcode scan choice modal */}
+      {pendingBarcodeScan && (
+        <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-sm animate-slide-in-up">
+            <div className="px-5 pt-5 pb-4">
+              <div className="flex items-start justify-between mb-1">
+                <h3 className="font-semibold text-slate-800 dark:text-slate-100 text-base">Barcode gescannt</h3>
+                <button onClick={() => setPendingBarcodeScan(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-1 -mt-1 -mr-1 transition-colors">
+                  <X size={18} />
+                </button>
+              </div>
+              <p className="text-xs text-slate-400 font-mono mb-4">{pendingBarcodeScan.barcode}</p>
+              {!linkSearchActive ? (
+                <div className="flex flex-col gap-2">
+                  <button
+                    onClick={proceedAsNewProduct}
+                    className="w-full bg-sky-500 hover:bg-sky-600 text-white rounded-xl py-3 text-sm font-medium transition-colors"
+                  >
+                    Neuer Artikel anlegen
+                  </button>
+                  <button
+                    onClick={() => setLinkSearchActive(true)}
+                    className="w-full border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl py-3 text-sm font-medium transition-colors"
+                  >
+                    Mit vorhandenem Artikel verknüpfen
+                  </button>
+                  <button
+                    onClick={() => setPendingBarcodeScan(null)}
+                    className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 text-center py-1 transition-colors"
+                  >
+                    Abbrechen
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <input
+                    type="text"
+                    value={linkSearchQuery}
+                    onChange={e => setLinkSearchQuery(e.target.value)}
+                    placeholder="Artikel suchen…"
+                    autoFocus
+                    className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder-slate-400 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  />
+                  {linkSearchResults.length > 0 && (
+                    <div className="border border-slate-100 dark:border-slate-700 rounded-xl overflow-hidden divide-y divide-slate-100 dark:divide-slate-700 max-h-64 overflow-y-auto">
+                      {linkSearchResults.map(p => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => proceedAsLinkTarget(p)}
+                          className="w-full text-left px-3 py-3 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                        >
+                          <p className="text-sm font-medium text-slate-800 dark:text-slate-100 mb-1">{p.name}</p>
+                          <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+                            {p.category && <span className="text-xs text-slate-400">{p.category}</span>}
+                            {p.brand && <span className="text-xs text-slate-400">Hersteller: <span className="text-slate-500 dark:text-slate-300">{p.brand}</span></span>}
+                            {p.preferred_supplier && <span className="text-xs text-slate-400">Lieferant: <span className="text-slate-500 dark:text-slate-300">{p.preferred_supplier}</span></span>}
+                            {p.last_price != null && <span className="text-xs text-slate-400">€ <span className="text-slate-500 dark:text-slate-300">{p.last_price.toFixed(2).replace('.', ',')}</span></span>}
+                            {p.article_number && <span className="text-xs text-slate-400">Art.-Nr.: <span className="text-slate-500 dark:text-slate-300">{p.article_number}</span></span>}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {linkSearchQuery.trim() && linkSearchResults.length === 0 && (
+                    <p className="text-sm text-slate-400 text-center py-2">Keine Artikel gefunden</p>
+                  )}
+                  <button
+                    onClick={() => { setLinkSearchActive(false); setLinkSearchQuery(''); setLinkSearchResults([]) }}
+                    className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 text-center w-full py-1 transition-colors"
+                  >
+                    ← Zurück
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* New article form — slide-in panel */}
       {(showForm || closingForm) && !selectedProduct && (
         <>
@@ -965,7 +1130,7 @@ useEffect(() => {
           <div className={`fixed bg-white dark:bg-slate-900 z-50 overflow-y-auto ${isDesktop ? 'inset-auto top-4 bottom-4 right-4 w-[460px] rounded-2xl shadow-2xl' : 'inset-0'} ${closingForm ? 'animate-slide-out-right' : 'animate-slide-in-right'}`}>
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-4 border-b border-slate-100 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-900 z-10">
-              <h2 className="font-semibold text-slate-800 dark:text-slate-100">Neuer Artikel</h2>
+              <h2 className="font-semibold text-slate-800 dark:text-slate-100">{linkTarget ? 'Artikel verknüpfen & aktualisieren' : 'Neuer Artikel'}</h2>
               <button onClick={closeForm} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
                 <X size={20} />
               </button>
@@ -976,6 +1141,12 @@ useEffect(() => {
 
             {/* Form */}
             <form onSubmit={handleCreate} className="p-4 pb-10 space-y-4">
+              {linkTarget && (
+                <div className="flex items-center gap-2 bg-sky-50 dark:bg-sky-900/30 border border-sky-200 dark:border-sky-800 rounded-xl px-3 py-2.5">
+                  <p className="text-xs text-sky-700 dark:text-sky-300 flex-1">Verknüpft mit <span className="font-semibold">{linkTarget.name}</span> — Änderungen überschreiben den vorhandenen Artikel.</p>
+                  <button type="button" onClick={() => { setLinkTarget(null); setForm(f => ({ ...f, name: '', category: '', barcode: f.barcode })) }} className="text-sky-400 hover:text-sky-600 shrink-0"><X size={14} /></button>
+                </div>
+              )}
               <button type="button" onClick={startBarcodeScanner} disabled={scanning}
                 className="w-full flex items-center justify-center gap-2 bg-sky-500 hover:bg-sky-600 disabled:opacity-40 text-white font-medium rounded-xl py-3 text-sm transition-colors">
                 <Camera size={18} />
@@ -1073,7 +1244,7 @@ useEffect(() => {
                 </button>
                 <button type="submit" disabled={saving}
                   className="flex-1 bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white font-medium rounded-xl py-3 text-sm">
-                  {saving ? 'Speichern…' : 'Hinzufügen'}
+                  {saving ? 'Speichern…' : linkTarget ? 'Aktualisieren' : 'Hinzufügen'}
                 </button>
               </div>
             </form>
