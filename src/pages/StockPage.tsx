@@ -6,7 +6,7 @@ import type { Product, Role, PriceAlternative } from '../lib/types'
 import ProductDetailPage from './ProductDetailPage'
 import CategorySelect from '../components/CategorySelect'
 import BarcodeScanModal from '../components/BarcodeScanModal'
-import { Search, Plus, X, Camera, Activity, ChevronUp, ChevronDown, Package, PackageCheck, PackageX, TriangleAlert, Check, ShoppingCart, TrendingDown, AlertTriangle } from 'lucide-react'
+import { Search, Plus, X, Camera, Activity, ChevronUp, ChevronDown, Package, PackageCheck, PackageX, TriangleAlert, Check, ShoppingCart, TrendingDown } from 'lucide-react'
 import { useIsDesktop } from '../hooks/useIsDesktop'
 
 const SCAN_FORMATS = [
@@ -205,6 +205,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
   const [cartToast, setCartToast] = useState<string | null>(null)
   const [cartToastAction, setCartToastAction] = useState<(() => void) | null>(null)
   const [cartToastUndo, setCartToastUndo] = useState<(() => void) | null>(null)
+  const [cartToastUndoLabel, setCartToastUndoLabel] = useState<string | undefined>(undefined)
   const [suppliers, setSuppliers] = useState<string[]>([])
   const [brandOptions, setBrandOptions] = useState<string[]>([])
   const [allCategories, setAllCategories] = useState<string[]>([])
@@ -215,11 +216,7 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
   const [sweepLoading, setSweepLoading] = useState(false)
   const [sweepResults, setSweepResults] = useState<{ product: Product; cheaper: PriceAlternative[] }[]>([])
 
-  const [pendingBarcodeScan, setPendingBarcodeScan] = useState<{ barcode: string; lot?: string; expiryDate?: string } | null>(null)
   const [linkTarget, setLinkTarget] = useState<Product | null>(null)
-  const [linkSearchQuery, setLinkSearchQuery] = useState('')
-  const [linkSearchResults, setLinkSearchResults] = useState<Product[]>([])
-  const [linkSearchActive, setLinkSearchActive] = useState(false)
 
   async function startBarcodeScanner() {
     // flushSync ensures the div is visible in the DOM before Html5Qrcode attaches
@@ -258,23 +255,15 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
     const expiry = clean.match(/17(\d{6})/)
     const expiryDate = expiry ? `20${expiry[1].slice(0,2)}-${expiry[1].slice(2,4)}-${expiry[1].slice(4,6)}` : undefined
 
-    // Check if product with this barcode already exists (use already-loaded list)
+    // Check if product with this barcode already exists
     const existing = products.find(p => p.barcode === barcode)
     if (existing) {
       setDuplicateProduct(existing)
       return
     }
 
-    // Show choice modal: new product or link to existing
-    setPendingBarcodeScan({ barcode, lot: lot?.[1], expiryDate })
-  }
-
-  async function proceedAsNewProduct() {
-    if (!pendingBarcodeScan) return
-    const { barcode, lot, expiryDate } = pendingBarcodeScan
-    setPendingBarcodeScan(null)
-    setLinkTarget(null)
-    setForm(f => ({ ...f, barcode, lot_number: lot ?? f.lot_number, expiry_date: expiryDate ?? f.expiry_date }))
+    // Fill barcode into form and do UPC lookup
+    setForm(f => ({ ...f, barcode, lot_number: lot?.[1] ?? f.lot_number, expiry_date: expiryDate ?? f.expiry_date }))
     if (barcode.length >= 8) {
       try {
         const res = await fetch('/api/lookup-product', {
@@ -296,14 +285,12 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
   }
 
   function proceedAsLinkTarget(product: Product) {
-    if (!pendingBarcodeScan) return
-    const { barcode, lot, expiryDate } = pendingBarcodeScan
-    setForm({
+    setForm(f => ({
       article_number:     product.article_number ?? '',
       name:               product.name,
       description:        product.description ?? '',
       category:           product.category,
-      barcode,
+      barcode:            f.barcode,
       current_stock:      String(product.current_stock),
       min_stock:          String(product.min_stock),
       unit:               product.unit,
@@ -313,14 +300,14 @@ export default function StockPage({ role: _role, initialBarcode, onBarcodeConsum
       last_price:         product.last_price != null ? String(product.last_price).replace('.', ',') : '',
       storage_location:   product.storage_location ?? '',
       notes:              product.notes ?? '',
-      lot_number:         lot ?? product.lot_number ?? '',
-      expiry_date:        expiryDate ?? product.expiry_date ?? '',
-    })
+      lot_number:         f.lot_number,
+      expiry_date:        f.expiry_date,
+    }))
     setLinkTarget(product)
-    setPendingBarcodeScan(null)
-    setLinkSearchQuery('')
-    setLinkSearchResults([])
-    setLinkSearchActive(false)
+    setCartToastAction(null)
+    setCartToastUndoLabel('Verknüpfung aufheben')
+    setCartToastUndo(() => () => { setLinkTarget(null); setForm(f => ({ ...f, name: '', category: '' })) })
+    setCartToast(`Verknüpft mit ${product.name} — Änderungen überschreiben den vorhandenen Artikel.`)
   }
 
   function stopBarcodeScanner() {
@@ -641,26 +628,11 @@ useEffect(() => {
 
   function closeForm() {
     stopBarcodeScanner()
-    setPendingBarcodeScan(null)
     setLinkTarget(null)
-    setLinkSearchQuery('')
-    setLinkSearchResults([])
-    setLinkSearchActive(false)
     setClosingForm(true)
     setTimeout(() => { setShowForm(false); setClosingForm(false); setForm(EMPTY_FORM) }, 260)
   }
 
-  useEffect(() => {
-    if (!pendingBarcodeScan || !linkSearchActive || !linkSearchQuery.trim()) { setLinkSearchResults([]); return }
-    const t = setTimeout(async () => {
-      const { data } = await supabase
-        .from('products').select('*')
-        .or(`name.ilike.%${linkSearchQuery}%,article_number.ilike.%${linkSearchQuery}%`)
-        .order('name').limit(10)
-      setLinkSearchResults((data as Product[]) ?? [])
-    }, 300)
-    return () => clearTimeout(t)
-  }, [linkSearchQuery, linkSearchActive, pendingBarcodeScan])
 
 
   const listScrollRef = useRef<HTMLDivElement>(null)
@@ -1015,7 +987,7 @@ useEffect(() => {
       )}
 
       {/* Cart toast */}
-      {cartToast && <CartToast message={cartToast} onClose={() => { setCartToast(null); setCartToastUndo(null) }} onNavigate={cartToastAction ?? undefined} onUndo={cartToastUndo ?? undefined} />}
+      {cartToast && <CartToast message={cartToast} onClose={() => { setCartToast(null); setCartToastUndo(null); setCartToastUndoLabel(undefined) }} onNavigate={cartToastAction ?? undefined} onUndo={cartToastUndo ?? undefined} undoLabel={cartToastUndoLabel} />}
 
       {/* Duplicate barcode modal */}
       {duplicateProduct && (
@@ -1043,86 +1015,6 @@ useEffect(() => {
         </div>
       )}
 
-      {/* Barcode scan choice modal */}
-      {pendingBarcodeScan && (
-        <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-sm animate-slide-in-up">
-            <div className="px-5 pt-5 pb-4">
-              <div className="flex items-start justify-between mb-1">
-                <h3 className="font-semibold text-slate-800 dark:text-slate-100 text-base">Barcode gescannt</h3>
-                <button onClick={() => setPendingBarcodeScan(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-1 -mt-1 -mr-1 transition-colors">
-                  <X size={18} />
-                </button>
-              </div>
-              <p className="text-xs text-slate-400 font-mono mb-4">{pendingBarcodeScan.barcode}</p>
-              {!linkSearchActive ? (
-                <div className="flex flex-col gap-2">
-                  <button
-                    onClick={proceedAsNewProduct}
-                    className="w-full bg-sky-500 hover:bg-sky-600 text-white rounded-xl py-3 text-sm font-medium transition-colors"
-                  >
-                    Neuer Artikel anlegen
-                  </button>
-                  <button
-                    onClick={() => setLinkSearchActive(true)}
-                    className="w-full border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl py-3 text-sm font-medium transition-colors"
-                  >
-                    Mit vorhandenem Artikel verknüpfen
-                  </button>
-                  <button
-                    onClick={() => setPendingBarcodeScan(null)}
-                    className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 text-center py-1 transition-colors"
-                  >
-                    Abbrechen
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <input
-                    type="text"
-                    value={linkSearchQuery}
-                    onChange={e => setLinkSearchQuery(e.target.value)}
-                    placeholder="Artikel suchen…"
-                    autoFocus
-                    className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder-slate-400 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
-                  />
-                  {linkSearchResults.length > 0 && (
-                    <div className="border border-slate-100 dark:border-slate-700 rounded-xl overflow-hidden divide-y divide-slate-100 dark:divide-slate-700 max-h-64 overflow-y-auto">
-                      {linkSearchResults.map(p => (
-                        <button
-                          key={p.id}
-                          type="button"
-                          onClick={() => proceedAsLinkTarget(p)}
-                          className="w-full text-left px-3 py-3 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
-                        >
-                          <p className="text-sm font-medium text-slate-800 dark:text-slate-100 mb-1">{p.name}</p>
-                          <div className="flex flex-wrap gap-x-3 gap-y-0.5">
-                            {p.category && <span className="text-xs text-slate-400">{p.category}</span>}
-                            {p.brand && <span className="text-xs text-slate-400">Hersteller: <span className="text-slate-500 dark:text-slate-300">{p.brand}</span></span>}
-                            {p.preferred_supplier && <span className="text-xs text-slate-400">Lieferant: <span className="text-slate-500 dark:text-slate-300">{p.preferred_supplier}</span></span>}
-                            {p.last_price != null && <span className="text-xs text-slate-400">€ <span className="text-slate-500 dark:text-slate-300">{p.last_price.toFixed(2).replace('.', ',')}</span></span>}
-                            {p.article_number && <span className="text-xs text-slate-400">Art.-Nr.: <span className="text-slate-500 dark:text-slate-300">{p.article_number}</span></span>}
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {linkSearchQuery.trim() && linkSearchResults.length === 0 && (
-                    <p className="text-sm text-slate-400 text-center py-2">Keine Artikel gefunden</p>
-                  )}
-                  <button
-                    onClick={() => { setLinkSearchActive(false); setLinkSearchQuery(''); setLinkSearchResults([]) }}
-                    className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 text-center w-full py-1 transition-colors"
-                  >
-                    ← Zurück
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* New article form — slide-in panel */}
       {(showForm || closingForm) && !selectedProduct && (
         <>
@@ -1141,35 +1033,39 @@ useEffect(() => {
 
             {/* Form */}
             <form onSubmit={handleCreate} className="p-4 pb-10 space-y-4">
-              {linkTarget && (
-                <div className="flex items-center gap-2 bg-sky-50 dark:bg-sky-900/30 border border-sky-200 dark:border-sky-800 rounded-xl px-3 py-2.5">
-                  <p className="text-xs text-sky-700 dark:text-sky-300 flex-1">Verknüpft mit <span className="font-semibold">{linkTarget.name}</span> — Änderungen überschreiben den vorhandenen Artikel.</p>
-                  <button type="button" onClick={() => { setLinkTarget(null); setForm(f => ({ ...f, name: '', category: '', barcode: f.barcode })) }} className="text-sky-400 hover:text-sky-600 shrink-0"><X size={14} /></button>
-                </div>
-              )}
               <button type="button" onClick={startBarcodeScanner} disabled={scanning}
                 className="w-full flex items-center justify-center gap-2 bg-sky-500 hover:bg-sky-600 disabled:opacity-40 text-white font-medium rounded-xl py-3 text-sm transition-colors">
                 <Camera size={18} />
                 {form.barcode ? 'Barcode gescannt ✓' : 'Barcode scannen'}
               </button>
               <Field label="Name *" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} required />
-              {similarProducts.length > 0 && (
-                <div className="rounded-xl px-3 py-2.5 space-y-1.5" style={{ backgroundColor: '#ffedd4' }}>
-                  <div className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: '#ff6a00' }}>
-                    <AlertTriangle size={13} />
-                    Ähnliche Artikel vorhanden
-                  </div>
+              {!linkTarget && similarProducts.length > 0 && (
+                <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden divide-y divide-slate-100 dark:divide-slate-700">
+                  <p className="px-3 py-2 text-xs font-medium text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/60">Bereits im Inventar — diesen Artikel verknüpfen?</p>
                   {similarProducts.map(p => (
-                    <button key={p.id} type="button" onClick={() => { setShowForm(false); setSelectedProduct(p) }}
-                      className="w-full text-left text-xs hover:underline truncate" style={{ color: '#ff6a00' }}>
-                      → {p.name}
-                    </button>
+                    <div key={p.id} className="flex items-center gap-3 px-3 py-2.5 bg-white dark:bg-slate-900">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-slate-800 dark:text-slate-100 truncate">{p.name}</p>
+                        <div className="flex flex-wrap gap-x-2 gap-y-0.5 mt-0.5">
+                          {p.category && <span className="text-xs text-slate-400">{p.category}</span>}
+                          {p.brand && <span className="text-xs text-slate-400">{p.brand}</span>}
+                          {p.article_number && <span className="text-xs text-slate-400">{p.article_number}</span>}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => proceedAsLinkTarget(p)}
+                        className="shrink-0 text-xs font-medium text-sky-600 dark:text-sky-400 hover:text-sky-700 bg-sky-50 dark:bg-sky-900/30 hover:bg-sky-100 dark:hover:bg-sky-900/50 px-3 py-1.5 rounded-lg transition-colors"
+                      >
+                        Verknüpfen
+                      </button>
+                    </div>
                   ))}
                 </div>
               )}
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Kategorie *</label>
-                <CategorySelect value={form.category} onChange={v => setForm(f => ({ ...f, category: v }))} categories={productCategories} required />
+                <CategorySelect value={form.category} onChange={v => setForm(f => ({ ...f, category: v }))} categories={productCategories} required allowNew={false} />
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <Field label="Bestand" inputMode="numeric" value={form.current_stock} onChange={v => setForm(f => ({ ...f, current_stock: v }))} />
@@ -1423,7 +1319,7 @@ function SupplierMultiSelect({ selected, onChange, options }: {
 }
 
 // ── Cart toast ───────────────────────────────────────────────────────────────
-function CartToast({ message, onClose, onNavigate, onUndo }: { message: string; onClose: () => void; onNavigate?: () => void; onUndo?: () => void }) {
+function CartToast({ message, onClose, onNavigate, onUndo, undoLabel }: { message: string; onClose: () => void; onNavigate?: () => void; onUndo?: () => void; undoLabel?: string }) {
   useEffect(() => {
     const t = setTimeout(onClose, 5000)
     return () => clearTimeout(t)
@@ -1439,7 +1335,7 @@ function CartToast({ message, onClose, onNavigate, onUndo }: { message: string; 
         {onUndo && (
           <button onClick={() => { onUndo(); onClose() }}
             className="text-sky-400 hover:text-sky-300 text-xs font-medium whitespace-nowrap transition-colors shrink-0">
-            Rückgängig
+            {undoLabel ?? 'Rückgängig'}
           </button>
         )}
         {onNavigate && (

@@ -9,9 +9,10 @@ interface Props {
   placeholder?: string
   newLabel?: string
   emptyLabel?: string
+  allowNew?: boolean
 }
 
-export default function CategorySelect({ value, onChange, categories, required, placeholder = 'Kategorie suchen…', newLabel = 'als neue Kategorie', emptyLabel = 'Keine Einträge vorhanden' }: Props) {
+export default function CategorySelect({ value, onChange, categories, required, placeholder = 'Kategorie suchen…', newLabel = 'als neue Kategorie', emptyLabel = 'Keine Einträge vorhanden', allowNew = true }: Props) {
   const [search, setSearch] = useState(value)
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -77,7 +78,7 @@ export default function CategorySelect({ value, onChange, categories, required, 
               {cat}
             </button>
           ))}
-          {!exactMatch && search.trim() && (
+          {allowNew && !exactMatch && search.trim() && (
             <button
               type="button"
               onClick={() => select(search.trim())}
