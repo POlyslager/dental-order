@@ -1,0 +1,22 @@
+name: Supabase Keepalive
+
+on:
+  schedule:
+    - cron: '0 8 * * *' # daily at 08:00 UTC
+  workflow_dispatch: # allow manual trigger
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase
+        run: |
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+            "${{ secrets.SUPABASE_URL }}/rest/v1/products?select=id&limit=1" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}")
+          echo "DentalOrder keepalive ping: HTTP ${HTTP_CODE}"
+          if [ "$HTTP_CODE" -ne 200 ]; then
+            echo "::error::Keepalive ping failed with HTTP ${HTTP_CODE}"
+            exit 1
+          fi
