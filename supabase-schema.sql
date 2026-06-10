@@ -172,3 +172,109 @@ insert into settings (key, value) values
   ('admin_email',       ''),
   ('admin_password',    '')
 on conflict do nothing;
+
+-- ── Suppliers table ──────────────────────────────────────────────────────────
+create table if not exists suppliers (
+  name text primary key,
+  website text,
+  created_at timestamptz not null default now()
+);
+
+alter table suppliers enable row level security;
+create policy "suppliers_select" on suppliers for select to authenticated using (true);
+create policy "suppliers_insert" on suppliers for insert to authenticated with check (true);
+create policy "suppliers_update" on suppliers for update to authenticated using (true);
+create policy "suppliers_delete" on suppliers for delete to authenticated using (true);
+
+-- ── Brands table ─────────────────────────────────────────────────────────────
+create table if not exists brands (
+  name text primary key,
+  created_at timestamptz not null default now()
+);
+
+alter table brands enable row level security;
+create policy "brands_select" on brands for select to authenticated using (true);
+create policy "brands_insert" on brands for insert to authenticated with check (true);
+create policy "brands_update" on brands for update to authenticated using (true);
+create policy "brands_delete" on brands for delete to authenticated using (true);
+
+-- ── Categories table ─────────────────────────────────────────────────────────
+create table if not exists categories (
+  name text primary key,
+  created_at timestamptz not null default now()
+);
+
+alter table categories enable row level security;
+create policy "categories_select" on categories for select to authenticated using (true);
+create policy "categories_insert" on categories for insert to authenticated with check (true);
+create policy "categories_update" on categories for update to authenticated using (true);
+create policy "categories_delete" on categories for delete to authenticated using (true);
+
+-- ── Cart items table ─────────────────────────────────────────────────────────
+create table if not exists cart_items (
+  id uuid primary key default uuid_generate_v4(),
+  product_id uuid not null references products on delete cascade,
+  quantity numeric not null default 1,
+  added_by uuid not null references auth.users,
+  created_at timestamptz not null default now()
+);
+
+alter table cart_items enable row level security;
+create policy "cart_items_select" on cart_items for select to authenticated using (true);
+create policy "cart_items_insert" on cart_items for insert to authenticated with check (true);
+create policy "cart_items_update" on cart_items for update to authenticated using (true);
+create policy "cart_items_delete" on cart_items for delete to authenticated using (true);
+
+-- ── Price comparison shops table ─────────────────────────────────────────────
+create table if not exists price_comparison_shops (
+  id uuid primary key default uuid_generate_v4(),
+  name text not null,
+  domain text not null unique,
+  created_at timestamptz not null default now()
+);
+
+alter table price_comparison_shops enable row level security;
+create policy "price_shops_select" on price_comparison_shops for select to authenticated using (true);
+create policy "price_shops_insert" on price_comparison_shops for insert to authenticated with check (true);
+create policy "price_shops_update" on price_comparison_shops for update to authenticated using (true);
+create policy "price_shops_delete" on price_comparison_shops for delete to authenticated using (true);
+
+-- ── Product supplier history table ───────────────────────────────────────────
+create table if not exists product_supplier_history (
+  id uuid primary key default uuid_generate_v4(),
+  product_id uuid not null references products on delete cascade,
+  supplier_name text,
+  supplier_url text,
+  price numeric,
+  set_at timestamptz not null default now(),
+  set_by uuid references auth.users,
+  source text
+);
+
+alter table product_supplier_history enable row level security;
+create policy "supplier_history_select" on product_supplier_history for select to authenticated using (true);
+create policy "supplier_history_insert" on product_supplier_history for insert to authenticated with check (true);
+create policy "supplier_history_update" on product_supplier_history for update to authenticated using (true);
+create policy "supplier_history_delete" on product_supplier_history for delete to authenticated using (true);
+
+-- ── Data API grants ──────────────────────────────────────────────────────────
+-- Required for new tables in new Supabase projects from 2026-05-30, and all
+-- existing projects from 2026-10-30. Existing tables keep their grants, so
+-- this block is safe to re-run; it only matters when this schema is applied
+-- to a fresh project. RLS still controls row-level access; grants control
+-- whether the Data API exposes the table to a given role at all.
+
+grant select, insert, update, delete on
+  profiles,
+  products,
+  stock_movements,
+  orders,
+  order_items,
+  settings,
+  suppliers,
+  brands,
+  categories,
+  cart_items,
+  price_comparison_shops,
+  product_supplier_history
+to authenticated, service_role;
