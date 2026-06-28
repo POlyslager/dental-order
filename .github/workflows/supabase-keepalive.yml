@@ -2,7 +2,7 @@ name: Supabase Keepalive
 
 on:
   schedule:
-    - cron: '0 8 * * *' # daily at 08:00 UTC
+    - cron: '0 8,20 * * *' # twice daily at 08:00 and 20:00 UTC
   workflow_dispatch: # allow manual trigger
 
 jobs:
@@ -10,13 +10,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Ping Supabase
+        # Issue several real DB queries per run. A single daily ping proved
+        # insufficient: Supabase wants "a few user requests each day" to keep a
+        # Free-plan project active, and flagged DentalOrder for pausing despite
+        # 40+ days of one successful ping/day.
         run: |
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-            "${{ secrets.SUPABASE_URL }}/rest/v1/products?select=id&limit=1" \
-            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
-            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}")
-          echo "DentalOrder keepalive ping: HTTP ${HTTP_CODE}"
-          if [ "$HTTP_CODE" -ne 200 ]; then
-            echo "::error::Keepalive ping failed with HTTP ${HTTP_CODE}"
-            exit 1
-          fi
+          ENDPOINTS=(
+            "products?select=id&limit=1"
+            "products?select=id&limit=5"
+            "cart_items?select=id&limit=5"
+          )
+          for EP in "${ENDPOINTS[@]}"; do
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+              "${{ secrets.SUPABASE_URL }}/rest/v1/${EP}" \
+              -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+              -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}")
+            echo "DentalOrder keepalive ping (${EP}): HTTP ${HTTP_CODE}"
+            if [ "$HTTP_CODE" -ne 200 ]; then
+              echo "::error::Keepalive ping failed for ${EP} with HTTP ${HTTP_CODE}"
+              exit 1
+            fi
+          done
